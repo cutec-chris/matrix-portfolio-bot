@@ -1,0 +1,5 @@
+server:
+  url: "https://matrix.org"
+  user: portfolio
+  password: botpassword
+  prefix: pf
