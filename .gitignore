@@ -2,3 +2,4 @@ config.yml
 session.txt
 *.pyc
 test.py
+data.json
