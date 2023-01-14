@@ -9,31 +9,17 @@ Data = pathlib.Path('.') / 'data'
 if not Data.exists():
     Data.mkdir(parents=True)
 @bot.listener.on_message_event
-async def UpdatePaper(paper):
-    if not (Data / ('%s.csv' % paper['isin'])).exists():
-        ticker = yahoo.get_symbol_for_isin(paper['isin'])
-        paper['ticker'] = ticker
-        await save_servers()
-    yahoo.UpdatePaper(paper['ticker'],Data / ('%s.csv' % paper['isin']))
 async def tell(room, message):
     global servers,lastsend
     match = botlib.MessageMatch(room, message, bot, prefix)
     if match.is_not_from_this_bot() and match.prefix()\
-    and match.command("add"):
-        for depot in servers:
-            if depot.room == room.room_id and depot.name == match.args()[1]:
-                paper ={
-                    'isin': match.args()[2],
-                    'count': 0,
-                    'price': 0
-                }
-                depot.papers.append(paper)
-                await save_servers()
-                await bot.api.send_text_message(room.room_id, 'ok')
-    elif match.is_not_from_this_bot() and match.prefix()\
-    and match.command("buy"):
+    and match.command("buy")\
+     or match.command("sell")\
+     or match.command("add"):
         depot = None
-        count = float(match.args()[2])
+        count = 0
+        if len(match.args())>2:
+            count = float(match.args()[2])
         price = None #TODO:getActPrice
         if len(match.args())>4:
             depot = float(match.args()[4])
@@ -41,14 +27,46 @@ async def tell(room, message):
             price = float(match.args()[3])
         for adepot in servers:
             if adepot.room == room.room_id and (adepot.name == depot or depot == None):
-                for paper in adepot.papers:
-                    if paper['isin'] == match.args()[1]:
-                        oldprice = float(paper['price'])
-                        newprice = price*count
+                depot = adepot
+        if not depot is str:
+            npaper = None
+            found = False
+            for paper in depot.papers:
+                if paper['isin'] == match.args()[1]:
+                    found = True
+            if not found:
+                paper ={
+                    'isin': match.args()[1],
+                    'count': 0,
+                    'price': 0
+                }
+                depot.papers.append(paper)
+            for paper in depot.papers:
+                if paper['isin'] == match.args()[1]:
+                    oldprice = float(paper['price'])
+                    newprice = price*count
+                    if match.command("buy"):
                         paper['price'] = oldprice+newprice
                         paper['count'] = paper['count']+count
-                        await save_servers()
-                        await bot.api.send_text_message(room.room_id, 'ok')
+                    elif match.command("sell"):
+                        paper['price'] = oldprice-newprice
+                        paper['count'] = paper['count']-count
+                    await save_servers()
+                    await bot.api.send_text_message(room.room_id, 'ok')
+                    break
+    elif match.is_not_from_this_bot() and match.prefix()\
+    and match.command("show"):
+        tdepot = None
+        msg = ''
+        if len(match.args())>1:
+            tdepot = match.args()[1]
+        for depot in servers:
+            if depot.room == room.room_id and (depot.name == tdepot or tdepot == None):
+                msg += '####%s\n\n' % depot.name
+                for paper in depot.papers:
+                    if 'name' in paper:
+                        msg += paper['name']
+        await bot.api.send_markdown_message(room.room_id, msg)
     elif match.is_not_from_this_bot() and match.prefix()\
     and match.command("create-depot"):
         pf = None
@@ -74,9 +92,15 @@ async def tell(room, message):
         if len(match.args())>2:
             pf.taxCostPercent = float(match.args()[2])
         servers.append(pf)
-        loop.create_task(check_paper(pf))
+        loop.create_task(check_depot(pf))
         await save_servers()
         await bot.api.send_text_message(room.room_id, 'ok')
+async def UpdatePaper(paper):
+    if not (Data / ('%s.csv' % paper['isin'])).exists():
+        ticker = yahoo.get_symbol_for_isin(paper['isin'])
+        paper['ticker'] = ticker
+        await save_servers()
+    yahoo.UpdatePaper(paper['ticker'],Data / ('%s.csv' % paper['isin']))
 async def check_depot(depot):
     global lastsend,servers
     while True:
@@ -112,7 +136,7 @@ async def bot_help(room, message):
                 command: create-depot name [taxCostspercent] [tradingCosts] [tradingCostspercent] [currency]
                 description: add depot
             add:
-                command: add depot isin [currency]
+                command: add isin/ticker [count] [price] [depot]
                 description: add an paper to an depot
             buy:
                 command: buy isin/ticker count [price] [depot]
