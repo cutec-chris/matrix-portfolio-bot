@@ -65,11 +65,16 @@ async def tell(room, message):
                 msg += '<h3>%s</h3>' % depot.name
                 msg += '<table>\n'
                 msg += '<tr><th>Paper</th><th>Name</th><th>Price</th><th>Change</th></tr>\n'
+                sumprice = 0
+                sumactprice = 0
                 for paper in depot.papers:
                     if 'name' in paper:
                         actprice = yahoo.GetActPrice(paper)*paper['count']
+                        sumactprice += actprice
+                        sumprice += paper['price']
                         change = actprice-paper['price']
-                        msg += '<tr><td>'+paper['isin']+'</td><td>'+paper['name']+'</td><td>'+str(actprice)+'</td><td>'+str(change)+'</td></tr>\n'
+                        msg += '<tr><td>'+paper['isin']+'</td><td>'+paper['name']+'</td><td>%.2f' % actprice+'</td><td>%.2f' % change+'</td></tr>\n'
+                msg += '<tr><td></td><td></td><td>%.2f' % sumactprice+'</td><td>%.2f' % (sumactprice-sumprice)+'</td></tr>\n'
                 msg += '</table>\n'
         await bot.api.send_markdown_message(room.room_id, msg)
     elif match.is_not_from_this_bot() and match.prefix()\
