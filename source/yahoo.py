@@ -1,25 +1,26 @@
-import requests,yfinance,pandas,datetime
+import requests,yfinance,pandas,datetime,pathlib
+Data = pathlib.Path('.') / 'data'
 def UpdateSettings(paper):
     #tf = yfinance.Ticker(paper['ticker'])
     #info = tf.info
     if not 'name' in paper:
         paper['name'] = paper['ticker']
     return paper
-def UpdateCSV(ticker,file):
-    tf = yfinance.Ticker(ticker)
+def UpdateCSV(paper):
+    file = Data / ('%s.pkl' % paper['isin'])
+    tf = yfinance.Ticker(paper['ticker'])
     if not file.exists():
-        data = yfinance.download(tickers=ticker,period="10y",interval = "1d")
+        data = yfinance.download(tickers=paper['ticker'],period="10y",interval = "1d")
         data.reset_index(inplace=True)
         data['Date'] = pandas.to_datetime(data['Date'])
         data = data.rename(columns={'Date': 'Datetime'})
         data.to_pickle(str(file))
     data = pandas.read_pickle(str(file))
-    datam = yfinance.download(tickers=ticker,start=data['Datetime'].tail(1).values[0].astype(datetime.datetime).strftime('%Y-%m-%d'),interval = "1m")
-    datam.reset_index(inplace=True)
-    datam['Datetime'] = pandas.to_datetime(data['Datetime'])
-    data = pandas.concat([data,datam])
-    data.to_pickle(str(file))
-    pass
+    return data
+def GetActPrice(paper):
+    file = Data / ('%s.pkl' % paper['isin'])
+    data = pandas.read_pickle(str(file))
+    return data['Close'].tail(1).values[0]
 def get_symbol_for_isin(isin):
     url = 'https://query1.finance.yahoo.com/v1/finance/search'
     headers = {

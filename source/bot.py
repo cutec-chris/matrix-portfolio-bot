@@ -62,10 +62,15 @@ async def tell(room, message):
             tdepot = match.args()[1]
         for depot in servers:
             if depot.room == room.room_id and (depot.name == tdepot or tdepot == None):
-                msg += '####%s\n\n' % depot.name
+                msg += '<h3>%s</h3>' % depot.name
+                msg += '<table>\n'
+                msg += '<tr><th>Paper</th><th>Name</th><th>Price</th><th>Change</th></tr>\n'
                 for paper in depot.papers:
                     if 'name' in paper:
-                        msg += paper['name']
+                        actprice = yahoo.GetActPrice(paper)*paper['count']
+                        change = actprice-paper['price']
+                        msg += '<tr><td>'+paper['isin']+'</td><td>'+paper['name']+'</td><td>'+str(actprice)+'</td><td>'+str(change)+'</td></tr>\n'
+                msg += '</table>\n'
         await bot.api.send_markdown_message(room.room_id, msg)
     elif match.is_not_from_this_bot() and match.prefix()\
     and match.command("create-depot"):
@@ -96,24 +101,25 @@ async def tell(room, message):
         await save_servers()
         await bot.api.send_text_message(room.room_id, 'ok')
 async def UpdatePaper(paper):
-    if not (Data / ('%s.csv' % paper['isin'])).exists():
+    if not (Data / ('%s.pkl' % paper['isin'])).exists():
         ticker = yahoo.get_symbol_for_isin(paper['isin'])
         paper['ticker'] = ticker
         await save_servers()
-    yahoo.UpdateCSV(paper['ticker'],Data / ('%s.pkl' % paper['isin']))
+    data = yahoo.UpdateCSV(paper)
     npaper = yahoo.UpdateSettings(paper)
     paper['name'] = npaper['name']
+    return data
 async def check_depot(depot):
     global lastsend,servers
     while True:
         try:
             for paper in depot.papers:
-                await UpdatePaper(paper)
+                data = await UpdatePaper(paper)
         except BaseException as e:
             if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
                 await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
                 depot.lasterror = str(e)
-        await asyncio.sleep(5)
+        await asyncio.sleep(60)
 try:
     with open('data.json', 'r') as f:
         nservers = json.load(f)
