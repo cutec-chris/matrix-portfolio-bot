@@ -9,6 +9,12 @@ Data = pathlib.Path('.') / 'data'
 if not Data.exists():
     Data.mkdir(parents=True)
 @bot.listener.on_message_event
+async def UpdatePaper(paper):
+    if not (Data / ('%s.csv' % paper['isin'])).exists():
+        ticker = yahoo.get_symbol_for_isin(paper['isin'])
+        paper['ticker'] = ticker
+        await save_servers()
+    yahoo.UpdatePaper(paper['ticker'],Data / ('%s.csv' % paper['isin']))
 async def tell(room, message):
     global servers,lastsend
     match = botlib.MessageMatch(room, message, bot, prefix)
@@ -71,12 +77,6 @@ async def tell(room, message):
         loop.create_task(check_paper(pf))
         await save_servers()
         await bot.api.send_text_message(room.room_id, 'ok')
-async def UpdatePaper(paper):
-    if not (Data / ('%s.csv' % paper['isin'])).exists():
-        ticker = yahoo.get_symbol_for_isin(paper['isin'])
-        paper['ticker'] = ticker
-        await save_servers()
-    yahoo.UpdatePaper(paper['ticker'],Data / ('%s.csv' % paper['isin']))
 async def check_depot(depot):
     global lastsend,servers
     while True:
