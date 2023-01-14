@@ -1,4 +1,11 @@
-import requests
+import requests,yfinance,pandas
+def UpdatePaper(ticker,file):
+    tf = yfinance.Ticker(ticker)
+    if not file.exists():
+        data = yfinance.download(tickers=ticker,period="10y",interval = "1d")
+        data.to_csv(str(file))
+    else:
+        data = pandas.read_csv(str(file))
 def get_symbol_for_isin(isin):
     url = 'https://query1.finance.yahoo.com/v1/finance/search'
 
