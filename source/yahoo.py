@@ -6,17 +6,22 @@ def UpdateSettings(paper):
     if not 'name' in paper:
         paper['name'] = paper['ticker']
     return paper
-def UpdateCSV(paper):
-    file = Data / ('%s.pkl' % paper['isin'])
-    tf = yfinance.Ticker(paper['ticker'])
-    if not file.exists():
-        data = yfinance.download(tickers=paper['ticker'],period="10y",interval = "1d")
-        data.reset_index(inplace=True)
-        data['Date'] = pandas.to_datetime(data['Date'])
-        data = data.rename(columns={'Date': 'Datetime'})
-        data.to_pickle(str(file))
+def UpdateCSV(papers):
+    tickers = []
+    for paper in papers:
+        tickers.append(paper['ticker'])
+    for paper in papers:
+        file = Data / ('%s.pkl' % paper['isin'])
+        if not file.exists():
+            data = yfinance.download(tickers=tickers,period="10y",interval = "1h")
+            data.reset_index(inplace=True)
+            data.to_pickle(str(file))
+            break
     data = pandas.read_pickle(str(file))
-    return data
+    datad = yfinance.download(tickers=tickers,period="1d",interval = "1m")
+    datad.reset_index(inplace=True)
+    datad.to_pickle(str(file.with_suffix('.day.pkl')))
+    return data,datad
 def GetActPrice(paper):
     file = Data / ('%s.pkl' % paper['isin'])
     data = pandas.read_pickle(str(file))

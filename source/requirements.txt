@@ -1,3 +1,5 @@
 simplematrixbotlib
 pyyaml
 yfinance
+mplfinance
+sqlalchemy

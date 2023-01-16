@@ -1,13 +1,10 @@
 from init import *
-import yahoo,pathlib
+import yahoo,pathlib,database
 loop = None
 lastsend = None
 class Portfolio(Config):
     def __init__(self, room, **kwargs) -> None:
         super().__init__(room, **kwargs)
-Data = pathlib.Path('.') / 'data'
-if not Data.exists():
-    Data.mkdir(parents=True)
 @bot.listener.on_message_event
 async def tell(room, message):
     global servers,lastsend
@@ -54,6 +51,9 @@ async def tell(room, message):
                     await save_servers()
                     await bot.api.send_text_message(room.room_id, 'ok')
                     break
+    elif match.is_not_from_this_bot() and match.prefix()\
+    and match.command("analyze"):
+        pass
     elif match.is_not_from_this_bot() and match.prefix()\
     and match.command("show"):
         tdepot = None
@@ -105,26 +105,27 @@ async def tell(room, message):
         loop.create_task(check_depot(pf))
         await save_servers()
         await bot.api.send_text_message(room.room_id, 'ok')
-async def UpdatePaper(paper):
-    if not (Data / ('%s.pkl' % paper['isin'])).exists():
-        ticker = yahoo.get_symbol_for_isin(paper['isin'])
-        paper['ticker'] = ticker
-        await save_servers()
-    data = yahoo.UpdateCSV(paper)
+async def UpdatePapers(papers):
+    for paper in papers:
+        if not 'ticker' in paper:
+            ticker = yahoo.get_symbol_for_isin(paper['isin'])
+            paper['ticker'] = ticker
+            await save_servers()
+    yahoo.UpdateCSV(papers)
     npaper = yahoo.UpdateSettings(paper)
     paper['name'] = npaper['name']
-    return data
 async def check_depot(depot):
     global lastsend,servers
     while True:
         try:
+            await UpdatePapers(depot.papers)
             for paper in depot.papers:
-                data = await UpdatePaper(paper)
+                pass
         except BaseException as e:
             if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
                 await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
                 depot.lasterror = str(e)
-        await asyncio.sleep(60)
+        await asyncio.sleep(120)
 try:
     with open('data.json', 'r') as f:
         nservers = json.load(f)
