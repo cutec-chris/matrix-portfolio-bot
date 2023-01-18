@@ -13,25 +13,23 @@ def UpdateTickers(papers):
         if database.session.query(database.Symbol.isin).filter_by(isin=paper['isin']).first() is None:
             data = yfinance.download(tickers=tickers,period="2y",interval = "1h")
             sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=database.Market.stock,active=True)
-            data_o = []
             data.reset_index(inplace=True)
             for row in range(len(data)):
-                data_o.append(database.MinuteBar( 
+                sym.minute_bars.append(database.MinuteBar( 
                                     date=data['Datetime'].loc[row],
-                                    open=data['Open'].loc[row],
-                                    high=data['High'].loc[row],
-                                    low=data['Low'].loc[row],
-                                    close=data['Close'].loc[row],
+                                    open=data['Open'][paper['ticker']].loc[row],
+                                    high=data['High'][paper['ticker']].loc[row],
+                                    low=data['Low'][paper['ticker']].loc[row],
+                                    close=data['Close'][paper['ticker']].loc[row],
+                                    volume=data['Volume'][paper['ticker']].loc[row],
                                     symbol=sym,
                                 ))
-            database.session.bulk_save_objects([sym])
-            database.session.bulk_save_objects(data_o)
+            database.session.add(sym)
             database.session.commit()
-            break
-    data = pandas.read_pickle(str(file))
-    datad = yfinance.download(tickers=tickers,period="1d",interval = "1m")
-    datad.reset_index(inplace=True)
-    datad.to_pickle(str(file.with_suffix('.day.pkl')))
+    #data = pandas.read_pickle(str(file))
+    #datad = yfinance.download(tickers=tickers,period="1d",interval = "1m")
+    #datad.reset_index(inplace=True)
+    #datad.to_pickle(str(file.with_suffix('.day.pkl')))
     return data,datad
 def GetActPrice(paper):
     file = Data / ('%s.pkl' % paper['isin'])
