@@ -9,12 +9,13 @@ class Symbol(Base):
     __tablename__ = 'symbol'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
     ticker = sqlalchemy.Column(sqlalchemy.String(50), nullable=False)
+    isin = sqlalchemy.Column(sqlalchemy.String(50), nullable=False)
     name = sqlalchemy.Column(sqlalchemy.String(200), nullable=False)
     market = sqlalchemy.Column(sqlalchemy.Enum(Market), nullable=False)
     active = sqlalchemy.Column(sqlalchemy.Boolean, nullable=False)
 class MinuteBar(Base):
     __tablename__ = 'minute_bar'
-    id = sqlalchemy.Column(sqlalchemy.BigInteger, primary_key=True)
+    id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
     date = sqlalchemy.Column(sqlalchemy.DateTime, nullable=False)
     open = sqlalchemy.Column(sqlalchemy.Float)
     high = sqlalchemy.Column(sqlalchemy.Float)
@@ -33,3 +34,5 @@ Data.mkdir(parents=True,exist_ok=True)
 dbEngine=sqlalchemy.create_engine('sqlite:///'+str(Data / 'database.db')) 
 conn = dbEngine.connect()
 Base.metadata.create_all(dbEngine)
+SessionClass = sqlalchemy.orm.sessionmaker(bind=dbEngine)
+session = SessionClass()

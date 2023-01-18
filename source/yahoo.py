@@ -1,21 +1,32 @@
-import requests,yfinance,pandas,datetime,pathlib
-Data = pathlib.Path('.') / 'data'
+import requests,yfinance,pandas,datetime,pathlib,database
 def UpdateSettings(paper):
     #tf = yfinance.Ticker(paper['ticker'])
     #info = tf.info
     if not 'name' in paper:
         paper['name'] = paper['ticker']
     return paper
-def UpdateCSV(papers):
+def UpdateTickers(papers):
     tickers = []
     for paper in papers:
         tickers.append(paper['ticker'])
     for paper in papers:
-        file = Data / ('%s.pkl' % paper['isin'])
-        if not file.exists():
-            data = yfinance.download(tickers=tickers,period="10y",interval = "1h")
+        if database.session.query(database.Symbol.isin).filter_by(isin=paper['isin']).first() is None:
+            data = yfinance.download(tickers=tickers,period="2y",interval = "1h")
+            sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=database.Market.stock,active=True)
+            data_o = []
             data.reset_index(inplace=True)
-            data.to_pickle(str(file))
+            for row in range(len(data)):
+                data_o.append(database.MinuteBar( 
+                                    date=data['Datetime'].loc[row],
+                                    open=data['Open'].loc[row],
+                                    high=data['High'].loc[row],
+                                    low=data['Low'].loc[row],
+                                    close=data['Close'].loc[row],
+                                    symbol=sym,
+                                ))
+            database.session.bulk_save_objects([sym])
+            database.session.bulk_save_objects(data_o)
+            database.session.commit()
             break
     data = pandas.read_pickle(str(file))
     datad = yfinance.download(tickers=tickers,period="1d",interval = "1m")

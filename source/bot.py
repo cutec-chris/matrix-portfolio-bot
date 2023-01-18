@@ -110,10 +110,10 @@ async def UpdatePapers(papers):
         if not 'ticker' in paper:
             ticker = yahoo.get_symbol_for_isin(paper['isin'])
             paper['ticker'] = ticker
+            npaper = yahoo.UpdateSettings(paper)
+            paper['name'] = npaper['name']
             await save_servers()
-    yahoo.UpdateCSV(papers)
-    npaper = yahoo.UpdateSettings(paper)
-    paper['name'] = npaper['name']
+    yahoo.UpdateTickers(papers)
 async def check_depot(depot):
     global lastsend,servers
     while True:
