@@ -11,26 +11,41 @@ def UpdateTickers(papers):
         tickers.append(paper['ticker'])
     for paper in papers:
         if database.session.query(database.Symbol.isin).filter_by(isin=paper['isin']).first() is None:
-            data = yfinance.download(tickers=tickers,period="2y",interval = "1h")
+            data = yfinance.download(tickers=paper['ticker'],period="2y",interval = "1h")
+            if not 'name' in paper:
+                paper['name'] = paper['ticker']
             sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=database.Market.stock,active=True)
             data.reset_index(inplace=True)
             for row in range(len(data)):
                 sym.minute_bars.append(database.MinuteBar( 
                                     date=data['Datetime'].loc[row],
-                                    open=data['Open'][paper['ticker']].loc[row],
-                                    high=data['High'][paper['ticker']].loc[row],
-                                    low=data['Low'][paper['ticker']].loc[row],
-                                    close=data['Close'][paper['ticker']].loc[row],
-                                    volume=data['Volume'][paper['ticker']].loc[row],
+                                    open=data['Open'].loc[row],
+                                    high=data['High'].loc[row],
+                                    low=data['Low'].loc[row],
+                                    close=data['Close'].loc[row],
+                                    volume=data['Volume'].loc[row],
                                     symbol=sym,
                                 ))
             database.session.add(sym)
             database.session.commit()
-    #data = pandas.read_pickle(str(file))
-    #datad = yfinance.download(tickers=tickers,period="1d",interval = "1m")
-    #datad.reset_index(inplace=True)
-    #datad.to_pickle(str(file.with_suffix('.day.pkl')))
-    return data,datad
+    for paper in papers:
+        sym = database.session.execute(database.sqlalchemy.select(database.Symbol).where(database.Symbol.isin==paper['isin'])).fetchone()[0]
+        #sym = database.session.query(database.Symbol.isin).filter_by(isin=paper['isin']).first()
+        data = yfinance.download(tickers=paper['ticker'],period="1d",interval = "1h")
+        data.reset_index(inplace=True)
+        for row in range(len(data)):
+            if database.session.query(database.MinuteBar.date,database.MinuteBar.symbol).filter_by(date=data['Datetime'].loc[row],symbol=sym).first() is None:
+                sym.minute_bars.append(database.MinuteBar( 
+                                    date=data['Datetime'].loc[row],
+                                    open=data['Open'].loc[row],
+                                    high=data['High'].loc[row],
+                                    low=data['Low'].loc[row],
+                                    close=data['Close'].loc[row],
+                                    volume=data['Volume'].loc[row],
+                                    symbol=sym,
+                                ))
+        database.session.add(sym)
+        database.session.commit()
 def GetActPrice(paper):
     file = Data / ('%s.pkl' % paper['isin'])
     data = pandas.read_pickle(str(file))
