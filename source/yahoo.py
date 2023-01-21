@@ -34,16 +34,18 @@ def UpdateTickers(papers):
         data = yfinance.download(tickers=paper['ticker'],period="1d",interval = "1h")
         data.reset_index(inplace=True)
         for row in range(len(data)):
-            if database.session.query(database.MinuteBar.date,database.MinuteBar.symbol).filter_by(date=data['Datetime'].loc[row],symbol=sym).first() is None:
-                sym.minute_bars.append(database.MinuteBar( 
-                                    date=data['Datetime'].loc[row],
-                                    open=data['Open'].loc[row],
-                                    high=data['High'].loc[row],
-                                    low=data['Low'].loc[row],
-                                    close=data['Close'].loc[row],
-                                    volume=data['Volume'].loc[row],
-                                    symbol=sym,
-                                ))
+            oldrow = database.session.query(database.MinuteBar).filter_by(date=data['Datetime'].loc[row],symbol=sym).first()
+            if oldrow is not None:
+                oldrow.delete()
+            sym.minute_bars.append(database.MinuteBar( 
+                                date=data['Datetime'].loc[row],
+                                open=data['Open'].loc[row],
+                                high=data['High'].loc[row],
+                                low=data['Low'].loc[row],
+                                close=data['Close'].loc[row],
+                                volume=data['Volume'].loc[row],
+                                symbol=sym,
+                            ))
         database.session.add(sym)
         database.session.commit()
 def GetActPrice(paper):
