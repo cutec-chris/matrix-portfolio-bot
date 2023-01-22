@@ -10,7 +10,7 @@ async def UpdateTickers(papers):
     for paper in papers:
         tickers.append(paper['ticker'])
     for paper in papers:
-        if database.session.query(database.Symbol.isin).filter_by(isin=paper['isin']).first() is None:
+        if database.session.query(database.Symbol.isin).filter_by(isin=paper['isin']).first() is None and paper['ticker']:
             data = yfinance.download(tickers=paper['ticker'],period="2y",interval = "1h")
             if not 'name' in paper:
                 paper['name'] = paper['ticker']
@@ -29,26 +29,27 @@ async def UpdateTickers(papers):
             database.session.add(sym)
             database.session.commit()
     for paper in papers:
-        await asyncio.sleep(5)
-        sym = database.session.execute(database.sqlalchemy.select(database.Symbol).where(database.Symbol.isin==paper['isin'])).fetchone()[0]
-        date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
-        data = yfinance.download(tickers=paper['ticker'],start=latest_date,period="1d",interval = "1h")
-        data.reset_index(inplace=True)
-        for row in range(len(data)):
-            await asyncio.sleep(0.1)
-            oldrow = database.session.query(database.MinuteBar).filter_by(date=data['Datetime'].loc[row],symbol=sym).first()
-            if oldrow is None:
-                sym.minute_bars.append(database.MinuteBar( 
-                                    date=data['Datetime'].loc[row],
-                                    open=data['Open'].loc[row],
-                                    high=data['High'].loc[row],
-                                    low=data['Low'].loc[row],
-                                    close=data['Close'].loc[row],
-                                    volume=data['Volume'].loc[row],
-                                    symbol=sym,
-                                ))
-        database.session.add(sym)
-        database.session.commit()
+        if paper['ticker']:
+            await asyncio.sleep(5)
+            sym = database.session.execute(database.sqlalchemy.select(database.Symbol).where(database.Symbol.isin==paper['isin'])).fetchone()[0]
+            date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
+            data = yfinance.download(tickers=paper['ticker'],start=latest_date,period="1d",interval = "1h")
+            data.reset_index(inplace=True)
+            for row in range(len(data)):
+                await asyncio.sleep(0.1)
+                oldrow = database.session.query(database.MinuteBar).filter_by(date=data['Datetime'].loc[row],symbol=sym).first()
+                if oldrow is None:
+                    sym.minute_bars.append(database.MinuteBar( 
+                                        date=data['Datetime'].loc[row],
+                                        open=data['Open'].loc[row],
+                                        high=data['High'].loc[row],
+                                        low=data['Low'].loc[row],
+                                        close=data['Close'].loc[row],
+                                        volume=data['Volume'].loc[row],
+                                        symbol=sym,
+                                    ))
+            database.session.add(sym)
+            database.session.commit()
 def get_symbol_for_isin(isin):
     url = 'https://query1.finance.yahoo.com/v1/finance/search'
     headers = {

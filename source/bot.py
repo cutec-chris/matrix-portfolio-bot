@@ -11,10 +11,10 @@ async def tell(room, message):
     if not message.body.startswith(prefix) and room.member_count==2:
         message.body = prefix+' '+message.body
     match = botlib.MessageMatch(room, message, bot, prefix)
-    if match.is_not_from_this_bot() and match.prefix()\
-    and match.command("buy")\
-     or match.command("sell")\
-     or match.command("add"):
+    if (match.is_not_from_this_bot() and match.prefix())\
+    and (match.command("buy")\
+      or match.command("sell")\
+      or match.command("add")):
         depot = None
         count = None
         if len(match.args())>2:
@@ -68,7 +68,7 @@ async def tell(room, message):
                     await save_servers()
                     await bot.api.send_text_message(room.room_id, 'ok')
                     break
-    elif match.is_not_from_this_bot() and match.prefix()\
+    elif (match.is_not_from_this_bot() and match.prefix())\
     and match.command("analyze"):
         depot = None
         for adepot in servers:
@@ -81,7 +81,7 @@ async def tell(room, message):
                 if paper['isin'] == match.args()[1]:
                     df = database.GetPaperData(paper,90)
                     pass
-    elif match.is_not_from_this_bot() and match.prefix()\
+    elif (match.is_not_from_this_bot() and match.prefix())\
     and match.command("show"):
         tdepot = None
         msg = ''
@@ -109,7 +109,7 @@ async def tell(room, message):
                 msg += '<tr><td></td><td></td><td>Complete</td><td>%.2f' % ((sumactprice-sumprice)-(((sumactprice-sumprice)*(depot.taxCostPercent/100))+sellcosts))+'</td></tr>\n'
                 msg += '</table>\n'
         await bot.api.send_markdown_message(room.room_id, msg)
-    elif match.is_not_from_this_bot() and match.prefix()\
+    elif (match.is_not_from_this_bot() and match.prefix())\
     and match.command("create-depot"):
         pf = None
         for server in servers:
@@ -167,7 +167,7 @@ async def check_depot(depot):
                 elif df.iloc[-1]['SMA_fast'] < df.iloc[-1]['SMA_slow'] and currently_holding:
                     msg = 'sell '+paper['isin']
                     if 'lastcount' in paper:
-                        msg += str(paper['lastcount'])
+                        msg += ' '+str(paper['lastcount'])
                     await bot.api.send_text_message(depot.room,msg)
         except BaseException as e:
             if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
