@@ -1,5 +1,5 @@
 simplematrixbotlib
 pyyaml
 yfinance
-mplfinance
+pandas_ta
 sqlalchemy

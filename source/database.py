@@ -1,4 +1,4 @@
-import sqlalchemy,sqlalchemy.orm,pathlib,enum
+import sqlalchemy,sqlalchemy.orm,pathlib,enum,datetime,pandas
 Base = sqlalchemy.orm.declarative_base()
 class Market(enum.Enum):
     crypto = 'crypto'
@@ -37,6 +37,27 @@ def GetActPrice(paper):
         return None
     date_entry,latest_date = session.query(MinuteBar,sqlalchemy.sql.expression.func.max(MinuteBar.date)).filter_by(symbol=sym).first()
     return date_entry.close
+def GetPaperData(paper,days):
+    current_time = datetime.datetime.utcnow()
+    datestart = current_time - datetime.timedelta(days=days)
+    sym = session.execute(sqlalchemy.select(Symbol).where(Symbol.isin==paper['isin'])).fetchone()
+    if sym:
+        sym = sym[0]
+    else:
+        return None
+    rows = session.query(MinuteBar).where(sqlalchemy.and_(MinuteBar.symbol==sym,MinuteBar.date>datestart)).order_by(MinuteBar.date).all()
+    df = pandas.DataFrame(columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
+    for row in rows:
+        entry = pandas.DataFrame.from_dict({
+            "Datetime": [row.date],
+            "Open":  [row.open],
+            "High":  [row.high],
+            "Low":  [row.low],
+            "Close":  [row.close],
+            "Volume":  [row.volume],
+        })
+        df = pandas.concat([df, entry], ignore_index=True)
+    return df
 Data = pathlib.Path('.') / 'data'
 Data.mkdir(parents=True,exist_ok=True)
 dbEngine=sqlalchemy.create_engine('sqlite:///'+str(Data / 'database.db')) 

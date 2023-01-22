@@ -1,5 +1,5 @@
 from init import *
-import yahoo,pathlib,database
+import yahoo,pathlib,database,pandas_ta
 loop = None
 lastsend = None
 class Portfolio(Config):
@@ -70,7 +70,17 @@ async def tell(room, message):
                     break
     elif match.is_not_from_this_bot() and match.prefix()\
     and match.command("analyze"):
-        pass
+        depot = None
+        for adepot in servers:
+            if adepot.room == room.room_id and (adepot.name == depot or depot == None):
+                depot = adepot
+        if not depot is str:
+            npaper = None
+            found = False
+            for paper in depot.papers:
+                if paper['isin'] == match.args()[1]:
+                    df = database.GetPaperData(paper,90)
+                    pass
     elif match.is_not_from_this_bot() and match.prefix()\
     and match.command("show"):
         tdepot = None
@@ -139,11 +149,26 @@ async def UpdatePapers(papers):
 async def check_depot(depot):
     global lastsend,servers
     while True:
-        await asyncio.sleep(60*10)
+        #await asyncio.sleep(60*10)
         try:
             await UpdatePapers(depot.papers)
             for paper in depot.papers:
-                pass
+                df = database.GetPaperData(paper,30)      
+                df['SMA_fast'] = pandas_ta.sma(df['Close'],10)
+                df['SMA_slow'] = pandas_ta.sma(df['Close'],30)     
+                currently_holding = paper['count'] == 0 
+                price = df.iloc[-1]['Close']
+                if df.iloc[-1]['SMA_fast'] > df.iloc[-1]['SMA_slow'] and not currently_holding:
+                    msg = 'buy '+paper['isin']
+                    if 'lastcount' in paper:
+                        msg += ' '+str(paper['lastcount'])
+                    await bot.api.send_text_message(depot.room,msg)
+                    currently_holding = True
+                elif df.iloc[-1]['SMA_fast'] < df.iloc[-1]['SMA_slow'] and currently_holding:
+                    msg = 'sell '+paper['isin']
+                    if 'lastcount' in paper:
+                        msg += str(paper['lastcount'])
+                    await bot.api.send_text_message(depot.room,msg)
         except BaseException as e:
             if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
                 await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
