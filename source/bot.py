@@ -149,14 +149,14 @@ async def UpdatePapers(papers):
 async def check_depot(depot):
     global lastsend,servers
     while True:
-        #await asyncio.sleep(60*10)
+        await asyncio.sleep(60*10)
         try:
             await UpdatePapers(depot.papers)
             for paper in depot.papers:
                 df = database.GetPaperData(paper,30)      
                 df['SMA_fast'] = pandas_ta.sma(df['Close'],10)
                 df['SMA_slow'] = pandas_ta.sma(df['Close'],30)     
-                currently_holding = paper['count'] == 0 
+                currently_holding = not paper['count'] == 0 
                 price = df.iloc[-1]['Close']
                 if df.iloc[-1]['SMA_fast'] > df.iloc[-1]['SMA_slow'] and not currently_holding:
                     msg = 'buy '+paper['isin']
