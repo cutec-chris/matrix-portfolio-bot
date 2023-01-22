@@ -52,6 +52,10 @@ async def tell(room, message):
             for paper in depot.papers:
                 if paper['isin'] == match.args()[1]:
                     oldprice = float(paper['price'])
+                    if not count:
+                        count = 0
+                    if not price:
+                        price = oldprice
                     newprice = price*count
                     if match.command("buy"):
                         paper['price'] = oldprice+newprice
@@ -135,6 +139,7 @@ async def UpdatePapers(papers):
 async def check_depot(depot):
     global lastsend,servers
     while True:
+        await asyncio.sleep(60*10)
         try:
             await UpdatePapers(depot.papers)
             for paper in depot.papers:
@@ -143,7 +148,6 @@ async def check_depot(depot):
             if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
                 await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
                 depot.lasterror = str(e)
-        await asyncio.sleep(120)
 try:
     with open('data.json', 'r') as f:
         nservers = json.load(f)

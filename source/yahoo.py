@@ -29,6 +29,7 @@ async def UpdateTickers(papers):
             database.session.add(sym)
             database.session.commit()
     for paper in papers:
+        await asyncio.sleep(5)
         sym = database.session.execute(database.sqlalchemy.select(database.Symbol).where(database.Symbol.isin==paper['isin'])).fetchone()[0]
         date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
         data = yfinance.download(tickers=paper['ticker'],start=latest_date,period="1d",interval = "1h")

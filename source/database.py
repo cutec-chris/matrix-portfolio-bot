@@ -30,10 +30,13 @@ class MinuteBar(Base):
     symbol = sqlalchemy.orm.relationship('Symbol', backref='minute_bars')
     sqlalchemy.UniqueConstraint(symbol_id, date)
 def GetActPrice(paper):
-    sym = session.execute(sqlalchemy.select(Symbol).where(Symbol.isin==paper['isin'])).fetchone()[0]
+    sym = session.execute(sqlalchemy.select(Symbol).where(Symbol.isin==paper['isin'])).fetchone()
+    if sym:
+        sym = sym[0]
+    else:
+        return None
     date_entry,latest_date = session.query(MinuteBar,sqlalchemy.sql.expression.func.max(MinuteBar.date)).filter_by(symbol=sym).first()
     return date_entry.close
-
 Data = pathlib.Path('.') / 'data'
 Data.mkdir(parents=True,exist_ok=True)
 dbEngine=sqlalchemy.create_engine('sqlite:///'+str(Data / 'database.db')) 
