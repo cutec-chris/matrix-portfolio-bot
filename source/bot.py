@@ -8,16 +8,18 @@ class Portfolio(Config):
 @bot.listener.on_message_event
 async def tell(room, message):
     global servers,lastsend
+    if not message.body.startswith(prefix) and room.member_count==2:
+        message.body = prefix+' '+message.body
     match = botlib.MessageMatch(room, message, bot, prefix)
     if match.is_not_from_this_bot() and match.prefix()\
     and match.command("buy")\
      or match.command("sell")\
      or match.command("add"):
         depot = None
-        count = 0
+        count = None
         if len(match.args())>2:
             count = float(match.args()[2])
-        price = None #TODO:getActPrice
+        price = None
         if len(match.args())>4:
             depot = float(match.args()[4])
         if len(match.args())>3:
@@ -31,6 +33,11 @@ async def tell(room, message):
             for paper in depot.papers:
                 if paper['isin'] == match.args()[1]:
                     found = True
+                    if not price:
+                        price = database.GetActPrice(paper)
+                    if not count:
+                        count = paper['count']
+                    break
             if not found:
                 paper ={
                     'isin': match.args()[1],
@@ -38,6 +45,10 @@ async def tell(room, message):
                     'price': 0
                 }
                 depot.papers.append(paper)
+            if 'lastcount' in paper and count == None:
+                count = paper['lastcount']
+            if paper['count'] > 0:
+                paper['lastcount'] = paper['count']
             for paper in depot.papers:
                 if paper['isin'] == match.args()[1]:
                     oldprice = float(paper['price'])
@@ -46,6 +57,8 @@ async def tell(room, message):
                         paper['price'] = oldprice+newprice
                         paper['count'] = paper['count']+count
                     elif match.command("sell"):
+                        if newprice>oldprice:
+                            newprice = oldprice
                         paper['price'] = oldprice-newprice
                         paper['count'] = paper['count']-count
                     await save_servers()
@@ -63,18 +76,23 @@ async def tell(room, message):
         for depot in servers:
             if depot.room == room.room_id and (depot.name == tdepot or tdepot == None):
                 msg += '<h3>%s</h3>' % depot.name
-                msg += '<table>\n'
+                msg += '<table style="text-align: right">\n'
                 msg += '<tr><th>Paper</th><th>Name</th><th>Price</th><th>Change</th></tr>\n'
                 sumprice = 0
                 sumactprice = 0
+                sellcosts = 0
                 for paper in depot.papers:
-                    if 'name' in paper:
-                        actprice = yahoo.GetActPrice(paper)*paper['count']
-                        sumactprice += actprice
+                    if 'name' in paper and paper['count'] > 0:
+                        actprice = database.GetActPrice(paper)
+                        sumactprice += actprice*paper['count']
                         sumprice += paper['price']
-                        change = actprice-paper['price']
-                        msg += '<tr><td>'+paper['isin']+'</td><td>'+paper['name']+'</td><td>%.2f' % actprice+'</td><td>%.2f' % change+'</td></tr>\n'
-                msg += '<tr><td></td><td></td><td>%.2f' % sumactprice+'</td><td>%.2f' % (sumactprice-sumprice)+'</td></tr>\n'
+                        change = (actprice*paper['count'])-paper['price']
+                        sellcosts += ((sumactprice-sumprice)*(depot.tradingCostPercent/100))+depot.tradingCost
+                        msg += '<tr><td>'+paper['isin']+'</td><td>%.0fx' % paper['count']+paper['name']+'</td><td align=right>%.2f (%.2f)' % ((actprice*paper['count']),actprice)+'</td><td align=right>%.2f' % change+'</td></tr>\n'
+                msg += '<tr><td></td><td></td><td align=right>%.2f' % sumactprice+'</td><td align=right>%.2f' % (sumactprice-sumprice)+'</td></tr>\n'
+                msg += '<tr><td></td><td></td><td>Taxes</td><td align=right>%.2f' % -((sumactprice-sumprice)*(depot.taxCostPercent/100))+'</td></tr>\n'
+                msg += '<tr><td></td><td></td><td>Sell-Costs</td><td align=right>%.2f' % -(sellcosts)+'</td></tr>\n'
+                msg += '<tr><td></td><td></td><td>Complete</td><td>%.2f' % ((sumactprice-sumprice)-(((sumactprice-sumprice)*(depot.taxCostPercent/100))+sellcosts))+'</td></tr>\n'
                 msg += '</table>\n'
         await bot.api.send_markdown_message(room.room_id, msg)
     elif match.is_not_from_this_bot() and match.prefix()\
@@ -113,7 +131,7 @@ async def UpdatePapers(papers):
             npaper = yahoo.UpdateSettings(paper)
             paper['name'] = npaper['name']
             await save_servers()
-    yahoo.UpdateTickers(papers)
+    await yahoo.UpdateTickers(papers)
 async def check_depot(depot):
     global lastsend,servers
     while True:
@@ -153,10 +171,10 @@ async def bot_help(room, message):
                 command: add isin/ticker [count] [price] [depot]
                 description: add an paper to an depot
             buy:
-                command: buy isin/ticker count [price] [depot]
+                command: buy isin/ticker [count] [price] [depot]
                 description: buy an amount of paper
             sell:
-                command: sell isin/ticker count [price] [depot]
+                command: sell isin/ticker [count] [price] [depot]
                 description: sell an amount of paper
             show:
                 command: show [depot]
@@ -169,7 +187,7 @@ async def bot_help(room, message):
                 description: display help command
                 """
     match = botlib.MessageMatch(room, message, bot, prefix)
-    if match.is_not_from_this_bot() and match.prefix() and (
+    if match.is_not_from_this_bot() and (
        match.command("help") 
     or match.command("?") 
     or match.command("h")):

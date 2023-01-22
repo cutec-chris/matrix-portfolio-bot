@@ -1,11 +1,11 @@
-import requests,yfinance,pandas,datetime,pathlib,database
+import requests,yfinance,pandas,datetime,pathlib,database,sqlalchemy.sql.expression,asyncio
 def UpdateSettings(paper):
     #tf = yfinance.Ticker(paper['ticker'])
     #info = tf.info
     if not 'name' in paper:
         paper['name'] = paper['ticker']
     return paper
-def UpdateTickers(papers):
+async def UpdateTickers(papers):
     tickers = []
     for paper in papers:
         tickers.append(paper['ticker'])
@@ -30,28 +30,24 @@ def UpdateTickers(papers):
             database.session.commit()
     for paper in papers:
         sym = database.session.execute(database.sqlalchemy.select(database.Symbol).where(database.Symbol.isin==paper['isin'])).fetchone()[0]
-        #sym = database.session.query(database.Symbol.isin).filter_by(isin=paper['isin']).first()
-        data = yfinance.download(tickers=paper['ticker'],period="1d",interval = "1h")
+        date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
+        data = yfinance.download(tickers=paper['ticker'],start=latest_date,period="1d",interval = "1h")
         data.reset_index(inplace=True)
         for row in range(len(data)):
+            await asyncio.sleep(0.1)
             oldrow = database.session.query(database.MinuteBar).filter_by(date=data['Datetime'].loc[row],symbol=sym).first()
-            if oldrow is not None:
-                oldrow.delete()
-            sym.minute_bars.append(database.MinuteBar( 
-                                date=data['Datetime'].loc[row],
-                                open=data['Open'].loc[row],
-                                high=data['High'].loc[row],
-                                low=data['Low'].loc[row],
-                                close=data['Close'].loc[row],
-                                volume=data['Volume'].loc[row],
-                                symbol=sym,
-                            ))
+            if oldrow is None:
+                sym.minute_bars.append(database.MinuteBar( 
+                                    date=data['Datetime'].loc[row],
+                                    open=data['Open'].loc[row],
+                                    high=data['High'].loc[row],
+                                    low=data['Low'].loc[row],
+                                    close=data['Close'].loc[row],
+                                    volume=data['Volume'].loc[row],
+                                    symbol=sym,
+                                ))
         database.session.add(sym)
         database.session.commit()
-def GetActPrice(paper):
-    file = Data / ('%s.pkl' % paper['isin'])
-    data = pandas.read_pickle(str(file))
-    return data['Close'].tail(1).values[0]
 def get_symbol_for_isin(isin):
     url = 'https://query1.finance.yahoo.com/v1/finance/search'
     headers = {
