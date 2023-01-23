@@ -1,5 +1,5 @@
 from python:alpine
-RUN apk add py3-pip python3-dev py3-cryptography py3-pandas py3-numpy gcc
+RUN apk add py3-pip python3-dev py3-cryptography py3-pandas py3-numpy gcc gfortran
 RUN mkdir /bot
 RUN mkdir /bot/source
 RUN mkdir /data
