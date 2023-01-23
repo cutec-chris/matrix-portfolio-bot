@@ -1,4 +1,5 @@
-from python:3.8.0
+from python:alpine
+RUN apk add py3-pip py3-cryptography py3-pandas
 RUN mkdir /bot
 RUN mkdir /bot/source
 RUN mkdir /data
