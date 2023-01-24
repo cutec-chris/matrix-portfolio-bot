@@ -1,9 +1,9 @@
-from python:alpine
-RUN apk add py3-pip python3-dev py3-cryptography py3-pandas py3-numpy py3-setuptools py3-wheel
+from python:slim
+RUN apk add python3-pip python3-dev python3-cryptography python3-pandas python3-numpy
 RUN mkdir /bot
 RUN mkdir /bot/source
 RUN mkdir /data
 COPY source/* /bot/source/
-RUN pip3 install --upgrade --upgrade-strategy only-if-needed -r /bot/source/requirements.txt
+RUN pip3 install -r /bot/source/requirements.txt
 WORKDIR /data/
 CMD [ "python3", "/bot/source/bot.py" ]
