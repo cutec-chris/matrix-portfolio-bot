@@ -1,6 +1,6 @@
 from python:slim
 RUN apt update &&\
-    apt install python3-pip python3-dev python3-cryptography python3-pandas python3-numpy
+    apt -y install python3-pip python3-dev python3-cryptography python3-pandas python3-numpy
 RUN mkdir /bot
 RUN mkdir /bot/source
 RUN mkdir /data
