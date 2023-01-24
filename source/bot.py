@@ -155,16 +155,20 @@ async def check_depot(depot):
             for paper in depot.papers:
                 df = database.GetPaperData(paper,30)      
                 df['SMA_fast'] = pandas_ta.sma(df['Close'],10)
-                df['SMA_slow'] = pandas_ta.sma(df['Close'],30)     
+                df['SMA_slow'] = pandas_ta.sma(df['Close'],30) 
+                if not 'lastreco' in paper:
+                    paper['lastreco'] = None    
                 currently_holding = not paper['count'] == 0 
                 price = df.iloc[-1]['Close']
-                if df.iloc[-1]['SMA_fast'] > df.iloc[-1]['SMA_slow'] and not currently_holding:
+                if df.iloc[-1]['SMA_fast'] > df.iloc[-1]['SMA_slow'] and not currently_holding and not paper['lastreco'] == 'buy':
+                    paper['lastreco'] = 'buy'
                     msg = 'buy '+paper['isin']
                     if 'lastcount' in paper:
                         msg += ' '+str(paper['lastcount'])
                     await bot.api.send_text_message(depot.room,msg)
                     currently_holding = True
-                elif df.iloc[-1]['SMA_fast'] < df.iloc[-1]['SMA_slow'] and currently_holding:
+                elif df.iloc[-1]['SMA_fast'] < df.iloc[-1]['SMA_slow'] and currently_holding and not paper['lastreco'] == 'sell':
+                    paper['lastreco'] = 'sell'
                     msg = 'sell '+paper['isin']
                     if 'lastcount' in paper:
                         msg += ' '+str(paper['lastcount'])
