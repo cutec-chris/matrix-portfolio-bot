@@ -1,5 +1,5 @@
 from python:slim
-RUN apk add python3-pip python3-dev python3-cryptography python3-pandas python3-numpy
+RUN apt install python3-pip python3-dev python3-cryptography python3-pandas python3-numpy
 RUN mkdir /bot
 RUN mkdir /bot/source
 RUN mkdir /data
