@@ -137,21 +137,19 @@ async def tell(room, message):
         loop.create_task(check_depot(pf))
         await save_servers()
         await bot.api.send_text_message(room.room_id, 'ok')
-async def UpdatePapers(papers):
-    for paper in papers:
-        if not 'ticker' in paper:
-            ticker = yahoo.get_symbol_for_isin(paper['isin'])
-            paper['ticker'] = ticker
-            npaper = yahoo.UpdateSettings(paper)
-            paper['name'] = npaper['name']
-            await save_servers()
-    await yahoo.UpdateTickers(papers)
 async def check_depot(depot):
     global lastsend,servers
     while True:
         await asyncio.sleep(60*10)
         try:
-            await UpdatePapers(depot.papers)
+            for paper in depot.papers:
+                if not 'ticker' in paper:
+                    ticker = yahoo.get_symbol_for_isin(paper['isin'])
+                    paper['ticker'] = ticker
+                    npaper = yahoo.UpdateSettings(paper)
+                    paper['name'] = npaper['name']
+                    await save_servers()
+            await yahoo.UpdateTickers(depot.papers)
             for paper in depot.papers:
                 df = database.GetPaperData(paper,30)      
                 df['SMA_fast'] = pandas_ta.sma(df['Close'],10)

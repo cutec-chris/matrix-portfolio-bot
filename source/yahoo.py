@@ -33,7 +33,7 @@ async def UpdateTickers(papers):
             await asyncio.sleep(5)
             sym = database.session.execute(database.sqlalchemy.select(database.Symbol).where(database.Symbol.isin==paper['isin'])).fetchone()[0]
             date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
-            data = yfinance.download(tickers=paper['ticker'],start=latest_date,period="1d",interval = "1h")
+            data = yfinance.download(tickers=paper['ticker'],start=latest_date,period="5d",interval = "1h")
             data.reset_index(inplace=True)
             for row in range(len(data)):
                 await asyncio.sleep(0.1)
