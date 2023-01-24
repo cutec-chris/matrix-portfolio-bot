@@ -1,5 +1,5 @@
 #from archlinux
-from agners/archlinuxarm
+from docker.io/armv7/armhf-archlinux
 run pacman --noconfirm -Sy python python-pip python-matplotlib python-pandas python-sqlalchemy
 RUN mkdir /bot
 RUN mkdir /bot/source
