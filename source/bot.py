@@ -140,7 +140,7 @@ async def tell(room, message):
 async def check_depot(depot):
     global lastsend,servers
     while True:
-        await asyncio.sleep(60*10)
+        await asyncio.sleep(60*15)
         try:
             for paper in depot.papers:
                 if not 'ticker' in paper:
@@ -151,26 +151,33 @@ async def check_depot(depot):
                     await save_servers()
             await yahoo.UpdateTickers(depot.papers)
             for paper in depot.papers:
-                df = database.GetPaperData(paper,30)      
-                df['SMA_fast'] = pandas_ta.sma(df['Close'],10)
-                df['SMA_slow'] = pandas_ta.sma(df['Close'],30) 
-                if not 'lastreco' in paper:
-                    paper['lastreco'] = None    
-                currently_holding = not paper['count'] == 0 
-                price = df.iloc[-1]['Close']
-                if df.iloc[-1]['SMA_fast'] > df.iloc[-1]['SMA_slow'] and not currently_holding and not paper['lastreco'] == 'buy':
-                    paper['lastreco'] = 'buy'
-                    msg = 'buy '+paper['isin']
-                    if 'lastcount' in paper:
-                        msg += ' '+str(paper['lastcount'])
-                    await bot.api.send_text_message(depot.room,msg)
-                    currently_holding = True
-                elif df.iloc[-1]['SMA_fast'] < df.iloc[-1]['SMA_slow'] and currently_holding and not paper['lastreco'] == 'sell':
-                    paper['lastreco'] = 'sell'
-                    msg = 'sell '+paper['isin']
-                    if 'lastcount' in paper:
-                        msg += ' '+str(paper['lastcount'])
-                    await bot.api.send_text_message(depot.room,msg)
+                try:
+                    df = database.GetPaperData(paper,30)  
+                    if df is not None:    
+                        df['SMA_fast'] = pandas_ta.sma(df['Close'],10)
+                        df['SMA_slow'] = pandas_ta.sma(df['Close'],30) 
+                    if df is not None and df.iloc[-1]['SMA_fast'] and df.iloc[-1]['SMA_slow']:
+                        if not 'lastreco' in paper:
+                            paper['lastreco'] = None    
+                        currently_holding = not paper['count'] == 0 
+                        price = df.iloc[-1]['Close']
+                        if df.iloc[-1]['SMA_fast'] > df.iloc[-1]['SMA_slow'] and not currently_holding and not paper['lastreco'] == 'buy':
+                            paper['lastreco'] = 'buy'
+                            msg = 'buy '+paper['isin']
+                            if 'lastcount' in paper:
+                                msg += ' '+str(paper['lastcount'])
+                            await bot.api.send_text_message(depot.room,msg)
+                            currently_holding = True
+                        elif df.iloc[-1]['SMA_fast'] < df.iloc[-1]['SMA_slow'] and currently_holding and not paper['lastreco'] == 'sell':
+                            paper['lastreco'] = 'sell'
+                            msg = 'sell '+paper['isin']
+                            if 'lastcount' in paper:
+                                msg += ' '+str(paper['lastcount'])
+                            await bot.api.send_text_message(depot.room,msg)
+                except BaseException as e:
+                    if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
+                        await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
+                        depot.lasterror = str(e)
         except BaseException as e:
             if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
                 await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
