@@ -1,6 +1,8 @@
 #from archlinux
-from docker.io/armv7/armhf-archlinux
-run pacman --noconfirm -Sy python python-pip python-matplotlib python-pandas python-sqlalchemy
+from docker.io/agners/archlinuxarm
+run sed -i -e 's/#XferCommand = \/usr\/bin\/curl -L -C - -f -o %o %u/XferCommand = \/usr\/bin\/curl -L -C - -f -o %o %u/' /etc/pacman.conf
+#run sed -i -e 's/#XferCommand = \/usr\/bin\/wget --passive-ftp -c -O %o %u/XferCommand = \/usr\/bin\/wget --passive-ftp -c -O %o %u/' /etc/pacman.conf
+run pacman --noconfirm -Syu python python-pip python-matplotlib python-pandas python-sqlalchemy python-appdirs python-logbook python-cffi python-pyrsistent python-pycryptodome python-aiohttp python-future libxml2 libxslt libxml2-debug gcc python-wheel cython
 RUN mkdir /bot
 RUN mkdir /bot/source
 RUN mkdir /data
