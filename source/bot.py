@@ -167,6 +167,7 @@ async def check_depot(depot):
                             if 'lastcount' in paper:
                                 msg += ' '+str(paper['lastcount'])
                             await bot.api.send_text_message(depot.room,msg)
+                            await save_servers()
                             currently_holding = True
                         elif df.iloc[-1]['SMA_fast'] < df.iloc[-1]['SMA_slow'] and currently_holding and not paper['lastreco'] == 'sell':
                             paper['lastreco'] = 'sell'
@@ -174,6 +175,7 @@ async def check_depot(depot):
                             if 'lastcount' in paper:
                                 msg += ' '+str(paper['lastcount'])
                             await bot.api.send_text_message(depot.room,msg)
+                            await save_servers()
                 except BaseException as e:
                     if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
                         await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
