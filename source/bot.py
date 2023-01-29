@@ -1,5 +1,5 @@
 from init import *
-import yahoo,pathlib,database,pandas_ta
+import pathlib,database,pandas_ta,importlib.util
 loop = None
 lastsend = None
 class Portfolio(Config):
@@ -140,16 +140,11 @@ async def tell(room, message):
 async def check_depot(depot):
     global lastsend,servers
     while True:
-        await asyncio.sleep(60*15)
         try:
-            for paper in depot.papers:
-                if not 'ticker' in paper:
-                    ticker = yahoo.get_symbol_for_isin(paper['isin'])
-                    paper['ticker'] = ticker
-                    npaper = yahoo.UpdateSettings(paper)
-                    paper['name'] = npaper['name']
-                    await save_servers()
-            await yahoo.UpdateTickers(depot.papers)
+            for datasource in datasources:
+                uF = datasource['mod'].GetUpdateFrequency()
+                await asyncio.sleep(60*15)
+                await datasource['mod'].UpdateTickers(depot.papers)
             for paper in depot.papers:
                 try:
                     df = database.GetPaperData(paper,30)  
@@ -184,11 +179,25 @@ async def check_depot(depot):
             if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
                 await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
                 depot.lasterror = str(e)
+datasources = []
+strategies = []
 try:
     with open('data.json', 'r') as f:
         nservers = json.load(f)
         for server in nservers:
             servers.append(Portfolio(server))
+    for folder in (pathlib.Path(__file__).parent / 'datasources').glob('*'):
+        try:
+            spec = importlib.util.spec_from_file_location(folder.name, str(folder / '__init__.py'))
+            mod_ = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod_)
+            module = {
+                    'name': folder.name,
+                    'mod': mod_        
+                }
+            datasources.append(module)
+        except BaseException as e:
+            logging.error('Failed to import datasource:'+str(e))
 except BaseException as e:
     logging.error('Failed to read data.json:'+str(e))
 @bot.listener.on_startup

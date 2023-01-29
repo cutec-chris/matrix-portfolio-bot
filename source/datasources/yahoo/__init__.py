@@ -54,6 +54,8 @@ async def UpdateTickers(papers):
                                     ))
             database.session.add(sym)
             database.session.commit()
+def GetUpdateFrequency():
+    return 15*60
 def get_symbol_for_isin(isin):
     url = 'https://query1.finance.yahoo.com/v1/finance/search'
     headers = {
