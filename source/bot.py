@@ -137,17 +137,39 @@ async def tell(room, message):
         loop.create_task(check_depot(pf))
         await save_servers()
         await bot.api.send_text_message(room.room_id, 'ok')
+paper_strategies = []
+async def ProcessStrategy(paper,data):
+    paper_strategy = None
+    for st in paper_strategies:
+        if st['isin'] == paper['isin']:
+            paper_strategy = st
+    if paper_strategy == None:
+        strategy = 'sma'
+        if 'strategy' in paper:
+            strategy = paper['strategy']
+        for st in strategies:
+            if st['name'] == strategy:
+                paper_strategy = {
+                        'isin': paper['isin'],
+                        'strategy': st.Strategy(paper['isin'])
+                    }
+                paper_strategies.append(paper_strategy)
+                break
+    if paper_strategy:
+        paper_strategy['strategy'].next(data)
 async def check_depot(depot):
     global lastsend,servers
     while True:
         try:
             for datasource in datasources:
                 uF = datasource['mod'].GetUpdateFrequency()
-                await asyncio.sleep(60*15)
+                await asyncio.sleep(uF)
                 await datasource['mod'].UpdateTickers(depot.papers)
             for paper in depot.papers:
                 try:
-                    df = database.GetPaperData(paper,30)  
+                    df = database.GetPaperData(paper,30) 
+                    await ProcessStrategy(paper,df) 
+                    """
                     if df is not None:    
                         df['SMA_fast'] = pandas_ta.sma(df['Close'],10)
                         df['SMA_slow'] = pandas_ta.sma(df['Close'],30) 
@@ -171,6 +193,7 @@ async def check_depot(depot):
                                 msg += ' '+str(paper['lastcount'])
                             await bot.api.send_text_message(depot.room,msg)
                             await save_servers()
+                    """
                 except BaseException as e:
                     if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
                         await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
@@ -198,6 +221,18 @@ try:
             datasources.append(module)
         except BaseException as e:
             logging.error('Failed to import datasource:'+str(e))
+    for folder in (pathlib.Path(__file__).parent / 'strategy').glob('*'):
+        try:
+            spec = importlib.util.spec_from_file_location(folder.name, str(folder / '__init__.py'))
+            mod_ = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod_)
+            module = {
+                    'name': folder.name,
+                    'mod': mod_        
+                }
+            strategies.append(module)
+        except BaseException as e:
+            logging.error('Failed to import strategy:'+str(e))
 except BaseException as e:
     logging.error('Failed to read data.json:'+str(e))
 @bot.listener.on_startup

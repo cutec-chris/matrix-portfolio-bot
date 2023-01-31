@@ -8,6 +8,8 @@ def UpdateSettings(paper):
 async def UpdateTickers(papers):
     tickers = []
     for paper in papers:
+        if not 'ticker' in paper or paper['ticker'] == None:
+            paper['ticker'] = get_symbol_for_isin(paper['isin'])
         tickers.append(paper['ticker'])
     for paper in papers:
         if database.session.query(database.Symbol.isin).filter_by(isin=paper['isin']).first() is None and paper['ticker']:
@@ -34,7 +36,11 @@ async def UpdateTickers(papers):
     for paper in papers:
         if paper['ticker']:
             sym = database.session.execute(database.sqlalchemy.select(database.Symbol).where(database.Symbol.isin==paper['isin'])).fetchone()[0]
+            #tf = yfinance.Ticker(paper['ticker'])
+            #info = tf.info
             date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
+            if not 'process_date' in paper:
+                paper['process_date'] = latest_date
             data = yfinance.download(tickers=paper['ticker'],start=latest_date,period="5d",interval = "15m")
             data.reset_index(inplace=True)
             if len(data)>0:

@@ -29,6 +29,24 @@ class MinuteBar(Base):
                 nullable=False)
     symbol = sqlalchemy.orm.relationship('Symbol', backref='minute_bars')
     sqlalchemy.UniqueConstraint(symbol_id, date)
+class Rating(enum.Enum):
+    stromg_sell = 'strong sell'
+    sell = 'sell'
+    buy = 'buy'
+    strong_buy = 'strong buy'
+class AnalystRating(Base):
+    __tablename__ = 'analyst_rating'
+    id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
+    date = sqlalchemy.Column(sqlalchemy.DateTime, nullable=False)
+    target_price = sqlalchemy.Column(sqlalchemy.Float)
+    rating = sqlalchemy.Column(sqlalchemy.Enum(Rating))
+    symbol_id = sqlalchemy.Column(sqlalchemy.Integer,
+                sqlalchemy.ForeignKey('symbol.id',
+                            onupdate="CASCADE",
+                            ondelete="CASCADE"),
+                nullable=False)
+    symbol = sqlalchemy.orm.relationship('Symbol', backref='analyst_ratings')
+
 def GetActPrice(paper):
     sym = session.execute(sqlalchemy.select(Symbol).where(Symbol.isin==paper['isin'])).fetchone()
     if sym:
