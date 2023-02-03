@@ -138,7 +138,7 @@ async def tell(room, message):
         await save_servers()
         await bot.api.send_text_message(room.room_id, 'ok')
 paper_strategies = []
-async def ProcessStrategy(paper,data):
+async def ProcessStrategy(paper,depot,data):
     paper_strategy = None
     for st in paper_strategies:
         if st['isin'] == paper['isin']:
@@ -151,24 +151,24 @@ async def ProcessStrategy(paper,data):
             if st['name'] == strategy:
                 paper_strategy = {
                         'isin': paper['isin'],
-                        'strategy': st.Strategy(paper['isin'])
+                        'strategy': st['mod'].Strategy(paper,depot,bot)
                     }
                 paper_strategies.append(paper_strategy)
                 break
     if paper_strategy:
-        paper_strategy['strategy'].next(data)
+        await paper_strategy['strategy'].next(data)
 async def check_depot(depot):
     global lastsend,servers
     while True:
         try:
             for datasource in datasources:
                 uF = datasource['mod'].GetUpdateFrequency()
-                await asyncio.sleep(uF)
+                #await asyncio.sleep(uF)
                 await datasource['mod'].UpdateTickers(depot.papers)
             for paper in depot.papers:
                 try:
                     df = database.GetPaperData(paper,30) 
-                    await ProcessStrategy(paper,df) 
+                    await ProcessStrategy(paper,depot,df) 
                     """
                     if df is not None:    
                         df['SMA_fast'] = pandas_ta.sma(df['Close'],10)
@@ -198,6 +198,7 @@ async def check_depot(depot):
                     if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
                         await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
                         depot.lasterror = str(e)
+            await asyncio.sleep(1)
         except BaseException as e:
             if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
                 await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
@@ -255,11 +256,17 @@ async def bot_help(room, message):
                 command: add isin/ticker [count] [price] [depot]
                 description: add an paper to an depot
             buy:
-                command: buy isin/ticker [count] [price] [depot]
+                command: buy isin/ticker [count][@limit] [price] [depot]
                 description: buy an amount of paper
             sell:
                 command: sell isin/ticker [count] [price] [depot]
                 description: sell an amount of paper
+            stop:
+                command: stop isin/ticker price [count]
+                description: add an stop order for isin/ticker
+            tsl:
+                command: tsl isin/ticker price percent [count]
+                description: add an tsl order for isin/ticker
             show:
                 command: show [depot]
                 description: show an overview of an depot
