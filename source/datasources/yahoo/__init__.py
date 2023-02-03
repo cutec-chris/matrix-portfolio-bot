@@ -6,6 +6,7 @@ def UpdateSettings(paper,info):
 async def UpdateTickers(papers):
     tickers = []
     for paper in papers:
+        info = None
         if not 'ticker' in paper or paper['ticker'] == None:
             paper['ticker'] = get_symbol_for_isin(paper['isin'])
         if paper['ticker']:
@@ -14,6 +15,7 @@ async def UpdateTickers(papers):
             if not 'name' in paper:
                 UpdateSettings(paper,info)
             tickers.append(paper['ticker'])
+        #initial download
         if database.session.query(database.Symbol.isin).filter_by(isin=paper['isin']).first() is None and paper['ticker']:
             startdate = datetime.datetime.utcnow()-datetime.timedelta(days=365*3)
             while startdate < datetime.datetime.utcnow():
@@ -35,8 +37,8 @@ async def UpdateTickers(papers):
                 database.session.add(sym)
                 database.session.commit()
                 startdate += datetime.timedelta(days=60)
-    for paper in papers:
-        if paper['ticker']:
+        #15min update
+        if paper['ticker'] and (not info or info['tradeable']==True):
             sym = database.session.execute(database.sqlalchemy.select(database.Symbol).where(database.Symbol.isin==paper['isin'])).fetchone()[0]
             date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
             if not 'process_date' in paper:
