@@ -163,37 +163,12 @@ async def check_depot(depot):
         try:
             for datasource in datasources:
                 uF = datasource['mod'].GetUpdateFrequency()
-                #await asyncio.sleep(uF)
+                await asyncio.sleep(uF)
                 await datasource['mod'].UpdateTickers(depot.papers)
             for paper in depot.papers:
                 try:
                     df = database.GetPaperData(paper,30) 
                     await ProcessStrategy(paper,depot,df) 
-                    """
-                    if df is not None:    
-                        df['SMA_fast'] = pandas_ta.sma(df['Close'],10)
-                        df['SMA_slow'] = pandas_ta.sma(df['Close'],30) 
-                    if df is not None and df.iloc[-1]['SMA_fast'] and df.iloc[-1]['SMA_slow']:
-                        if not 'lastreco' in paper:
-                            paper['lastreco'] = None    
-                        currently_holding = not paper['count'] == 0 
-                        price = df.iloc[-1]['Close']
-                        if df.iloc[-1]['SMA_fast'] > df.iloc[-1]['SMA_slow'] and not currently_holding and not paper['lastreco'] == 'buy':
-                            paper['lastreco'] = 'buy'
-                            msg = 'buy '+paper['isin']
-                            if 'lastcount' in paper:
-                                msg += ' '+str(paper['lastcount'])
-                            await bot.api.send_text_message(depot.room,msg)
-                            await save_servers()
-                            currently_holding = True
-                        elif df.iloc[-1]['SMA_fast'] < df.iloc[-1]['SMA_slow'] and currently_holding and not paper['lastreco'] == 'sell':
-                            paper['lastreco'] = 'sell'
-                            msg = 'sell '+paper['isin']
-                            if 'lastcount' in paper:
-                                msg += ' '+str(paper['lastcount'])
-                            await bot.api.send_text_message(depot.room,msg)
-                            await save_servers()
-                    """
                 except BaseException as e:
                     if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
                         await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
@@ -201,6 +176,7 @@ async def check_depot(depot):
             await save_servers()
             await asyncio.sleep(1)
         except BaseException as e:
+            logging.error(str(e))
             if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
                 await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
                 depot.lasterror = str(e)

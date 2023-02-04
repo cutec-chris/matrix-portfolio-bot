@@ -1,4 +1,4 @@
-import requests,yfinance,pandas,datetime,pathlib,database,sqlalchemy.sql.expression,asyncio
+import requests,yfinance,pandas,datetime,pathlib,database,sqlalchemy.sql.expression,asyncio,logging
 def UpdateSettings(paper,info):
     if not 'name' in paper or paper['name'] != info['shortName']:
         paper['name'] = info['shortName']
@@ -6,62 +6,65 @@ def UpdateSettings(paper,info):
 async def UpdateTickers(papers):
     tickers = []
     for paper in papers:
-        info = None
-        if not 'ticker' in paper or paper['ticker'] == None:
-            paper['ticker'] = get_symbol_for_isin(paper['isin'])
-        if paper['ticker']:
-            tf = yfinance.Ticker(paper['ticker'])
-            info = tf.info
-            if not 'name' in paper:
-                UpdateSettings(paper,info)
-            tickers.append(paper['ticker'])
-        #initial download
-        if database.session.query(database.Symbol.isin).filter_by(isin=paper['isin']).first() is None and paper['ticker']:
-            startdate = datetime.datetime.utcnow()-datetime.timedelta(days=365*3)
-            while startdate < datetime.datetime.utcnow():
-                data = yfinance.download(tickers=paper['ticker'],period="60d",interval = "15m")
+        try:
+            info = None
+            if not 'ticker' in paper or paper['ticker'] == None:
+                paper['ticker'] = get_symbol_for_isin(paper['isin'])
+            if paper['ticker']:
+                tf = yfinance.Ticker(paper['ticker'])
+                info = tf.info
                 if not 'name' in paper:
-                    paper['name'] = paper['ticker']
-                sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=database.Market.stock,active=True)
+                    UpdateSettings(paper,info)
+                tickers.append(paper['ticker'])
+            #initial download
+            if database.session.query(database.Symbol.isin).filter_by(isin=paper['isin']).first() is None and paper['ticker']:
+                startdate = datetime.datetime.utcnow()-datetime.timedelta(days=365*3)
+                while startdate < datetime.datetime.utcnow():
+                    data = yfinance.download(tickers=paper['ticker'],period="60d",interval = "15m")
+                    if not 'name' in paper:
+                        paper['name'] = paper['ticker']
+                    sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=database.Market.stock,active=True)
+                    data.reset_index(inplace=True)
+                    for row in range(len(data)):
+                        sym.minute_bars.append(database.MinuteBar( 
+                                            date=data['Datetime'].loc[row],
+                                            open=data['Open'].loc[row],
+                                            high=data['High'].loc[row],
+                                            low=data['Low'].loc[row],
+                                            close=data['Close'].loc[row],
+                                            volume=data['Volume'].loc[row],
+                                            symbol=sym,
+                                        ))
+                    database.session.add(sym)
+                    database.session.commit()
+                    startdate += datetime.timedelta(days=60)
+            #15min update
+            if paper['ticker'] and (not info or info['tradeable']==True):
+                sym = database.session.execute(database.sqlalchemy.select(database.Symbol).where(database.Symbol.isin==paper['isin'])).fetchone()[0]
+                date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
+                if not 'process_date' in paper:
+                    paper['process_date'] = latest_date
+                data = yfinance.download(tickers=paper['ticker'],start=latest_date,period="5d",interval = "15m")
                 data.reset_index(inplace=True)
+                if len(data)>0:
+                    await asyncio.sleep(5)
                 for row in range(len(data)):
-                    sym.minute_bars.append(database.MinuteBar( 
-                                        date=data['Datetime'].loc[row],
-                                        open=data['Open'].loc[row],
-                                        high=data['High'].loc[row],
-                                        low=data['Low'].loc[row],
-                                        close=data['Close'].loc[row],
-                                        volume=data['Volume'].loc[row],
-                                        symbol=sym,
-                                    ))
+                    await asyncio.sleep(0.1)
+                    oldrow = database.session.query(database.MinuteBar).filter_by(date=data['Datetime'].loc[row],symbol=sym).first()
+                    if oldrow is None:
+                        sym.minute_bars.append(database.MinuteBar( 
+                                            date=data['Datetime'].loc[row],
+                                            open=data['Open'].loc[row],
+                                            high=data['High'].loc[row],
+                                            low=data['Low'].loc[row],
+                                            close=data['Close'].loc[row],
+                                            volume=data['Volume'].loc[row],
+                                            symbol=sym,
+                                        ))
                 database.session.add(sym)
                 database.session.commit()
-                startdate += datetime.timedelta(days=60)
-        #15min update
-        if paper['ticker'] and (not info or info['tradeable']==True):
-            sym = database.session.execute(database.sqlalchemy.select(database.Symbol).where(database.Symbol.isin==paper['isin'])).fetchone()[0]
-            date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
-            if not 'process_date' in paper:
-                paper['process_date'] = latest_date
-            data = yfinance.download(tickers=paper['ticker'],start=latest_date,period="5d",interval = "15m")
-            data.reset_index(inplace=True)
-            if len(data)>0:
-                await asyncio.sleep(5)
-            for row in range(len(data)):
-                await asyncio.sleep(0.1)
-                oldrow = database.session.query(database.MinuteBar).filter_by(date=data['Datetime'].loc[row],symbol=sym).first()
-                if oldrow is None:
-                    sym.minute_bars.append(database.MinuteBar( 
-                                        date=data['Datetime'].loc[row],
-                                        open=data['Open'].loc[row],
-                                        high=data['High'].loc[row],
-                                        low=data['Low'].loc[row],
-                                        close=data['Close'].loc[row],
-                                        volume=data['Volume'].loc[row],
-                                        symbol=sym,
-                                    ))
-            database.session.add(sym)
-            database.session.commit()
+            except BaseException as e:
+                logging.warn(str(e))
 def GetUpdateFrequency():
     return 15*60
 def get_symbol_for_isin(isin):
