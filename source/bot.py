@@ -66,6 +66,7 @@ async def tell(room, message):
                         paper['price'] = oldprice-newprice
                         paper['count'] = paper['count']-count
                     await save_servers()
+                    await check_depot(depot,True)
                     await bot.api.send_text_message(room.room_id, 'ok')
                     break
     elif (match.is_not_from_this_bot() and match.prefix())\
@@ -157,7 +158,7 @@ async def ProcessStrategy(paper,depot,data):
                 break
     if paper_strategy:
         await paper_strategy['strategy'].next(data)
-async def check_depot(depot):
+async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
         try:
@@ -186,6 +187,8 @@ try:
     with open('data.json', 'r') as f:
         nservers = json.load(f)
         for server in nservers:
+            if not 'papers' in server:
+                server['papers'] = []
             servers.append(Portfolio(server))
     for folder in (pathlib.Path(__file__).parent / 'datasources').glob('*'):
         try:

@@ -63,8 +63,8 @@ async def UpdateTickers(papers):
                                         ))
                 database.session.add(sym)
                 database.session.commit()
-            except BaseException as e:
-                logging.warn(str(e))
+        except BaseException as e:
+            logging.warn(str(e))
 def GetUpdateFrequency():
     return 15*60
 def get_symbol_for_isin(isin):
