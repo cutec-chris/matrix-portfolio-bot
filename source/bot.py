@@ -162,7 +162,7 @@ async def ProcessStrategy(paper,depot,data):
 async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
-        logging.info('checking depot '+str(depot.name]))
+        logging.info('checking depot '+str(depot.name))
         try:
             for datasource in datasources:
                 uF = datasource['mod'].GetUpdateFrequency()
