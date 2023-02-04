@@ -179,7 +179,7 @@ async def check_depot(depot,fast=False):
             await save_servers()
             await asyncio.sleep(1)
         except BaseException as e:
-            logging.error(str(e))
+            logging.error(str(e), exc_info=True)
             if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
                 await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
                 depot.lasterror = str(e)
