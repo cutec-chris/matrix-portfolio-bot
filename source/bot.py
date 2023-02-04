@@ -180,6 +180,8 @@ async def check_depot(depot,fast=False):
                         depot.lasterror = str(e)
             await save_servers()
             await asyncio.sleep(1)
+            if fast:
+                break
         except BaseException as e:
             logging.error(str(e), exc_info=True)
             if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
