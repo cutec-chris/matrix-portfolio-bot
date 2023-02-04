@@ -186,6 +186,7 @@ async def check_depot(depot,fast=False):
 datasources = []
 strategies = []
 try:
+    logging.basicConfig(level=logging.INFO)
     logging.info('loading config...')
     with open('data.json', 'r') as f:
         nservers = json.load(f)
