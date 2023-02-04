@@ -1,5 +1,5 @@
 from init import *
-import pathlib,database,pandas_ta,importlib.util
+import pathlib,database,pandas_ta,importlib.util,logging
 loop = None
 lastsend = None
 class Portfolio(Config):
@@ -8,6 +8,7 @@ class Portfolio(Config):
 @bot.listener.on_message_event
 async def tell(room, message):
     global servers,lastsend
+    logging.info(str(message))
     if not message.body.startswith(prefix) and room.member_count==2:
         message.body = prefix+' '+message.body
     match = botlib.MessageMatch(room, message, bot, prefix)
