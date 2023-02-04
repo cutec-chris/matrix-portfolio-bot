@@ -162,6 +162,7 @@ async def ProcessStrategy(paper,depot,data):
 async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
+        logging.info('checking depot '+str(depot.name]))
         try:
             for datasource in datasources:
                 uF = datasource['mod'].GetUpdateFrequency()
@@ -185,6 +186,7 @@ async def check_depot(depot,fast=False):
 datasources = []
 strategies = []
 try:
+    logging.info('loading config...')
     with open('data.json', 'r') as f:
         nservers = json.load(f)
         for server in nservers:
