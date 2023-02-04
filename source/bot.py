@@ -68,7 +68,8 @@ async def tell(room, message):
                         paper['count'] = paper['count']-count
                     await save_servers()
                     await bot.api.send_text_message(room.room_id, 'ok')
-                    asyncio.run(check_depot(depot,True))
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(check_depot(depot,True))
                     break
     elif (match.is_not_from_this_bot() and match.prefix())\
     and match.command("analyze"):
