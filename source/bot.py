@@ -198,6 +198,7 @@ async def check_depot(depot):
                     if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
                         await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
                         depot.lasterror = str(e)
+            await save_servers()
             await asyncio.sleep(1)
         except BaseException as e:
             if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
