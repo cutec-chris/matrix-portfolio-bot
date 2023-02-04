@@ -67,8 +67,8 @@ async def tell(room, message):
                         paper['price'] = oldprice-newprice
                         paper['count'] = paper['count']-count
                     await save_servers()
-                    await check_depot(depot,True)
                     await bot.api.send_text_message(room.room_id, 'ok')
+                    asyncio.run(check_depot(depot,True))
                     break
     elif (match.is_not_from_this_bot() and match.prefix())\
     and match.command("analyze"):
@@ -165,8 +165,9 @@ async def check_depot(depot,fast=False):
         logging.info('checking depot '+str(depot.name))
         try:
             for datasource in datasources:
-                uF = datasource['mod'].GetUpdateFrequency()
-                await asyncio.sleep(uF)
+                if not fast:
+                    uF = datasource['mod'].GetUpdateFrequency()
+                    await asyncio.sleep(uF)
                 await datasource['mod'].UpdateTickers(depot.papers)
             for paper in depot.papers:
                 try:
