@@ -173,9 +173,10 @@ async def check_depot(depot,fast=False):
             for paper in depot.papers:
                 try:
                     df = await database.GetPaperData(paper,30)
-                    if df: 
+                    if df != None: 
                         await ProcessStrategy(paper,depot,df) 
                 except BaseException as e:
+                    logging.error(str(e), exc_info=True)
                     if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
                         await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
                         depot.lasterror = str(e)
