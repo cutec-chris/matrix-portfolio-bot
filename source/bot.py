@@ -172,8 +172,9 @@ async def check_depot(depot,fast=False):
                 await datasource['mod'].UpdateTickers(depot.papers)
             for paper in depot.papers:
                 try:
-                    df = await database.GetPaperData(paper,30) 
-                    await ProcessStrategy(paper,depot,df) 
+                    df = await database.GetPaperData(paper,30)
+                    if df: 
+                        await ProcessStrategy(paper,depot,df) 
                 except BaseException as e:
                     if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
                         await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
