@@ -1,5 +1,5 @@
 from init import *
-import pathlib,database,pandas_ta,importlib.util,logging
+import pathlib,database,pandas_ta,importlib.util,logging,os
 loop = None
 lastsend = None
 class Portfolio(Config):
@@ -172,7 +172,7 @@ async def check_depot(depot,fast=False):
                 await datasource['mod'].UpdateTickers(depot.papers)
             for paper in depot.papers:
                 try:
-                    df = database.GetPaperData(paper,30) 
+                    df = await database.GetPaperData(paper,30) 
                     await ProcessStrategy(paper,depot,df) 
                 except BaseException as e:
                     if not hasattr(depot,'lasterror') or depot.lasterror != str(e):

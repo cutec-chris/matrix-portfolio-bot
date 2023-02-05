@@ -1,4 +1,4 @@
-import sqlalchemy,sqlalchemy.orm,pathlib,enum,datetime,pandas
+import sqlalchemy,sqlalchemy.orm,pathlib,enum,datetime,pandas,asyncio
 Base = sqlalchemy.orm.declarative_base()
 class Market(enum.Enum):
     crypto = 'crypto'
@@ -55,7 +55,7 @@ def GetActPrice(paper):
         return None
     date_entry,latest_date = session.query(MinuteBar,sqlalchemy.sql.expression.func.max(MinuteBar.date)).filter_by(symbol=sym).first()
     return date_entry.close
-def GetPaperData(paper,days):
+async def GetPaperData(paper,days):
     current_time = datetime.datetime.utcnow()
     datestart = current_time - datetime.timedelta(days=days)
     sym = session.execute(sqlalchemy.select(Symbol).where(Symbol.isin==paper['isin'])).fetchone()
@@ -75,6 +75,7 @@ def GetPaperData(paper,days):
             "Volume":  [row.volume],
         })
         df = pandas.concat([df, entry], ignore_index=True)
+        await asyncio.sleep(0)
     return df
 Data = pathlib.Path('.') / 'data'
 Data.mkdir(parents=True,exist_ok=True)

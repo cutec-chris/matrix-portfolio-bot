@@ -1,4 +1,13 @@
-import simplematrixbotlib as botlib,yaml,json,logging,asyncio,nio
+import simplematrixbotlib as botlib,yaml,json,logging,asyncio,nio,pathlib,os
+configpath = pathlib.Path(__file__).parent
+if not (configpath / 'config.yml').exists():
+    configpath = configpath.parent
+    if not (configpath / 'config.yml').exists():
+        if (configpath / 'data' / 'config.yml').exists():
+            configpath = configpath / 'data'
+        if (configpath.parent / 'data' / 'config.yml').exists():
+            configpath = configpath.parent / 'data'
+os.chdir(str(configpath))
 with open('config.yml', 'r') as file:
     config = yaml.safe_load(file)
 try: 
