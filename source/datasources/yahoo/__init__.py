@@ -42,8 +42,8 @@ async def UpdateTickers(papers):
             if paper['ticker'] and (not info or info['tradeable']==True):
                 sym = database.session.execute(database.sqlalchemy.select(database.Symbol).where(database.Symbol.isin==paper['isin'])).fetchone()[0]
                 date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
-                if not 'process_date' in paper:
-                    paper['process_date'] = latest_date
+                #if not 'process_date' in paper:
+                #    paper['process_date'] = latest_date
                 data = yfinance.download(tickers=paper['ticker'],start=latest_date,period="5d",interval = "15m")
                 data.reset_index(inplace=True)
                 if len(data)>0:
