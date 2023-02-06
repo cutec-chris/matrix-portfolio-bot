@@ -74,6 +74,12 @@ async def tell(room, message):
     elif (match.is_not_from_this_bot() and match.prefix())\
     and match.command("analyze"):
         depot = None
+        strategy = 'sma'
+        if len(match.args())>2: strategy = match.args()[2]
+        days = 1
+        if len(match.args())>3: days = float(match.args()[3])
+        date = None
+        if len(match.args())>4: date = match.args()[4]
         for adepot in servers:
             if adepot.room == room.room_id and (adepot.name == depot or depot == None):
                 depot = adepot
@@ -82,8 +88,14 @@ async def tell(room, message):
             found = False
             for paper in depot.papers:
                 if paper['isin'] == match.args()[1]:
-                    df = database.GetPaperData(paper,90)
-                    pass
+                    df = await database.GetPaperData(paper,days)
+                    vola = 0.0
+                    for index, row in df.iterrows():
+                        avola = ((row['Max']-row['Min'])/row['Close'])*100
+                        if avola > vola: vola = avola
+                    msg =  'Analyse of %s (%s)\n' % (paper['name'],paper['isin'])\
+                          +'Volatility: %.2f\n' % vola
+                    await bot.api.send_markdown_message(room.room_id, msg)
     elif (match.is_not_from_this_bot() and match.prefix())\
     and match.command("show"):
         tdepot = None
@@ -180,7 +192,7 @@ async def check_depot(depot,fast=False):
                         await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
                         depot.lasterror = str(e)
             await save_servers()
-            await asyncio.sleep(1)
+            await asyncio.sleep(60)
             if fast:
                 break
         except BaseException as e:
@@ -250,18 +262,18 @@ async def bot_help(room, message):
             sell:
                 command: sell isin/ticker [count] [price] [depot]
                 description: sell an amount of paper
+            show:
+                command: show [depot]
+                description: show an overview of an depot
+            analyze:
+                command: analyze isin/ticker [strategy] [count] [date]
+                description: analyze an paper
             stop:
                 command: stop isin/ticker price [count]
                 description: add an stop order for isin/ticker
             tsl:
                 command: tsl isin/ticker price percent [count]
                 description: add an tsl order for isin/ticker
-            show:
-                command: show [depot]
-                description: show an overview of an depot
-            analyze:
-                command: analyze isin/ticker [strategy]
-                description: analyze an paper
             help:
                 command: help, ?, h
                 description: display help command
