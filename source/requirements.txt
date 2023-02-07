@@ -1,5 +1,5 @@
 simplematrixbotlib
 pyyaml
-yfinance
+git+https://github.com/ranaroussi/yfinance.git@dev
 pandas_ta
 sqlalchemy
