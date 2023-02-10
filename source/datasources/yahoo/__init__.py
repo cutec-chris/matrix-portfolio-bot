@@ -12,9 +12,11 @@ async def UpdateTickers(papers):
                 paper['ticker'] = get_symbol_for_isin(paper['isin'])
             if paper['ticker']:
                 tf = yfinance.Ticker(paper['ticker'])
-                #info = tf.info
-                #if not 'name' in paper:
-                #    UpdateSettings(paper,info)
+                if not 'name' in paper:
+                    try:
+                        info = tf.info
+                        UpdateSettings(paper,info)
+                    except: pass
                 tickers.append(paper['ticker'])
             #initial download
             if database.session.query(database.Symbol.isin).filter_by(isin=paper['isin']).first() is None and paper['ticker']:
