@@ -1,10 +1,20 @@
-import backtest,pandas_ta
-class Strategy(backtest.Strategy):
-    async def next(self,df):
-        df['SMA_fast'] = pandas_ta.sma(df['Close'],10)
-        df['SMA_slow'] = pandas_ta.sma(df['Close'],60)
-        if df.iloc[-1]['SMA_slow'] and df.iloc[-1]['SMA_fast']:
-            if df.iloc[-1]['SMA_fast'] > df.iloc[-1]['SMA_slow']:
-                await self.buy()
-            elif df.iloc[-1]['SMA_fast'] < df.iloc[-1]['SMA_slow']:
-                await self.sell()
+import backtrader
+class Strategy(bt.Strategy):
+    params = (
+        ('fast_sma_period', 12),
+        ('slow_sma_period', 26),
+    )
+
+    def __init__(self):
+        self.fast_sma = backtrader.indicators.SimpleMovingAverage(
+            self.data.close, period=self.params.fast_sma_period
+        )
+        self.slow_sma = backtrader.indicators.SimpleMovingAverage(
+            self.data.close, period=self.params.slow_sma_period
+        )
+
+    def next(self):
+        if self.data.close[0] > self.fast_sma[0] and self.data.close[-1] <= self.fast_sma[-1]:
+            self.buy()
+        elif self.data.close[0] < self.slow_sma[0] and self.data.close[-1] >= self.slow_sma[-1]:
+            self.sell()
