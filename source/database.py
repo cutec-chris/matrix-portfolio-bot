@@ -13,6 +13,28 @@ class Symbol(Base):
     name = sqlalchemy.Column(sqlalchemy.String(200), nullable=False)
     market = sqlalchemy.Column(sqlalchemy.Enum(Market), nullable=False)
     active = sqlalchemy.Column(sqlalchemy.Boolean, nullable=False)
+
+    def AppendData(self, df):
+        for index, row in df.iterrows():
+            date = row["Datetime"]
+            # Check if data for the date already exists
+            existing_data = session.query(MinuteBar).filter_by(symbol=self, date=date).first()
+            if existing_data:
+                continue
+            # Add new data if it doesn't exist
+            session.add(MinuteBar(date=date, open=row["Open"], high=row["High"], low=row["Low"], close=row["Close"], volume=row["Volume"], symbol=self))
+    def GetData(self, start_date=None, end_date=None):
+        query = session.query(MinuteBar).filter_by(symbol=self)
+        if start_date:
+            query = query.filter(MinuteBar.date >= start_date)
+        if end_date:
+            query = query.filter(MinuteBar.date <= end_date)
+        query = query.order_by(MinuteBar.date)
+        df = pd.DataFrame(
+            [(row.date, row.open, row.high, row.low, row.close, row.volume) for row in query.all()], 
+            columns=["Datetime", "Open", "High", "Low", "Close", "Volume"]
+        )
+        return df
 class MinuteBar(Base):
     __tablename__ = 'minute_bar'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
@@ -47,36 +69,6 @@ class AnalystRating(Base):
                 nullable=False)
     symbol = sqlalchemy.orm.relationship('Symbol', backref='analyst_ratings')
 
-def GetActPrice(paper):
-    sym = session.execute(sqlalchemy.select(Symbol).where(Symbol.isin==paper['isin'])).fetchone()
-    if sym:
-        sym = sym[0]
-    else:
-        return None
-    date_entry,latest_date = session.query(MinuteBar,sqlalchemy.sql.expression.func.max(MinuteBar.date)).filter_by(symbol=sym).first()
-    return date_entry.close
-async def GetPaperData(paper,days):
-    current_time = datetime.datetime.utcnow()
-    datestart = current_time - datetime.timedelta(days=days)
-    sym = session.execute(sqlalchemy.select(Symbol).where(Symbol.isin==paper['isin'])).fetchone()
-    if sym:
-        sym = sym[0]
-    else:
-        return None
-    rows = session.query(MinuteBar).where(sqlalchemy.and_(MinuteBar.symbol==sym,MinuteBar.date>datestart)).order_by(MinuteBar.date).all()
-    df = pandas.DataFrame(columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
-    for row in rows:
-        entry = pandas.DataFrame.from_dict({
-            "Datetime": [row.date],
-            "Open":  [row.open],
-            "High":  [row.high],
-            "Low":  [row.low],
-            "Close":  [row.close],
-            "Volume":  [row.volume],
-        })
-        df = pandas.concat([df, entry], ignore_index=True)
-        await asyncio.sleep(0)
-    return df
 Data = pathlib.Path('.') / 'data'
 Data.mkdir(parents=True,exist_ok=True)
 dbEngine=sqlalchemy.create_engine('sqlite:///'+str(Data / 'database.db')) 
