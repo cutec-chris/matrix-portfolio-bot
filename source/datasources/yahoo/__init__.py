@@ -1,8 +1,4 @@
 import requests,yfinance,pandas,datetime,pathlib,database,sqlalchemy.sql.expression,asyncio,logging
-def UpdateSettings(paper,info):
-    if not 'name' in paper or paper['name'] != info['shortName']:
-        paper['name'] = info['shortName']
-    return paper
 async def UpdateTickers(papers):
     tickers = []
     for paper in papers:
@@ -69,7 +65,7 @@ async def UpdateTickers(papers):
             logging.warn(str(e))
 def GetUpdateFrequency():
     return 15*60
-def get_symbol_for_isin(isin):
+def SearchPaper(isin):
     url = 'https://query1.finance.yahoo.com/v1/finance/search'
     headers = {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.109 Safari/537.36',
