@@ -16,7 +16,7 @@ async def UpdateTickers(papers):
             while startdate < datetime.datetime.utcnow():
                 from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
                 to_timestamp = int(((startdate+datetime.timedelta(days=60)) - datetime.datetime(1970, 1, 1)).total_seconds())
-                url = f"https://query1.finance.yahoo.com/v7/finance/download/{paper['ticker']}?period1={from_timestamp}&period2={to_timestamp}&interval=15m&events=history&includeAdjustedClose=true"
+                url = f"https://query1.finance.yahoo.com/v7/finance/download/{paper['ticker']}?period1={from_timestamp}&period2={to_timestamp}&interval=15m&events=history"
                 async with aiohttp.ClientSession() as session:
                     async with session.get(url) as resp:
                         data = await resp.text()
@@ -31,7 +31,7 @@ async def UpdateTickers(papers):
             startdate = paper['updated']
             from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
             to_timestamp = int(((startdate+datetime.timedelta(days=60)) - datetime.datetime(1970, 1, 1)).total_seconds())
-            url = f"https://query1.finance.yahoo.com/v7/finance/download/{paper['ticker']}?period1={from_timestamp}&period2={to_timestamp}&interval=15m&events=history&includeAdjustedClose=true"
+            url = f"https://query1.finance.yahoo.com/v7/finance/download/{paper['ticker']}?period1={from_timestamp}&period2={to_timestamp}&interval=15m&events=history"
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as resp:
                     data = await resp.text()
