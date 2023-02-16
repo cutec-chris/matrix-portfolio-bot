@@ -1,5 +1,5 @@
 from init import *
-import pathlib,database,pandas_ta,importlib.util,logging,os,pandas
+import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime
 loop = None
 lastsend = None
 class Portfolio(Config):
@@ -184,21 +184,27 @@ async def check_depot(depot,fast=False):
     while True:
         logging.info('checking depot '+str(depot.name))
         try:
+            paperstats = depot.papers
+            for paper in paperstats:
+                sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+                date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
+                paper['updated'] = latest_date
             for datasource in datasources:
                 if not fast:
                     uF = datasource['mod'].GetUpdateFrequency()
-                    await asyncio.sleep(uF)
-                await datasource['mod'].UpdateTickers(depot.papers)
-            for paper in depot.papers:
+                    #await asyncio.sleep(uF)
+                await datasource['mod'].UpdateTickers(paperstats)
+            for paper in paperstats:
                 try:
-                    df = await database.GetPaperData(paper,30)
+                    sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+                    df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
                     await ProcessStrategy(paper,depot,df) 
                 except BaseException as e:
                     logging.error(str(e), exc_info=True)
                     if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
                         await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
                         depot.lasterror = str(e)
-            await save_servers()
+            #await save_servers()
             await asyncio.sleep(60)
             if fast:
                 break

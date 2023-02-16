@@ -30,7 +30,7 @@ class Symbol(Base):
         if end_date:
             query = query.filter(MinuteBar.date <= end_date)
         query = query.order_by(MinuteBar.date)
-        df = pd.DataFrame(
+        df = pandas.DataFrame(
             [(row.date, row.open, row.high, row.low, row.close, row.volume) for row in query.all()], 
             columns=["Datetime", "Open", "High", "Low", "Close", "Volume"]
         )
