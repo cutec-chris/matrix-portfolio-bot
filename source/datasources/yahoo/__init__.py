@@ -3,17 +3,47 @@ import requests,yfinance,pandas,pathlib,database,sqlalchemy.sql.expression,async
 async def UpdateTickers(papers):
     tickers = []
     for paper in papers:
-        sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
-        if sym == None or paper['name'] == None or paper['name'] == paper['ticker']:
-            res = SearchPaper(paper['isin'])
-            if res:
-                paper['ticker'] = res['symbol']
-                paper['name'] = res['longname']
-        if sym == None:
-            #initial download
-            sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=database.Market.stock,active=True)
-            startdate = datetime.datetime.utcnow()-datetime.timedelta(days=365*3)
-            while startdate < datetime.datetime.utcnow():
+        try:
+            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+            if sym == None or paper['name'] == None or paper['name'] == paper['ticker']:
+                res = SearchPaper(paper['isin'])
+                if res:
+                    paper['ticker'] = res['symbol']
+                    paper['name'] = res['longname']
+            if sym == None:
+                #initial download
+                sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=database.Market.stock,active=True)
+                startdate = datetime.datetime.utcnow()-datetime.timedelta(days=365*3)
+                while startdate < datetime.datetime.utcnow():
+                    from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
+                    to_timestamp = int(((startdate+datetime.timedelta(days=60)) - datetime.datetime(1970, 1, 1)).total_seconds())
+                    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=false&events=history&period1={from_timestamp}&period2={to_timestamp}"
+                    #url = f"https://query1.finance.yahoo.com/v7/finance/download/{paper['ticker']}?period1={from_timestamp}&period2={to_timestamp}&interval=15m&events=history"
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(url) as resp:
+                            data = await resp.json()
+                            ohlc_data = data["chart"]["result"][0]["indicators"]["quote"][0]
+                            pdata = pandas.DataFrame({
+                                "Datetime": data["chart"]["result"][0]["timestamp"],
+                                "Open": ohlc_data["open"],
+                                "High": ohlc_data["high"],
+                                "Low": ohlc_data["low"],
+                                "Close": ohlc_data["close"],
+                                "Volume": ohlc_data["volume"]
+                            })
+                            pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
+                            sym.AppendData(pdata)
+                    database.session.add(sym)
+                    try:
+                        database.session.commit()
+                    except BaseException as e:
+                        logging.warning('failed updating ticker:'+str(e))
+                        database.session.rollback()
+                    startdate += datetime.timedelta(days=60)
+            #15min update
+            if paper['ticker']:
+                sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+                startdate = paper['updated']
                 from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
                 to_timestamp = int(((startdate+datetime.timedelta(days=60)) - datetime.datetime(1970, 1, 1)).total_seconds())
                 url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=false&events=history&period1={from_timestamp}&period2={to_timestamp}"
@@ -38,35 +68,8 @@ async def UpdateTickers(papers):
                 except BaseException as e:
                     logging.warning('failed updating ticker:'+str(e))
                     database.session.rollback()
-                startdate += datetime.timedelta(days=60)
-        #15min update
-        if paper['ticker']:
-            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
-            startdate = paper['updated']
-            from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
-            to_timestamp = int(((startdate+datetime.timedelta(days=60)) - datetime.datetime(1970, 1, 1)).total_seconds())
-            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=false&events=history&period1={from_timestamp}&period2={to_timestamp}"
-            #url = f"https://query1.finance.yahoo.com/v7/finance/download/{paper['ticker']}?period1={from_timestamp}&period2={to_timestamp}&interval=15m&events=history"
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as resp:
-                    data = await resp.json()
-                    ohlc_data = data["chart"]["result"][0]["indicators"]["quote"][0]
-                    pdata = pandas.DataFrame({
-                        "Datetime": data["chart"]["result"][0]["timestamp"],
-                        "Open": ohlc_data["open"],
-                        "High": ohlc_data["high"],
-                        "Low": ohlc_data["low"],
-                        "Close": ohlc_data["close"],
-                        "Volume": ohlc_data["volume"]
-                    })
-                    pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
-                    sym.AppendData(pdata)
-            database.session.add(sym)
-            try:
-                database.session.commit()
-            except BaseException as e:
-                logging.warning('failed updating ticker:'+str(e))
-                database.session.rollback()
+        except BaseException as e:
+            logging.error('failed updating ticker %s: %s' % (paper['ticker'],str(e)))
 def GetUpdateFrequency():
     return 15*60
 def SearchPaper(isin):
