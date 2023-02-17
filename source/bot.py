@@ -36,7 +36,8 @@ async def tell(room, message):
                     if paper['isin'] == match.args()[1]:
                         found = True
                         if not price:
-                            price = database.GetActPrice(paper)
+                            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+                            price = sym.GetActPrice()
                         if not count:
                             count = paper['count']
                         break
@@ -198,13 +199,11 @@ async def check_depot(depot,fast=False):
             for paper in paperstats:
                 try:
                     sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
-                    df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
-                    await ProcessStrategy(paper,depot,df) 
+                    if sym:
+                        df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
+                        await ProcessStrategy(paper,depot,df) 
                 except BaseException as e:
                     logging.error(str(e), exc_info=True)
-                    if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
-                        await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
-                        depot.lasterror = str(e)
             #await save_servers()
             await asyncio.sleep(60)
             if fast:

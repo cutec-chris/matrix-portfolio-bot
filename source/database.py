@@ -34,6 +34,7 @@ class Symbol(Base):
             [(row.date, row.open, row.high, row.low, row.close, row.volume) for row in query.all()], 
             columns=["Datetime", "Open", "High", "Low", "Close", "Volume"]
         )
+        df.set_index("Datetime", inplace=True)
         return df
     def GetActPrice(self):
         last_minute_bar = session.query(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()).first()
