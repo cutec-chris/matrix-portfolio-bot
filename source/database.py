@@ -35,6 +35,12 @@ class Symbol(Base):
             columns=["Datetime", "Open", "High", "Low", "Close", "Volume"]
         )
         return df
+    def GetActPrice(self):
+        last_minute_bar = session.query(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()).first()
+        if last_minute_bar:
+            return last_minute_bar.close
+        else:
+            return None
 class MinuteBar(Base):
     __tablename__ = 'minute_bar'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)

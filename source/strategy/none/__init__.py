@@ -1,4 +1,4 @@
-import backtest
-class Strategy(backtest.Strategy):
-    def next(self,data):
+import backtrader
+class Strategy(backtrader.Strategy):
+    def next(self):
         pass

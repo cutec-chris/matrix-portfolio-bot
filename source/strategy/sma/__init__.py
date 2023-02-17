@@ -1,5 +1,5 @@
 import backtrader
-class Strategy(bt.Strategy):
+class Strategy(backtrader.Strategy):
     params = (
         ('fast_sma_period', 12),
         ('slow_sma_period', 26),
