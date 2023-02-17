@@ -174,7 +174,7 @@ async def ProcessStrategy(paper,depot,data):
             if st['name'] == strategy:
                 paper_strategy = {
                         'isin': paper['isin'],
-                        'strategy': st['mod'].Strategy(paper,depot,bot)
+                        'strategy': st['mod'].Strategy()
                     }
                 paper_strategies.append(paper_strategy)
                 break
