@@ -1,5 +1,6 @@
 import asyncio,aiohttp,csv,datetime
 import requests,yfinance,pandas,pathlib,database,sqlalchemy.sql.expression,asyncio,logging,io
+UserAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.109 Safari/537.36'
 async def UpdateTickers(papers):
     tickers = []
     for paper in papers:
@@ -18,7 +19,6 @@ async def UpdateTickers(papers):
                     from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
                     to_timestamp = int(((startdate+datetime.timedelta(days=60)) - datetime.datetime(1970, 1, 1)).total_seconds())
                     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=false&events=history&period1={from_timestamp}&period2={to_timestamp}"
-                    #url = f"https://query1.finance.yahoo.com/v7/finance/download/{paper['ticker']}?period1={from_timestamp}&period2={to_timestamp}&interval=15m&events=history"
                     async with aiohttp.ClientSession() as session:
                         async with session.get(url) as resp:
                             data = await resp.json()
@@ -47,8 +47,7 @@ async def UpdateTickers(papers):
                 from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
                 to_timestamp = int(((startdate+datetime.timedelta(days=60)) - datetime.datetime(1970, 1, 1)).total_seconds())
                 url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=false&events=history&period1={from_timestamp}&period2={to_timestamp}"
-                #url = f"https://query1.finance.yahoo.com/v7/finance/download/{paper['ticker']}?period1={from_timestamp}&period2={to_timestamp}&interval=15m&events=history"
-                async with aiohttp.ClientSession() as session:
+                async with aiohttp.ClientSession(headers={'User-Agent': UserAgent}) as session:
                     async with session.get(url) as resp:
                         data = await resp.json()
                         ohlc_data = data["chart"]["result"][0]["indicators"]["quote"][0]
@@ -75,7 +74,7 @@ def GetUpdateFrequency():
 def SearchPaper(isin):
     url = 'https://query1.finance.yahoo.com/v1/finance/search'
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.109 Safari/537.36',
+        'User-Agent': UserAgent,
     }
     params = dict(
         q=isin,
@@ -84,9 +83,9 @@ def SearchPaper(isin):
         listsCount=0,
         quotesQueryId='tss_match_phrase_query'
     )
-    resp = requests.get(url=url, headers=headers, params=params)
-    data = resp.json()
-    if 'quotes' in data and len(data['quotes']) > 0:
-        return data['quotes'][0]
-    else:
-        return None
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, headers=headers, params=params) as resp:
+            data = await resp.json()
+            if 'quotes' in data and len(data['quotes']) > 0:
+                return data['quotes'][0]
+    return None
