@@ -187,7 +187,6 @@ async def ProcessStrategy(paper,depot,data):
 async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
-        logging.info('checking depot '+str(depot.name))
         try:
             paperstats = depot.papers
             for paper in paperstats:
@@ -197,8 +196,10 @@ async def check_depot(depot,fast=False):
             for datasource in datasources:
                 if not fast:
                     uF = datasource['mod'].GetUpdateFrequency()
-                    #await asyncio.sleep(uF)
+                    await asyncio.sleep(uF)
+                logging.info(str(depot.name)+': updating tickers')
                 await datasource['mod'].UpdateTickers(paperstats)
+            logging.info(str(depot.name)+': processing strategys')
             for paper in paperstats:
                 try:
                     sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
