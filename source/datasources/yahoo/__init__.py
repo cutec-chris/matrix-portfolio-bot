@@ -7,7 +7,7 @@ async def UpdateTickers(papers):
         try:
             sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
             if sym == None or paper['name'] == None or paper['name'] == paper['ticker']:
-                res = SearchPaper(paper['isin'])
+                res = await SearchPaper(paper['isin'])
                 if res:
                     paper['ticker'] = res['symbol']
                     paper['name'] = res['longname']
@@ -51,16 +51,18 @@ async def UpdateTickers(papers):
                     async with session.get(url) as resp:
                         data = await resp.json()
                         ohlc_data = data["chart"]["result"][0]["indicators"]["quote"][0]
-                        pdata = pandas.DataFrame({
-                            "Datetime": data["chart"]["result"][0]["timestamp"],
-                            "Open": ohlc_data["open"],
-                            "High": ohlc_data["high"],
-                            "Low": ohlc_data["low"],
-                            "Close": ohlc_data["close"],
-                            "Volume": ohlc_data["volume"]
-                        })
-                        pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
-                        sym.AppendData(pdata)
+                        if len(ohlc_data)>0:
+                            pdata = pandas.DataFrame({
+                                "Datetime": data["chart"]["result"][0]["timestamp"],
+                                "Open": ohlc_data["open"],
+                                "High": ohlc_data["high"],
+                                "Low": ohlc_data["low"],
+                                "Close": ohlc_data["close"],
+                                "Volume": ohlc_data["volume"]
+                            })
+                            pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
+                            pdata.dropna()
+                            sym.AppendData(pdata)
                 database.session.add(sym)
                 try:
                     database.session.commit()
@@ -71,7 +73,7 @@ async def UpdateTickers(papers):
             logging.error('failed updating ticker %s: %s' % (paper['ticker'],str(e)))
 def GetUpdateFrequency():
     return 15*60
-def SearchPaper(isin):
+async def SearchPaper(isin):
     url = 'https://query1.finance.yahoo.com/v1/finance/search'
     headers = {
         'User-Agent': UserAgent,
