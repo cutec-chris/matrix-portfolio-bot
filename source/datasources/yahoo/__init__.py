@@ -61,14 +61,14 @@ async def UpdateTickers(papers):
                                 "Volume": ohlc_data["volume"]
                             })
                             pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
-                            pdata.dropna()
-                            sym.AppendData(pdata)
-                database.session.add(sym)
-                try:
-                    database.session.commit()
-                except BaseException as e:
-                    logging.warning('failed updating ticker:'+str(e))
-                    database.session.rollback()
+                            pdata = pdata.dropna(thresh=1)
+                            try:
+                                sym.AppendData(pdata)
+                                database.session.add(sym)
+                                database.session.commit()
+                            except BaseException as e:
+                                logging.warning('failed updating ticker:'+str(e))
+                                database.session.rollback()
         except BaseException as e:
             logging.error('failed updating ticker %s: %s' % (paper['ticker'],str(e)))
 def GetUpdateFrequency():

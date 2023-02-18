@@ -1,5 +1,5 @@
 from init import *
-import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime
+import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader
 loop = None
 lastsend = None
 class Portfolio(Config):
@@ -173,14 +173,17 @@ async def ProcessStrategy(paper,depot,data):
             strategy = paper['strategy']
         for st in strategies:
             if st['name'] == strategy:
+                cerebro = backtrader.Cerebro()
                 paper_strategy = {
                         'isin': paper['isin'],
-                        'strategy': st['mod'].Strategy()
+                        'cerebro': cerebro
                     }
+                cerebro.addstrategy(st['mod'].Strategy)
                 paper_strategies.append(paper_strategy)
                 break
     if paper_strategy and isinstance(data, pandas.DataFrame):
-        await paper_strategy['strategy'].next(data)
+        paper_strategy['cerebro'].adddata(backtrader.feeds.PandasData(dataname=data))
+        paper_strategy['cerebro'].run()
 async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
@@ -194,7 +197,7 @@ async def check_depot(depot,fast=False):
             for datasource in datasources:
                 if not fast:
                     uF = datasource['mod'].GetUpdateFrequency()
-                    await asyncio.sleep(uF)
+                    #await asyncio.sleep(uF)
                 await datasource['mod'].UpdateTickers(paperstats)
             for paper in paperstats:
                 try:
@@ -204,6 +207,7 @@ async def check_depot(depot,fast=False):
                         await ProcessStrategy(paper,depot,df) 
                 except BaseException as e:
                     logging.error(str(e), exc_info=True)
+                    raise
             #await save_servers()
             await asyncio.sleep(60)
             if fast:
@@ -213,6 +217,7 @@ async def check_depot(depot,fast=False):
             if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
                 await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
                 depot.lasterror = str(e)
+            raise
 datasources = []
 strategies = []
 try:
@@ -240,6 +245,7 @@ try:
         try:
             spec = importlib.util.spec_from_file_location(folder.name, str(folder / '__init__.py'))
             mod_ = importlib.util.module_from_spec(spec)
+            sys.modules[folder.name] = mod_
             spec.loader.exec_module(mod_)
             module = {
                     'name': folder.name,
