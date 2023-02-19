@@ -1,4 +1,4 @@
-import asyncio,aiohttp,csv,datetime
+import asyncio,aiohttp,csv,datetime,pytz
 import requests,yfinance,pandas,pathlib,database,sqlalchemy.sql.expression,asyncio,logging,io
 UserAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.109 Safari/537.36'
 async def UpdateTickers(papers):
@@ -43,7 +43,7 @@ async def UpdateTickers(papers):
             #15min update
             if paper['ticker']:
                 sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
-                startdate = paper['updated']
+                startdate = paper['_updated']
                 from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
                 to_timestamp = int(((startdate+datetime.timedelta(days=60)) - datetime.datetime(1970, 1, 1)).total_seconds())
                 url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=false&events=history&period1={from_timestamp}&period2={to_timestamp}"
