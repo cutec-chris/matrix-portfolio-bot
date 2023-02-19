@@ -67,10 +67,10 @@ async def UpdateTickers(papers):
                                 database.session.add(sym)
                                 database.session.commit()
                             except BaseException as e:
-                                logging.warning('failed updating ticker:'+str(e))
+                                logging.warning('failed writing to db:'+str(e))
                                 database.session.rollback()
         except BaseException as e:
-            logging.error('failed updating ticker %s: %s' % (paper['ticker'],str(e)))
+            logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
 def GetUpdateFrequency():
     return 15*60
 async def SearchPaper(isin):
