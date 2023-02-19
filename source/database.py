@@ -41,7 +41,7 @@ class Symbol(Base):
         if last_minute_bar:
             return last_minute_bar.close
         else:
-            return None
+            return 0
 class MinuteBar(Base):
     __tablename__ = 'minute_bar'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
