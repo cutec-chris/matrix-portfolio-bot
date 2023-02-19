@@ -188,19 +188,18 @@ async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
         try:
-            paperstats = depot.papers
-            for paper in paperstats:
+            for paper in depot.papers:
                 sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
                 date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
-                paper['updated'] = latest_date
+                paper['_updated'] = latest_date
             for datasource in datasources:
                 if not fast:
                     uF = datasource['mod'].GetUpdateFrequency()
                     await asyncio.sleep(uF)
                 logging.info(str(depot.name)+': updating tickers')
-                await datasource['mod'].UpdateTickers(paperstats)
+                await datasource['mod'].UpdateTickers(depot.papers)
             logging.info(str(depot.name)+': processing strategys')
-            for paper in paperstats:
+            for paper in depot.papers:
                 try:
                     sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
                     if sym:

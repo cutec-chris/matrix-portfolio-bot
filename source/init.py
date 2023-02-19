@@ -26,10 +26,21 @@ class Config(object):
 loop = None
 servers = []
 async def save_servers():
+    def clean_dict(d):
+        cleaned = {}
+        for k, v in d.items():
+            if not k.startswith("_"):
+                if isinstance(v, dict):
+                    cleaned[k] = clean_dict(v)
+                elif isinstance(v, list):
+                    cleaned[k] = [clean_dict(i) if isinstance(i, dict) else i for i in v if not str(i).startswith("_")]
+                else:
+                    cleaned[k] = v
+        return cleaned
     global servers
     sservers = []
     for server in servers:
-        ndict = {k: v for k, v in server.__dict__.items() if not k.startswith('_')}
+        ndict = clean_dict(server.__dict__)
         sservers.append(ndict)
     with open('data.json', 'w') as f:
         json.dump(sservers,f, skipkeys=True, indent=4)
