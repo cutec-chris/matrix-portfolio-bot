@@ -37,7 +37,10 @@ async def tell(room, message):
                         found = True
                         if not price:
                             sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
-                            price = sym.GetActPrice()
+                            if sym: 
+                                price = sym.GetActPrice()
+                            else:
+                                price = 0
                         if not count:
                             count = paper['count']
                         break
