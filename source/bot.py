@@ -88,17 +88,19 @@ async def tell(room, message):
             if not depot is str:
                 npaper = None
                 found = False
-                for paper in depot.papers:
-                    if paper['isin'] == match.args()[1]:
-                        df = await database.GetPaperData(paper,days+1)
-                        vola = 0.0
-                        for index, row in df.iterrows():
-                            avola = ((row['High']-row['Low'])/row['Close'])*100
-                            if avola > vola: vola = avola
-                        msg = 'Analyse of %s (%s)\n' % (paper['name'],paper['isin'])\
-                             +'Change: %.2f\n' % (float(df.iloc[-1]['Close'])-float(df.iloc[0]['Close']))\
-                             +'Volatility: %.2f\n' % vola
-                        await bot.api.send_markdown_message(room.room_id, msg)
+                sym = database.session.query(database.Symbol).filter_by(isin=match.args()[1]).first()
+                if sym:
+                    df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
+                    vola = 0.0
+                    for index, row in df.iterrows():
+                        avola = ((row['High']-row['Low'])/row['Close'])*100
+                        if avola > vola: vola = avola
+                    msg = 'Analyse of %s (%s)\n' % (sym.name,sym.isin)\
+                            +'Change: %.2f\n' % (float(df.iloc[-1]['Close'])-float(df.iloc[0]['Close']))\
+                            +'Volatility: %.2f\n' % vola
+                    await bot.api.send_markdown_message(room.room_id, msg)
+                else:
+                    await bot.api.send_markdown_message(room.room_id, 'no data for symbol found')
         elif (match.is_not_from_this_bot() and match.prefix())\
         and match.command("show"):
             tdepot = None
@@ -116,7 +118,10 @@ async def tell(room, message):
                     for paper in depot.papers:
                         if 'name' in paper and paper['count'] > 0:
                             sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
-                            actprice = sym.GetActPrice()
+                            if sym:
+                                actprice = sym.GetActPrice()
+                            else: 
+                                actprice = 0
                             sumactprice += actprice*paper['count']
                             sumprice += paper['price']
                             change = (actprice*paper['count'])-paper['price']
@@ -173,7 +178,7 @@ async def ProcessStrategy(paper,depot,data):
             strategy = paper['strategy']
         for st in strategies:
             if st['name'] == strategy:
-                cerebro = backtrader.Cerebro()
+                cerebro = database.BotCerebro()
                 paper_strategy = {
                         'isin': paper['isin'],
                         'cerebro': cerebro

@@ -1,4 +1,4 @@
-import sqlalchemy,sqlalchemy.orm,pathlib,enum,datetime,pandas,asyncio
+import sqlalchemy,sqlalchemy.orm,pathlib,enum,datetime,pandas,asyncio,backtrader
 Base = sqlalchemy.orm.declarative_base()
 class Market(enum.Enum):
     crypto = 'crypto'
@@ -77,7 +77,18 @@ class AnalystRating(Base):
                             ondelete="CASCADE"),
                 nullable=False)
     symbol = sqlalchemy.orm.relationship('Symbol', backref='analyst_ratings')
-
+class BotCerebro(backtrader.Cerebro):
+    def __init__(self):
+        super().__init__()
+        self.trades = []
+        
+    def buy(self, *args, **kwargs):
+        self.trades.append(('buy', args, kwargs))
+        super().buy(*args, **kwargs)
+        
+    def sell(self, *args, **kwargs):
+        self.trades.append(('sell', args, kwargs))
+        super().sell(*args, **kwargs)
 Data = pathlib.Path('.') / 'data'
 Data.mkdir(parents=True,exist_ok=True)
 dbEngine=sqlalchemy.create_engine('sqlite:///'+str(Data / 'database.db')) 
