@@ -1,8 +1,8 @@
 import backtrader
 class Strategy(backtrader.Strategy):
     params = (
-        ('fast_sma_period', 12),
-        ('slow_sma_period', 26),
+        ('fast_sma_period', 24),
+        ('slow_sma_period', 60),
     )
     def __init__(self):
         self.fast_sma = backtrader.indicators.SimpleMovingAverage(
@@ -13,10 +13,11 @@ class Strategy(backtrader.Strategy):
         )
 
     def next(self):
-        if self.data.close[0] > self.fast_sma[0] and self.data.close[-1] <= self.fast_sma[-1]:
-            self.buy()
-        elif self.data.close[0] < self.slow_sma[0] and self.data.close[-1] >= self.slow_sma[-1]:
-            self.sell()
+        if not self.position\
+        and self.fast_sma[0] > self.slow_sma[0]:
+            self.buy(size=self.broker.getcash()/self.data.close[0])
+        elif self.fast_sma[0] < self.slow_sma[0]:
+            self.close()
 if __name__ == "__main__":
     import pathlib,sys;sys.path.append(str(pathlib.Path(__file__).parent.parent.parent))
     import database,datetime
