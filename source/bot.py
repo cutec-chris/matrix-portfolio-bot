@@ -78,7 +78,7 @@ async def tell(room, message):
             depot = None
             strategy = 'sma'
             if len(match.args())>2: strategy = match.args()[2]
-            days = 1
+            days = 30
             if len(match.args())>3: days = float(match.args()[3])
             date = None
             if len(match.args())>4: date = match.args()[4]
@@ -90,7 +90,7 @@ async def tell(room, message):
                 found = False
                 sym = database.session.query(database.Symbol).filter_by(isin=match.args()[1]).first()
                 if sym:
-                    df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
+                    df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=days))
                     vola = 0.0
                     for index, row in df.iterrows():
                         avola = ((row['High']-row['Low'])/row['Close'])*100
