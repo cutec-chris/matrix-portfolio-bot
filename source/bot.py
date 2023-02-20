@@ -121,6 +121,7 @@ async def tell(room, message):
                     sellcosts = 0
                     for paper in depot.papers:
                         if paper['count'] > 0:
+                            if not 'name' in paper: paper['name'] = paper['ticker']
                             sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
                             if sym:
                                 actprice = sym.GetActPrice()
