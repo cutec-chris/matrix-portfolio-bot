@@ -96,6 +96,7 @@ async def tell(room, message):
                         avola = ((row['High']-row['Low'])/row['Close'])*100
                         if avola > vola: vola = avola
                     msg = 'Analyse of %s (%s)\n' % (sym.name,sym.isin)\
+                            +'Open: %.2f Close: %.2f\n' % (float(df.iloc[0]['Open']),float(df.iloc[-1]['Close']))\
                             +'Change: %.2f\n' % (float(df.iloc[-1]['Close'])-float(df.iloc[0]['Close']))\
                             +'Volatility: %.2f\n' % vola
                     await bot.api.send_markdown_message(room.room_id, msg)
