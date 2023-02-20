@@ -77,7 +77,7 @@ async def UpdateTickers(papers):
                                     "Volume": ohlc_data["volume"]
                                 })
                                 pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
-                                pdata = pdata.dropna(thresh=1)
+                                pdata = pdata.dropna()
                                 try:
                                     sym.AppendData(pdata)
                                     database.session.add(sym)
