@@ -2,11 +2,22 @@ import asyncio,aiohttp,csv,datetime,pytz
 import requests,yfinance,pandas,pathlib,database,sqlalchemy.sql.expression,asyncio,logging,io
 UserAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.109 Safari/537.36'
 async def UpdateTickers(papers):
+    def extract_trading_times(metadata):
+        try:
+            timezone = metadata['regular']['timezone']
+            # Convert the timezone information to UTC
+            utc = pytz.timezone('UTC')
+            local_tz = pytz.timezone(timezone)
+            start_time = datetime.datetime.fromtimestamp(metadata['regular']['start'], local_tz)
+            end_time = datetime.datetime.fromtimestamp(metadata['regular']['end'], local_tz)
+            return start_time, end_time
+        except:
+            return None,None
     tickers = []
     for paper in papers:
         try:
             sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
-            if sym == None or paper['name'] == None or paper['name'] == paper['ticker']:
+            if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
                 res = await SearchPaper(paper['isin'])
                 if res:
                     paper['ticker'] = res['symbol']
@@ -46,29 +57,32 @@ async def UpdateTickers(papers):
                 startdate = paper['_updated']
                 from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
                 to_timestamp = int(((startdate+datetime.timedelta(days=60)) - datetime.datetime(1970, 1, 1)).total_seconds())
-                url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=false&events=history&period1={from_timestamp}&period2={to_timestamp}"
-                async with aiohttp.ClientSession(headers={'User-Agent': UserAgent}) as session:
-                    async with session.get(url) as resp:
-                        data = await resp.json()
-                        ohlc_data = data["chart"]["result"][0]["indicators"]["quote"][0]
-                        if len(ohlc_data)>0:
-                            pdata = pandas.DataFrame({
-                                "Datetime": data["chart"]["result"][0]["timestamp"],
-                                "Open": ohlc_data["open"],
-                                "High": ohlc_data["high"],
-                                "Low": ohlc_data["low"],
-                                "Close": ohlc_data["close"],
-                                "Volume": ohlc_data["volume"]
-                            })
-                            pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
-                            pdata = pdata.dropna(thresh=1)
-                            try:
-                                sym.AppendData(pdata)
-                                database.session.add(sym)
-                                database.session.commit()
-                            except BaseException as e:
-                                logging.warning('failed writing to db:'+str(e))
-                                database.session.rollback()
+                if (not (sym.tradingstart and sym.tradingend))\
+                or sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time():
+                    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=false&events=history&period1={from_timestamp}&period2={to_timestamp}"
+                    async with aiohttp.ClientSession(headers={'User-Agent': UserAgent}) as session:
+                        async with session.get(url) as resp:
+                            data = await resp.json()
+                            sym.tradingstart, sym.tradingend = extract_trading_times(data["chart"]["result"][0]['meta']['currentTradingPeriod'])
+                            ohlc_data = data["chart"]["result"][0]["indicators"]["quote"][0]
+                            if len(ohlc_data)>0:
+                                pdata = pandas.DataFrame({
+                                    "Datetime": data["chart"]["result"][0]["timestamp"],
+                                    "Open": ohlc_data["open"],
+                                    "High": ohlc_data["high"],
+                                    "Low": ohlc_data["low"],
+                                    "Close": ohlc_data["close"],
+                                    "Volume": ohlc_data["volume"]
+                                })
+                                pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
+                                pdata = pdata.dropna(thresh=1)
+                                try:
+                                    sym.AppendData(pdata)
+                                    database.session.add(sym)
+                                    database.session.commit()
+                                except BaseException as e:
+                                    logging.warning('failed writing to db:'+str(e))
+                                    database.session.rollback()
         except BaseException as e:
             logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
 def GetUpdateFrequency():

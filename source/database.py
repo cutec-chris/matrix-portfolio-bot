@@ -13,6 +13,8 @@ class Symbol(Base):
     name = sqlalchemy.Column(sqlalchemy.String(200), nullable=False)
     market = sqlalchemy.Column(sqlalchemy.Enum(Market), nullable=False)
     active = sqlalchemy.Column(sqlalchemy.Boolean, nullable=False)
+    tradingstart = sqlalchemy.Column(sqlalchemy.DateTime)
+    tradingend = sqlalchemy.Column(sqlalchemy.DateTime)
 
     def AppendData(self, df):
         for index, row in df.iterrows():
