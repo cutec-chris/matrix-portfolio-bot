@@ -22,7 +22,9 @@ async def UpdateTickers(papers):
                 if res:
                     paper['ticker'] = res['symbol']
                     paper['name'] = res['longname']
-            if sym == None:
+                else:
+                    logging.warning('paper '+paper['isin']+' not found !')
+            if sym == None and res:
                 #initial download
                 sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=database.Market.stock,active=True)
                 startdate = datetime.datetime.utcnow()-datetime.timedelta(days=365*3)
@@ -52,7 +54,7 @@ async def UpdateTickers(papers):
                         database.session.rollback()
                     startdate += datetime.timedelta(days=60)
             #15min update
-            if paper['ticker']:
+            if 'ticker' in paper and paper['ticker']:
                 sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
                 startdate = paper['_updated']
                 from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
