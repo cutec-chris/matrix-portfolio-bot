@@ -1,5 +1,5 @@
 from init import *
-import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader
+import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time
 loop = None
 lastsend = None
 class Portfolio(Config):
@@ -216,22 +216,22 @@ async def check_depot(depot,fast=False):
                 date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
                 paper['_updated'] = latest_date
             for datasource in datasources:
+                started = time.time()
                 if not fast:
-                    uF = datasource['mod'].GetUpdateFrequency()
-                    await asyncio.sleep(uF)
-                logging.info(str(depot.name)+': updating tickers')
-                await datasource['mod'].UpdateTickers(depot.papers)
-            logging.info(str(depot.name)+': processing strategys')
-            for paper in depot.papers:
-                try:
-                    sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
-                    if sym:
-                        df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
-                        await ProcessStrategy(paper,depot,df) 
-                except BaseException as e:
-                    logging.error(str(e), exc_info=True)
-            #await save_servers()
-            await asyncio.sleep(60)
+                    UpdateTime = datasource['mod'].GetUpdateFrequency()
+                else:
+                    UpdateTime = 0
+                for paper in depot.papers:
+                    logging.info(str(depot.name)+': updating ticker '+paper['ticker'])
+                    await datasource['mod'].UpdateTicker(paper)
+                    try:
+                        sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+                        if sym:
+                            df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
+                            await ProcessStrategy(paper,depot,df) 
+                    except BaseException as e:
+                        logging.error(str(e), exc_info=True)
+                await asyncio.sleep(UpdateTime-(time.time()-started))
             if fast:
                 break
         except BaseException as e:
