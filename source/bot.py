@@ -222,13 +222,14 @@ async def check_depot(depot,fast=False):
                 else:
                     UpdateTime = 0
                 for paper in depot.papers:
-                    logging.info(str(depot.name)+': updating ticker '+paper['ticker'])
                     await datasource['mod'].UpdateTicker(paper)
                     try:
                         sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
-                        if sym:
-                            df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
-                            await ProcessStrategy(paper,depot,df) 
+                        if 'ticker' in paper and sym:
+                            logging.info(str(depot.name)+': processing ticker '+paper['ticker'])
+                            if sym:
+                                df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
+                                await ProcessStrategy(paper,depot,df) 
                     except BaseException as e:
                         logging.error(str(e), exc_info=True)
                 await asyncio.sleep(UpdateTime-(time.time()-started))
