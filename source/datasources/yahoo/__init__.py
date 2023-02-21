@@ -20,7 +20,10 @@ async def UpdateTicker(paper):
             res = await SearchPaper(paper['isin'])
             if res:
                 paper['ticker'] = res['symbol']
-                paper['name'] = res['longname']
+                if 'longname' in res:
+                    paper['name'] = res['longname']
+                elif 'shortname' in res:
+                    paper['name'] = res['shortname']
             else:
                 logging.warning('paper '+paper['isin']+' not found !')
         if 'ticker' in paper and paper['ticker']:
