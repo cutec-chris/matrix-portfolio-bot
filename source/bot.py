@@ -14,9 +14,9 @@ async def tell(room, message):
             message.body = prefix+' '+message.body
         match = botlib.MessageMatch(room, message, bot, prefix)
         if (match.is_not_from_this_bot() and match.prefix())\
-        and (match.command("buy")\
-        or match.command("sell")\
-        or match.command("add")):
+        and (match.command("buy",case_sensitive=False)\
+        or match.command("sell",case_sensitive=False)\
+        or match.command("add",case_sensitive=False)):
             depot = None
             count = None
             if len(match.args())>2:
@@ -77,7 +77,7 @@ async def tell(room, message):
                         loop.create_task(check_depot(depot,True))
                         break
         elif (match.is_not_from_this_bot() and match.prefix())\
-        and match.command("analyze"):
+        and match.command("analyze",case_sensitive=False):
             depot = None
             strategy = 'sma'
             if len(match.args())>2: strategy = match.args()[2]
@@ -115,7 +115,7 @@ async def tell(room, message):
                 else:
                     await bot.api.send_markdown_message(room.room_id, 'no data for symbol found')
         elif (match.is_not_from_this_bot() and match.prefix())\
-        and match.command("show"):
+        and match.command("show",case_sensitive=False):
             tdepot = None
             msg = ''
             if len(match.args())>1:
