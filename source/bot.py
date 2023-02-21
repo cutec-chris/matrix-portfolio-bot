@@ -103,6 +103,15 @@ async def tell(room, message):
                             +'Change: %.2f\n' % (float(df.iloc[-1]['Close'])-float(df.iloc[0]['Close']))\
                             +'Volatility: %.2f\n' % vola
                     await bot.api.send_markdown_message(room.room_id, msg)
+                    for st in strategies:
+                        if st['name'] == strategy:
+                            cerebro = database.BotCerebro()
+                            cerebro.addstrategy(st['mod'].Strategy)
+                            cerebro.broker.setcash(1000)
+                            cerebro.adddata(backtrader.feeds.PandasData(dataname=df))
+                            cerebro.run()
+                            cerebro.saveplots(file_path = '/tmp/plot.png')
+                            await bot.api.send_image_message(room.room_id,'/tmp/plot.png')
                 else:
                     await bot.api.send_markdown_message(room.room_id, 'no data for symbol found')
         elif (match.is_not_from_this_bot() and match.prefix())\
@@ -185,6 +194,7 @@ async def ProcessStrategy(paper,depot,data):
         for st in strategies:
             if st['name'] == strategy:
                 cerebro = database.BotCerebro()
+                cerebro.broker.setcash(1000)
                 paper_strategy = {
                         'isin': paper['isin'],
                         'cerebro': cerebro
@@ -195,6 +205,8 @@ async def ProcessStrategy(paper,depot,data):
     if paper_strategy and isinstance(data, pandas.DataFrame):
         paper_strategy['cerebro'].adddata(backtrader.feeds.PandasData(dataname=data))
         paper_strategy['cerebro'].run()
+        #paper_strategy['cerebro'].saveplots(file_path = 'savefig.png')
+        pass
 async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
@@ -218,7 +230,6 @@ async def check_depot(depot,fast=False):
                         await ProcessStrategy(paper,depot,df) 
                 except BaseException as e:
                     logging.error(str(e), exc_info=True)
-                    raise
             #await save_servers()
             await asyncio.sleep(60)
             if fast:
