@@ -205,8 +205,28 @@ async def ProcessStrategy(paper,depot,data):
     if paper_strategy and isinstance(data, pandas.DataFrame):
         paper_strategy['cerebro'].adddata(backtrader.feeds.PandasData(dataname=data))
         paper_strategy['cerebro'].run()
-        #paper_strategy['cerebro'].saveplots(file_path = 'savefig.png')
-        pass
+        size_sum = 0
+        price_sum = 0
+        checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
+        if 'lastcheck' in paper: checkfrom = datetime.datetime.strptime(paper['lastcheck'], "%Y-%m-%d %H:%M:%S")
+        for order in cerebro._broker.orders:
+            if order.Completed:
+                orderdate = backtrader.num2date(order.executed.dt)
+                if orderdate > checkfrom:
+                    size_sum += order.size
+        if size_sum != 0:
+            if size_sum > 0:
+                msg1 = 'strategy %s propose buying %d x %s' % (strategy,round(size_sum),paper['isin'])
+                msg2 = 'buy %s %d' % (paper['isin'],size_sum)
+            else:
+                msg1 = 'strategy %s propose selling %d x %s' % (strategy,round(-size_sum),paper['isin'])
+                msg2 = 'sell %s %d' % (paper['isin'],-size_sum)
+            if msg2 != paper['lastreco']:
+                await bot.api.send_text_message(depot.room,msg1)
+                await bot.api.send_text_message(depot.room,msg2)
+                paper['lastreco'] = msg2
+                paper['lastcheck'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                return True
 async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
@@ -221,6 +241,7 @@ async def check_depot(depot,fast=False):
                     UpdateTime = datasource['mod'].GetUpdateFrequency()
                 else:
                     UpdateTime = 0
+                ShouldSave = False
                 for paper in depot.papers:
                     await datasource['mod'].UpdateTicker(paper)
                     try:
@@ -229,9 +250,11 @@ async def check_depot(depot,fast=False):
                             logging.info(str(depot.name)+': processing ticker '+paper['ticker'])
                             if sym:
                                 df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
-                                await ProcessStrategy(paper,depot,df) 
+                                ShouldSave = ShouldSave or await ProcessStrategy(paper,depot,df) 
                     except BaseException as e:
                         logging.error(str(e), exc_info=True)
+                if ShouldSave: 
+                    await save_servers()
                 await asyncio.sleep(UpdateTime-(time.time()-started))
             if fast:
                 break

@@ -24,7 +24,7 @@ if __name__ == "__main__":
     cerebro = backtrader.Cerebro()
     cerebro.addstrategy(Strategy)
     cerebro.broker.setcash(1000)
-    sym = database.session.query(database.Symbol).filter_by(ticker='TSLA').first()
+    sym = database.session.query(database.Symbol).filter_by(ticker='RHM.DE').first()
     data = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
     cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
     cerebro.run()
