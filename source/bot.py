@@ -209,23 +209,24 @@ async def ProcessStrategy(paper,depot,data):
         price_sum = 0
         checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
         if 'lastcheck' in paper: checkfrom = datetime.datetime.strptime(paper['lastcheck'], "%Y-%m-%d %H:%M:%S")
+        orderdate = datetime.datetime.now()
         for order in cerebro._broker.orders:
-            if order.Completed:
-                orderdate = backtrader.num2date(order.executed.dt)
-                if orderdate > checkfrom:
-                    size_sum += order.size
+            orderdate = backtrader.num2date(order.executed.dt)
+            if orderdate > checkfrom:
+                size_sum = order.size
+                #print(order.isbuy(),order.size,orderdate)
         if size_sum != 0:
             if size_sum > 0:
                 msg1 = 'strategy %s propose buying %d x %s' % (strategy,round(size_sum),paper['isin'])
-                msg2 = 'buy %s %d' % (paper['isin'],size_sum)
+                msg2 = 'buy %s %d' % (paper['isin'],round(size_sum))
             else:
                 msg1 = 'strategy %s propose selling %d x %s' % (strategy,round(-size_sum),paper['isin'])
-                msg2 = 'sell %s %d' % (paper['isin'],-size_sum)
+                msg2 = 'sell %s %d' % (paper['isin'],round(-size_sum))
             if msg2 != paper['lastreco']:
                 await bot.api.send_text_message(depot.room,msg1)
                 await bot.api.send_text_message(depot.room,msg2)
                 paper['lastreco'] = msg2
-                paper['lastcheck'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                paper['lastcheck'] = orderdate.strftime("%Y-%m-%d %H:%M:%S")
                 return True
 async def check_depot(depot,fast=False):
     global lastsend,servers
