@@ -217,6 +217,7 @@ async def ProcessStrategy(paper,depot,data):
                 size_sum = order.size
                 #print(order.isbuy(),order.size,orderdate)
         if size_sum != 0:
+            if not 'lastreco' in paper: paper['lastreco'] = ''
             if size_sum > 0:
                 msg1 = 'strategy %s propose buying %d x %s' % (strategy,round(size_sum),paper['isin'])
                 msg2 = 'buy %s %d' % (paper['isin'],round(size_sum))

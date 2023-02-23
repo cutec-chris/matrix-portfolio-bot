@@ -44,6 +44,7 @@ async def UpdateTicker(paper):
                 from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
                 to_timestamp = int(((startdate+datetime.timedelta(days=59)) - datetime.datetime(1970, 1, 1)).total_seconds())
                 if (not (sym.tradingstart and sym.tradingend))\
+                or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8))\
                 or sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time():
                     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=false&events=history&period1={from_timestamp}&period2={to_timestamp}"
                     async with aiohttp.ClientSession(headers={'User-Agent': UserAgent}) as session:
@@ -67,6 +68,7 @@ async def UpdateTicker(paper):
                                         sym.AppendData(pdata)
                                         database.session.add(sym)
                                         database.session.commit()
+                                        logging.info('succesful updated till '+str(pdata['Datetime'].iloc[-1]))
                                     except BaseException as e:
                                         logging.warning('failed writing to db:'+str(e))
                                         database.session.rollback()
