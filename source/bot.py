@@ -204,10 +204,14 @@ async def ProcessStrategy(paper,depot,data):
                 paper_strategies.append(paper_strategy)
                 break
     if paper_strategy and isinstance(data, pandas.DataFrame) and cerebro:
-        await asyncio.sleep(0.5)
-        paper_strategy['cerebro'].adddata(backtrader.feeds.PandasData(dataname=data))
-        await asyncio.sleep(0.5)
-        paper_strategy['cerebro'].run()
+        try:
+            def run_cerebro():
+                paper_strategy['cerebro'].adddata(backtrader.feeds.PandasData(dataname=data))
+                paper_strategy['cerebro'].run()
+            await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
+        except BaseException as e:
+            logging.error(str(e))
+            return False
         size_sum = 0
         price_sum = 0
         checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
