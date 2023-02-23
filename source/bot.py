@@ -183,6 +183,7 @@ async def tell(room, message):
             depot.lasterror = str(e)
 paper_strategies = []
 async def ProcessStrategy(paper,depot,data):
+    cerebro = None
     paper_strategy = None
     for st in paper_strategies:
         if st['isin'] == paper['isin']:
@@ -202,7 +203,7 @@ async def ProcessStrategy(paper,depot,data):
                 cerebro.addstrategy(st['mod'].Strategy)
                 paper_strategies.append(paper_strategy)
                 break
-    if paper_strategy and isinstance(data, pandas.DataFrame):
+    if paper_strategy and isinstance(data, pandas.DataFrame) and cerebro:
         paper_strategy['cerebro'].adddata(backtrader.feeds.PandasData(dataname=data))
         paper_strategy['cerebro'].run()
         size_sum = 0
