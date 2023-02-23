@@ -21,11 +21,18 @@ class Strategy(backtrader.Strategy):
 if __name__ == "__main__":
     import pathlib,sys;sys.path.append(str(pathlib.Path(__file__).parent.parent.parent))
     import database,datetime
-    cerebro = backtrader.Cerebro()
+    cerebro = backtrader.Cerebro(stdstats=False)
     cerebro.addstrategy(Strategy)
     cerebro.broker.setcash(1000)
+    cerebro.addobserver(
+        backtrader.observers.BuySell,
+        barplot=True,
+        bardist=0.001)  # buy / sell arrows
+    #cerebro.addobserver(backtrader.observers.DrawDown)
+    #cerebro.addobserver(backtrader.observers.DataTrades)
+    cerebro.addobserver(backtrader.observers.Trades)
     sym = database.session.query(database.Symbol).filter_by(ticker='RHM.DE').first()
-    data = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
+    data = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*5))
     cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
     cerebro.run()
     cerebro.plot()

@@ -105,9 +105,16 @@ async def tell(room, message):
                     await bot.api.send_markdown_message(room.room_id, msg)
                     for st in strategies:
                         if st['name'] == strategy:
-                            cerebro = database.BotCerebro()
+                            cerebro = database.BotCerebro(stdstats=False)
                             cerebro.addstrategy(st['mod'].Strategy)
                             cerebro.broker.setcash(1000)
+                            cerebro.addobserver(
+                                backtrader.observers.BuySell,
+                                barplot=True,
+                                bardist=0.001)  # buy / sell arrows
+                            #cerebro.addobserver(backtrader.observers.DrawDown)
+                            #cerebro.addobserver(backtrader.observers.DataTrades)
+                            cerebro.addobserver(backtrader.observers.Trades)
                             def run_cerebro():
                                 cerebro.adddata(backtrader.feeds.PandasData(dataname=df))
                                 cerebro.run()
