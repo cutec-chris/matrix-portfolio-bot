@@ -204,7 +204,9 @@ async def ProcessStrategy(paper,depot,data):
                 paper_strategies.append(paper_strategy)
                 break
     if paper_strategy and isinstance(data, pandas.DataFrame) and cerebro:
+        await asyncio.sleep(0.5)
         paper_strategy['cerebro'].adddata(backtrader.feeds.PandasData(dataname=data))
+        await asyncio.sleep(0.5)
         paper_strategy['cerebro'].run()
         size_sum = 0
         price_sum = 0
@@ -212,23 +214,27 @@ async def ProcessStrategy(paper,depot,data):
         if 'lastcheck' in paper: checkfrom = datetime.datetime.strptime(paper['lastcheck'], "%Y-%m-%d %H:%M:%S")
         orderdate = datetime.datetime.now()
         for order in cerebro._broker.orders:
-            orderdate = backtrader.num2date(order.executed.dt)
+            if order.executed.dt: orderdate = backtrader.num2date(order.executed.dt)
             if orderdate > checkfrom:
                 size_sum = order.size
                 #print(order.isbuy(),order.size,orderdate)
         if size_sum != 0:
+            if not 'lastreco' in paper: paper['lastreco'] = ''
             if size_sum > 0:
                 msg1 = 'strategy %s propose buying %d x %s' % (strategy,round(size_sum),paper['isin'])
                 msg2 = 'buy %s %d' % (paper['isin'],round(size_sum))
+                if paper['count']>0: return False
             else:
                 msg1 = 'strategy %s propose selling %d x %s' % (strategy,round(-size_sum),paper['isin'])
                 msg2 = 'sell %s %d' % (paper['isin'],round(-size_sum))
+                if paper['count']==0: return False
             if msg2 != paper['lastreco']:
                 await bot.api.send_text_message(depot.room,msg1)
                 await bot.api.send_text_message(depot.room,msg2)
                 paper['lastreco'] = msg2
                 paper['lastcheck'] = orderdate.strftime("%Y-%m-%d %H:%M:%S")
                 return True
+    return False
 async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
