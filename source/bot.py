@@ -114,6 +114,7 @@ async def tell(room, message):
                                 bardist=0.001)  # buy / sell arrows
                             #cerebro.addobserver(backtrader.observers.DrawDown)
                             #cerebro.addobserver(backtrader.observers.DataTrades)
+                            cerebro.addobserver(backtrader.observers.Broker)
                             cerebro.addobserver(backtrader.observers.Trades)
                             def run_cerebro():
                                 cerebro.adddata(backtrader.feeds.PandasData(dataname=df))

@@ -30,6 +30,7 @@ if __name__ == "__main__":
         bardist=0.001)  # buy / sell arrows
     #cerebro.addobserver(backtrader.observers.DrawDown)
     #cerebro.addobserver(backtrader.observers.DataTrades)
+    cerebro.addobserver(backtrader.observers.Broker)
     cerebro.addobserver(backtrader.observers.Trades)
     sym = database.session.query(database.Symbol).filter_by(ticker='RHM.DE').first()
     data = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*5))
