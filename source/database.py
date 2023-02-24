@@ -109,7 +109,7 @@ class BotCerebro(backtrader.Cerebro):
     def __init__(self):
         super().__init__()
     def saveplots(cerebro, numfigs=1, iplot=True, start=None, end=None,
-                width=16, height=9, dpi=300, tight=True, use=None, file_path = '', **kwargs):
+                width=16*4, height=9*4, dpi=300, tight=True, use=None, file_path = '', **kwargs):
         from backtrader import plot
         if cerebro.p.oldsync:
             plotter = plot.Plot_OldSync(**kwargs)
