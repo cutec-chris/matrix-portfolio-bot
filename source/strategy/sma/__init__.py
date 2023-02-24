@@ -1,8 +1,8 @@
 import backtrader
 class Strategy(backtrader.Strategy):
     params = (
-        ('fast_sma_period', 24),
-        ('slow_sma_period', 60),
+        ('fast_sma_period', 12*2),
+        ('slow_sma_period', 26*2),
     )
     def __init__(self):
         self.fast_sma = backtrader.indicators.SimpleMovingAverage(
@@ -28,11 +28,11 @@ if __name__ == "__main__":
         backtrader.observers.BuySell,
         barplot=True,
         bardist=0.001)  # buy / sell arrows
-    #cerebro.addobserver(backtrader.observers.DrawDown)
+    cerebro.addobserver(backtrader.observers.DrawDown)
     #cerebro.addobserver(backtrader.observers.DataTrades)
     cerebro.addobserver(backtrader.observers.Broker)
     cerebro.addobserver(backtrader.observers.Trades)
-    sym = database.session.query(database.Symbol).filter_by(ticker='RHM.DE').first()
+    sym = database.session.query(database.Symbol).filter_by(ticker='ASML.AS').first()
     data = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*5))
     cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
     cerebro.run()
