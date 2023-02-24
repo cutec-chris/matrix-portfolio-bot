@@ -108,9 +108,10 @@ async def tell(room, message):
                     for st in strategies:
                         if st['name'] == strategy:
                             ast = st
+                            break
                     if ast:
                         cerebro = database.BotCerebro(stdstats=False)
-                        cerebro.addstrategy(st['mod'].Strategy)
+                        cerebro.addstrategy(ast['mod'].Strategy)
                         cerebro.broker.setcash(1000)
                         cerebro.addobserver(
                             backtrader.observers.BuySell,
@@ -126,7 +127,7 @@ async def tell(room, message):
                             cerebro.run()
                             cerebro.saveplots(file_path = '/tmp/plot.png')
                         await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
-                        msg += 'Statistic ROI: %.2f' % ((cerebro.broker.getvalue() - initial_capital) / initial_capital)
+                        msg += 'Statistic ROI: %.2f' % (((cerebro.broker.getvalue() - initial_capital) / initial_capital)*100)
                         await bot.api.send_markdown_message(room.room_id, msg)
                         await bot.api.send_image_message(room.room_id,'/tmp/plot.png')
                     else:
