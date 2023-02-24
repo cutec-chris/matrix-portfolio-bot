@@ -1,5 +1,32 @@
 import sqlalchemy,sqlalchemy.orm,pathlib,enum,datetime,pandas,asyncio,backtrader
 Base = sqlalchemy.orm.declarative_base()
+class Depot(Base):
+    __tablename__ = 'depot'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    room = Column(String(200), nullable=False)
+    name = Column(String(100), nullable=False)
+    cash = Column(Float, nullable=False)
+    taxCost = Column(Float, nullable=False)
+    taxCostPercent = Column(Float, nullable=False)
+    tradingCost = Column(Float, nullable=False)
+    tradingCostPercent = Column(Float, nullable=False)
+    Currency = Column(Float, nullable=False)
+class Position(Base):
+    __tablename__ = 'position'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    depot_id = Column(Integer, ForeignKey('depot.id'), nullable=False)
+    ticker = Column(String(50), nullable=False)
+    isin = sqlalchemy.Column(sqlalchemy.String(50), nullable=False)
+    shares = Column(Float, nullable=False)
+    depot = sqlalchemy.orm.relationship("Depot", back_populates="positions")
+class Trade(Base):
+    __tablename__ = 'trade'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    position_id = Column(Integer, ForeignKey('position.id'), nullable=False)
+    datetime = Column(DateTime, nullable=False)
+    shares = Column(Float, nullable=False)
+    price = Column(Float, nullable=False)
+    position = relationship("Position", back_populates="trades")
 class Market(enum.Enum):
     crypto = 'crypto'
     stock = 'stock'
@@ -77,6 +104,7 @@ class AnalystRating(Base):
                             ondelete="CASCADE"),
                 nullable=False)
     symbol = sqlalchemy.orm.relationship('Symbol', backref='analyst_ratings')
+
 class BotCerebro(backtrader.Cerebro):
     def __init__(self):
         super().__init__()
