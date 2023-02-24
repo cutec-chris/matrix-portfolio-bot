@@ -14,6 +14,7 @@ async def UpdateTicker(paper):
         except:
             return None,None
     started = time.time()
+    updatetime = 5
     try:
         sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
         if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
@@ -43,39 +44,44 @@ async def UpdateTicker(paper):
             while startdate < datetime.datetime.utcnow():
                 from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
                 to_timestamp = int(((startdate+datetime.timedelta(days=59)) - datetime.datetime(1970, 1, 1)).total_seconds())
-                if (not (sym.tradingstart and sym.tradingend))\
-                or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8))\
-                or sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time():
-                    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=false&events=history&period1={from_timestamp}&period2={to_timestamp}"
-                    async with aiohttp.ClientSession(headers={'User-Agent': UserAgent}) as session:
-                        async with session.get(url) as resp:
-                            data = await resp.json()
-                            if data["chart"]["result"]:
-                                sym.tradingstart, sym.tradingend = extract_trading_times(data["chart"]["result"][0]['meta']['currentTradingPeriod'])
-                                ohlc_data = data["chart"]["result"][0]["indicators"]["quote"][0]
-                                if len(ohlc_data)>0:
-                                    pdata = pandas.DataFrame({
-                                        "Datetime": data["chart"]["result"][0]["timestamp"],
-                                        "Open": ohlc_data["open"],
-                                        "High": ohlc_data["high"],
-                                        "Low": ohlc_data["low"],
-                                        "Close": ohlc_data["close"],
-                                        "Volume": ohlc_data["volume"]
-                                    })
-                                    pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
-                                    pdata = pdata.dropna()
-                                    try:
-                                        sym.AppendData(pdata)
-                                        database.session.add(sym)
-                                        database.session.commit()
-                                        logging.info('succesful updated till '+str(pdata['Datetime'].iloc[-1]))
-                                    except BaseException as e:
-                                        logging.warning('failed writing to db:'+str(e))
-                                        database.session.rollback()
-                startdate += datetime.timedelta(days=59)
+                try:
+                    if (not (sym.tradingstart and sym.tradingend))\
+                    or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8))\
+                    or sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time():
+                        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=false&events=history&period1={from_timestamp}&period2={to_timestamp}"
+                        async with aiohttp.ClientSession(headers={'User-Agent': UserAgent}) as session:
+                            async with session.get(url) as resp:
+                                data = await resp.json()
+                                if data["chart"]["result"]:
+                                    sym.tradingstart, sym.tradingend = extract_trading_times(data["chart"]["result"][0]['meta']['currentTradingPeriod'])
+                                    ohlc_data = data["chart"]["result"][0]["indicators"]["quote"][0]
+                                    if len(ohlc_data)>0:
+                                        pdata = pandas.DataFrame({
+                                            "Datetime": data["chart"]["result"][0]["timestamp"],
+                                            "Open": ohlc_data["open"],
+                                            "High": ohlc_data["high"],
+                                            "Low": ohlc_data["low"],
+                                            "Close": ohlc_data["close"],
+                                            "Volume": ohlc_data["volume"]
+                                        })
+                                        pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
+                                        pdata = pdata.dropna()
+                                        try:
+                                            sym.AppendData(pdata)
+                                            database.session.add(sym)
+                                            database.session.commit()
+                                            logging.info('succesful updated till '+str(pdata['Datetime'].iloc[-1]))
+                                            updatetime = 20
+                                        except BaseException as e:
+                                            logging.warning('failed writing to db:'+str(e))
+                                            database.session.rollback()
+                    startdate += datetime.timedelta(days=59)
+                except BaseException as e:
+                    logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
+                    await asyncio.sleep(10)
     except BaseException as e:
         logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
-    await asyncio.sleep(20-(time.time()-started)) #3 times per minute
+    await asyncio.sleep(updatetime-(time.time()-started)) #3 times per minute
 def GetUpdateFrequency():
     return 15*60
 async def SearchPaper(isin):
