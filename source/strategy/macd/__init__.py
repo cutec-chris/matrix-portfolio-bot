@@ -6,8 +6,6 @@ class Strategy(backtrader.Strategy):
         ('fast_window', 12),
         ('slow_window', 26),
         ('signal_window', 9),
-        ('bb_window', 20),
-        ('bb_dev', 2),
     )
     def __init__(self):
         self.fast_ma = backtrader.indicators.SimpleMovingAverage(
@@ -20,21 +18,18 @@ class Strategy(backtrader.Strategy):
             period_me2=self.params.slow_window,
             period_signal=self.params.signal_window
         )
-        self.bb = backtrader.indicators.BollingerBands(
-            self.data.close,
-            devfactor=self.params.bb_dev
-        )
 
     def next(self):
-        if self.macd.macd[0] > self.macd.signal[0] and self.data.close[0] < self.bb.top[0]:
+        if not self.position and self.macd.macd[0] > self.macd.signal[0]:
             self.buy()
-        elif self.macd.macd[0] < self.macd.signal[0] and self.data.close[0] > self.bb.bot[0]:
-            self.sell()
+        elif self.macd.macd[0] < self.macd.signal[0]:
+            self.close()
 if __name__ == "__main__":
     import pathlib,sys;sys.path.append(str(pathlib.Path(__file__).parent.parent.parent))
     import database
     cerebro = backtrader.Cerebro()
     cerebro.addstrategy(Strategy)
+    cerebro.addsizer(backtrader.sizers.PercentSizer, percents=100)
     cerebro.broker.setcash(1000)
     sym = database.session.query(database.Symbol).filter_by(ticker='TSLA').first()
     data = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
