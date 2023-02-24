@@ -74,7 +74,8 @@ async def tell(room, message):
                         await save_servers()
                         await bot.api.send_text_message(room.room_id, 'ok')
                         loop = asyncio.get_running_loop()
-                        loop.create_task(check_depot(depot,True))
+                        for datasource in datasources:
+                            await datasource['mod'].UpdateTicker(paper)
                         break
         elif (match.is_not_from_this_bot() and match.prefix())\
         and match.command("analyze",case_sensitive=False):
@@ -101,27 +102,35 @@ async def tell(room, message):
                     msg = 'Analyse of %s (%s)\n' % (sym.name,sym.isin)\
                             +'Open: %.2f Close: %.2f\n' % (float(df.iloc[0]['Open']),float(df.iloc[-1]['Close']))\
                             +'Change: %.2f\n' % (float(df.iloc[-1]['Close'])-float(df.iloc[0]['Close']))\
-                            +'Volatility: %.2f\n' % vola
-                    await bot.api.send_markdown_message(room.room_id, msg)
+                            +'Volatility: %.2f\n' % vola\
+                            +'ROI: %.2f\n' % ((float(df.iloc[-1]['Close']) - float(df.iloc[0]['Open'])) / float(df.iloc[0]['Open']) * 100)
+                    ast = None
                     for st in strategies:
                         if st['name'] == strategy:
-                            cerebro = database.BotCerebro(stdstats=False)
-                            cerebro.addstrategy(st['mod'].Strategy)
-                            cerebro.broker.setcash(1000)
-                            cerebro.addobserver(
-                                backtrader.observers.BuySell,
-                                barplot=True,
-                                bardist=0.001)  # buy / sell arrows
-                            #cerebro.addobserver(backtrader.observers.DrawDown)
-                            #cerebro.addobserver(backtrader.observers.DataTrades)
-                            cerebro.addobserver(backtrader.observers.Broker)
-                            cerebro.addobserver(backtrader.observers.Trades)
-                            def run_cerebro():
-                                cerebro.adddata(backtrader.feeds.PandasData(dataname=df))
-                                cerebro.run()
-                                cerebro.saveplots(file_path = '/tmp/plot.png')
-                            await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
-                            await bot.api.send_image_message(room.room_id,'/tmp/plot.png')
+                            ast = st
+                    if ast:
+                        cerebro = database.BotCerebro(stdstats=False)
+                        cerebro.addstrategy(st['mod'].Strategy)
+                        cerebro.broker.setcash(1000)
+                        cerebro.addobserver(
+                            backtrader.observers.BuySell,
+                            barplot=True,
+                            bardist=0.001)  # buy / sell arrows
+                        #cerebro.addobserver(backtrader.observers.DrawDown)
+                        #cerebro.addobserver(backtrader.observers.DataTrades)
+                        cerebro.addobserver(backtrader.observers.Broker)
+                        cerebro.addobserver(backtrader.observers.Trades)
+                        initial_capital = cerebro.broker.getvalue()
+                        def run_cerebro():
+                            cerebro.adddata(backtrader.feeds.PandasData(dataname=df))
+                            cerebro.run()
+                            cerebro.saveplots(file_path = '/tmp/plot.png')
+                        await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
+                        msg += 'Statistic ROI: %.2f' % ((cerebro.broker.getvalue() - initial_capital) / initial_capital)
+                        await bot.api.send_markdown_message(room.room_id, msg)
+                        await bot.api.send_image_message(room.room_id,'/tmp/plot.png')
+                    else:
+                        await bot.api.send_markdown_message(room.room_id, msg)
                 else:
                     await bot.api.send_markdown_message(room.room_id, 'no data for symbol found')
         elif (match.is_not_from_this_bot() and match.prefix())\
@@ -277,6 +286,7 @@ async def check_depot(depot,fast=False):
                         logging.error(str(e), exc_info=True)
                 if ShouldSave: 
                     await save_servers()
+                logging.info('Update finished sleeping for %ds' % round(UpdateTime-(time.time()-started)))
                 await asyncio.sleep(UpdateTime-(time.time()-started))
             if fast:
                 break

@@ -2,31 +2,31 @@ import sqlalchemy,sqlalchemy.orm,pathlib,enum,datetime,pandas,asyncio,backtrader
 Base = sqlalchemy.orm.declarative_base()
 class Depot(Base):
     __tablename__ = 'depot'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    room = Column(String(200), nullable=False)
-    name = Column(String(100), nullable=False)
-    cash = Column(Float, nullable=False)
-    taxCost = Column(Float, nullable=False)
-    taxCostPercent = Column(Float, nullable=False)
-    tradingCost = Column(Float, nullable=False)
-    tradingCostPercent = Column(Float, nullable=False)
-    Currency = Column(Float, nullable=False)
+    id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
+    room = sqlalchemy.Column(sqlalchemy.String(200), nullable=False)
+    name = sqlalchemy.Column(sqlalchemy.String(100), nullable=False)
+    cash = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
+    taxCost = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
+    taxCostPercent = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
+    tradingCost = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
+    tradingCostPercent = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
+    Currency = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
 class Position(Base):
     __tablename__ = 'position'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    depot_id = Column(Integer, ForeignKey('depot.id'), nullable=False)
-    ticker = Column(String(50), nullable=False)
+    id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
+    depot_id = sqlalchemy.Column(sqlalchemy.Integer, sqlalchemy.ForeignKey('depot.id'), nullable=False)
+    ticker = sqlalchemy.Column(sqlalchemy.String(50), nullable=False)
     isin = sqlalchemy.Column(sqlalchemy.String(50), nullable=False)
-    shares = Column(Float, nullable=False)
-    depot = sqlalchemy.orm.relationship("Depot", back_populates="positions")
+    shares = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
+    depot = sqlalchemy.orm.relationship("Depot", backref="positions")
 class Trade(Base):
     __tablename__ = 'trade'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    position_id = Column(Integer, ForeignKey('position.id'), nullable=False)
-    datetime = Column(DateTime, nullable=False)
-    shares = Column(Float, nullable=False)
-    price = Column(Float, nullable=False)
-    position = relationship("Position", back_populates="trades")
+    id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
+    position_id = sqlalchemy.Column(sqlalchemy.Integer, sqlalchemy.ForeignKey('position.id'), nullable=False)
+    datetime = sqlalchemy.Column(sqlalchemy.DateTime, nullable=False)
+    shares = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
+    price = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
+    position = sqlalchemy.orm.relationship("Position", backref="trades")
 class Market(enum.Enum):
     crypto = 'crypto'
     stock = 'stock'
