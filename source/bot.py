@@ -105,12 +105,22 @@ async def tell(room, message):
                     await bot.api.send_markdown_message(room.room_id, msg)
                     for st in strategies:
                         if st['name'] == strategy:
-                            cerebro = database.BotCerebro()
+                            cerebro = database.BotCerebro(stdstats=False)
                             cerebro.addstrategy(st['mod'].Strategy)
                             cerebro.broker.setcash(1000)
-                            cerebro.adddata(backtrader.feeds.PandasData(dataname=df))
-                            cerebro.run()
-                            cerebro.saveplots(file_path = '/tmp/plot.png')
+                            cerebro.addobserver(
+                                backtrader.observers.BuySell,
+                                barplot=True,
+                                bardist=0.001)  # buy / sell arrows
+                            #cerebro.addobserver(backtrader.observers.DrawDown)
+                            #cerebro.addobserver(backtrader.observers.DataTrades)
+                            cerebro.addobserver(backtrader.observers.Broker)
+                            cerebro.addobserver(backtrader.observers.Trades)
+                            def run_cerebro():
+                                cerebro.adddata(backtrader.feeds.PandasData(dataname=df))
+                                cerebro.run()
+                                cerebro.saveplots(file_path = '/tmp/plot.png')
+                            await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
                             await bot.api.send_image_message(room.room_id,'/tmp/plot.png')
                 else:
                     await bot.api.send_markdown_message(room.room_id, 'no data for symbol found')
@@ -225,11 +235,11 @@ async def ProcessStrategy(paper,depot,data):
         if size_sum != 0:
             if not 'lastreco' in paper: paper['lastreco'] = ''
             if size_sum > 0:
-                msg1 = 'strategy %s propose buying %d x %s' % (strategy,round(size_sum),paper['isin'])
+                msg1 = 'strategy %s propose buying %d x %s %s (%s)' % (strategy,round(size_sum),paper['isin'],paper['name'],paper['ticker'])
                 msg2 = 'buy %s %d' % (paper['isin'],round(size_sum))
                 if paper['count']>0: return False
             else:
-                msg1 = 'strategy %s propose selling %d x %s' % (strategy,round(-size_sum),paper['isin'])
+                msg1 = 'strategy %s propose selling %d x %s %s (%s)' % (strategy,round(-size_sum),paper['isin'],paper['name'],paper['ticker'])
                 msg2 = 'sell %s %d' % (paper['isin'],round(-size_sum))
                 if paper['count']==0: return False
             if msg2 != paper['lastreco']:

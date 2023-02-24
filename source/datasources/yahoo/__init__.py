@@ -14,7 +14,7 @@ async def UpdateTicker(paper):
         except:
             return None,None
     started = time.time()
-    updatetime = 1
+    updatetime = 5
     try:
         sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
         if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:

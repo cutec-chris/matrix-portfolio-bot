@@ -108,15 +108,6 @@ class AnalystRating(Base):
 class BotCerebro(backtrader.Cerebro):
     def __init__(self):
         super().__init__()
-        self.trades = []
-        
-    def buy(self, *args, **kwargs):
-        self.trades.append(('buy', args, kwargs))
-        super().buy(*args, **kwargs)
-        
-    def sell(self, *args, **kwargs):
-        self.trades.append(('sell', args, kwargs))
-        super().sell(*args, **kwargs)
     def saveplots(cerebro, numfigs=1, iplot=True, start=None, end=None,
                 width=16, height=9, dpi=300, tight=True, use=None, file_path = '', **kwargs):
         from backtrader import plot
