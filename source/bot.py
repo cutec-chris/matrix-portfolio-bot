@@ -122,6 +122,7 @@ async def tell(room, message):
                         cerebro.addobserver(backtrader.observers.Broker)
                         cerebro.addobserver(backtrader.observers.Trades)
                         initial_capital = cerebro.broker.getvalue()
+                        cerebro.addsizer(backtrader.sizers.PercentSizer, percents=100)
                         def run_cerebro():
                             cerebro.adddata(backtrader.feeds.PandasData(dataname=df))
                             cerebro.run()
@@ -216,6 +217,7 @@ async def ProcessStrategy(paper,depot,data):
             if st['name'] == strategy:
                 cerebro = database.BotCerebro()
                 cerebro.broker.setcash(1000)
+                cerebro.addsizer(backtrader.sizers.PercentSizer, percents=100)
                 paper_strategy = {
                         'isin': paper['isin'],
                         'cerebro': cerebro
@@ -308,6 +310,7 @@ try:
             if not 'papers' in server:
                 server['papers'] = []
             servers.append(Portfolio(server))
+    logging.info('loading datasources...')
     for folder in (pathlib.Path(__file__).parent / 'datasources').glob('*'):
         try:
             spec = importlib.util.spec_from_file_location(folder.name, str(folder / '__init__.py'))
@@ -320,14 +323,15 @@ try:
             datasources.append(module)
         except BaseException as e:
             logging.error('Failed to import datasource:'+str(e))
-    for folder in (pathlib.Path(__file__).parent / 'strategy').glob('*'):
+    logging.info('loading strategys...')
+    for folder in (pathlib.Path(__file__).parent / 'strategy').glob('*/*.py'):
         try:
-            spec = importlib.util.spec_from_file_location(folder.name, str(folder / '__init__.py'))
+            spec = importlib.util.spec_from_file_location(folder.name, str(folder))
             mod_ = importlib.util.module_from_spec(spec)
             sys.modules[folder.name] = mod_
             spec.loader.exec_module(mod_)
             module = {
-                    'name': folder.name,
+                    'name': folder.name.replace('.py',''),
                     'mod': mod_        
                 }
             strategies.append(module)
