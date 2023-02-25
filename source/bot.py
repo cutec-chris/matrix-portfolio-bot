@@ -197,39 +197,48 @@ async def tell(room, message):
             loop.create_task(check_depot(pf))
             await save_servers()
             await bot.api.send_text_message(room.room_id, 'ok')
+        elif (match.is_not_from_this_bot() and match.prefix())\
+        and match.command("change-setting"):
+            set_target = None
+            for server in servers:
+                if server.room == room.room_id and server.name == match.args()[1]:
+                    set_target = server
+                    break
+                for apaper in server.papers:
+                    if apaper['isin'] == match.args()[1]:
+                        set_target = apaper
+                        break
+            if set_target:
+                set_target[match.args()[2]] = match.args()[3]
+                await save_servers()
+                await bot.api.send_text_message(room.room_id, 'ok')
     except BaseException as e:
         logging.error(str(e), exc_info=True)
         if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
             await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
             depot.lasterror = str(e)
-paper_strategies = []
 async def ProcessStrategy(paper,depot,data):
     cerebro = None
     paper_strategy = None
-    for st in paper_strategies:
-        if st['isin'] == paper['isin']:
-            paper_strategy = st
     if paper_strategy == None:
         strategy = 'sma'
         if 'strategy' in paper:
+            strategy = paper['strategy']
+        elif 'strategy' in depot:
             strategy = paper['strategy']
         for st in strategies:
             if st['name'] == strategy:
                 cerebro = database.BotCerebro()
                 cerebro.broker.setcash(1000)
                 cerebro.addsizer(backtrader.sizers.PercentSizer, percents=100)
-                paper_strategy = {
-                        'isin': paper['isin'],
-                        'cerebro': cerebro
-                    }
                 cerebro.addstrategy(st['mod'].Strategy)
                 paper_strategies.append(paper_strategy)
                 break
     if paper_strategy and isinstance(data, pandas.DataFrame) and cerebro:
         try:
             def run_cerebro():
-                paper_strategy['cerebro'].adddata(backtrader.feeds.PandasData(dataname=data))
-                paper_strategy['cerebro'].run()
+                cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
+                cerebro.run()
             await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
         except BaseException as e:
             logging.error(str(e))
@@ -370,12 +379,10 @@ async def bot_help(room, message):
             analyze:
                 command: analyze isin/ticker [strategy] [count] [date]
                 description: analyze an paper
-            stop:
-                command: stop isin/ticker price [count]
-                description: add an stop order for isin/ticker
-            tsl:
-                command: tsl isin/ticker price percent [count]
-                description: add an tsl order for isin/ticker
+            change-setting:
+                command: change-setting depot/isin setting value
+                    settings:
+                        strategy: per depot/paper
             help:
                 command: help, ?, h
                 description: display help command
