@@ -24,12 +24,8 @@ if __name__ == "__main__":
     cerebro = backtrader.Cerebro(stdstats=False)
     cerebro.addstrategy(Strategy)
     cerebro.broker.setcash(1000)
-    cerebro.addobserver(
-        backtrader.observers.BuySell,
-        barplot=True,
-        bardist=0.001)  # buy / sell arrows
+    cerebro.addobserver(backtrader.observers.BuySell,barplot=True,bardist=0.001)  # buy / sell arrows
     cerebro.addobserver(backtrader.observers.DrawDown)
-    #cerebro.addobserver(backtrader.observers.DataTrades)
     cerebro.addobserver(backtrader.observers.Broker)
     cerebro.addobserver(backtrader.observers.Trades)
     sym = database.session.query(database.Symbol).filter_by(ticker='ASML.AS').first()
