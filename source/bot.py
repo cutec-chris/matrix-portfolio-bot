@@ -202,14 +202,15 @@ async def tell(room, message):
             set_target = None
             for server in servers:
                 if server.room == room.room_id and server.name == match.args()[1]:
+                    setattr(server,match.args()[2],match.args()[3])
                     set_target = server
                     break
                 for apaper in server.papers:
                     if apaper['isin'] == match.args()[1]:
+                        apaper[match.args()[2]] = match.args()[3]
                         set_target = apaper
                         break
             if set_target:
-                set_target[match.args()[2]] = match.args()[3]
                 await save_servers()
                 await bot.api.send_text_message(room.room_id, 'ok')
     except BaseException as e:
@@ -224,15 +225,14 @@ async def ProcessStrategy(paper,depot,data):
         strategy = 'sma'
         if 'strategy' in paper:
             strategy = paper['strategy']
-        elif 'strategy' in depot:
-            strategy = paper['strategy']
+        elif hasattr(depot,'strategy'):
+            strategy = depot.strategy
         for st in strategies:
             if st['name'] == strategy:
                 cerebro = database.BotCerebro()
                 cerebro.broker.setcash(1000)
                 cerebro.addsizer(backtrader.sizers.PercentSizer, percents=100)
                 cerebro.addstrategy(st['mod'].Strategy)
-                paper_strategies.append(paper_strategy)
                 break
     if paper_strategy and isinstance(data, pandas.DataFrame) and cerebro:
         try:
@@ -263,10 +263,10 @@ async def ProcessStrategy(paper,depot,data):
                 msg1 = 'strategy %s propose selling %d x %s %s (%s)' % (strategy,round(-size_sum),paper['isin'],paper['name'],paper['ticker'])
                 msg2 = 'sell %s %d' % (paper['isin'],round(-size_sum))
                 if paper['count']==0: return False
-            if msg2 != paper['lastreco']:
+            if strategy+':'+msg2 != paper['lastreco']:
                 await bot.api.send_text_message(depot.room,msg1)
                 await bot.api.send_text_message(depot.room,msg2)
-                paper['lastreco'] = msg2
+                paper['lastreco'] = strategy+':'+msg2
                 paper['lastcheck'] = orderdate.strftime("%Y-%m-%d %H:%M:%S")
                 return True
     return False
