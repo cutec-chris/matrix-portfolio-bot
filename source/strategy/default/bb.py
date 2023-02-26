@@ -12,7 +12,7 @@ class Strategy(backtrader.Strategy):
             devfactor=self.params.bb_dev
         )
     def next(self):
-        if not self.position and self.data.close[-4] < self.bb.bot[-4] and self.data[-4] < self.data[0]:
+        if not self.position and self.data.close[0] < self.bb.bot[0]:
             self.buy()
         elif self.data.close[0] > self.bb.top[0]:
             self.close()
@@ -23,7 +23,7 @@ if __name__ == "__main__":
     cerebro.addstrategy(Strategy)
     cerebro.broker.setcash(1000)
     cerebro.addsizer(backtrader.sizers.PercentSizer, percents=100)
-    sym = database.session.query(database.Symbol).filter_by(ticker='ASML.AS').first()
+    sym = database.session.query(database.Symbol).filter_by(ticker='RHM.DE').first()
     data = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
     cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
     cerebro.run()
