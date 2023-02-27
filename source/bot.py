@@ -220,21 +220,19 @@ async def tell(room, message):
             depot.lasterror = str(e)
 async def ProcessStrategy(paper,depot,data):
     cerebro = None
-    paper_strategy = None
-    if paper_strategy == None:
-        strategy = 'sma'
-        if 'strategy' in paper:
-            strategy = paper['strategy']
-        elif hasattr(depot,'strategy'):
-            strategy = depot.strategy
-        for st in strategies:
-            if st['name'] == strategy:
-                cerebro = database.BotCerebro()
-                cerebro.broker.setcash(1000)
-                cerebro.addsizer(backtrader.sizers.PercentSizer, percents=100)
-                cerebro.addstrategy(st['mod'].Strategy)
-                break
-    if paper_strategy and isinstance(data, pandas.DataFrame) and cerebro:
+    strategy = 'sma'
+    if 'strategy' in paper:
+        strategy = paper['strategy']
+    elif hasattr(depot,'strategy'):
+        strategy = depot.strategy
+    for st in strategies:
+        if st['name'] == strategy:
+            cerebro = database.BotCerebro()
+            cerebro.broker.setcash(1000)
+            cerebro.addsizer(backtrader.sizers.PercentSizer, percents=100)
+            cerebro.addstrategy(st['mod'].Strategy)
+            break
+    if cerebro and isinstance(data, pandas.DataFrame) and cerebro:
         try:
             def run_cerebro():
                 cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
