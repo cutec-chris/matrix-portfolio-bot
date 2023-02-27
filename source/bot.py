@@ -55,6 +55,20 @@ async def tell(room, message):
                     count = paper['lastcount']
                 if paper['count'] > 0:
                     paper['lastcount'] = paper['count']
+                db_depot = database.session.query(database.Depot).filter_by(room=depot.room,name=depot.name).first()
+                if not db_depot:
+                    db_depot = database.Depot(room=room.room_id, name=depot.name, taxCost=0, taxCostPercent=depot.taxCostPercent, tradingCost=depot.tradingCost, tradingCostPercent=depot.tradingCostPercent, currency=depot.currency, cash=0)
+                    database.session.add(db_depot)
+                sym = database.session.query(database.Symbol).filter_by(isin=match.args()[1]).first()
+                db_position = database.session.query(database.Position).filter_by(isin=paper['isin'], depot_id=db_depot.id).first()
+                if not db_position:
+                    db_position = database.Position(depot_id=db_depot.id,
+                                        isin=paper['isin'],
+                                        shares=paper['count'],
+                                        price=paper['price'],
+                                        ticker=paper['ticker'])
+                database.session.add(db_position)
+                database.session.commit()
                 for paper in depot.papers:
                     if paper['isin'] == match.args()[1]:
                         oldprice = float(paper['price'])
@@ -66,12 +80,23 @@ async def tell(room, message):
                         if match.command("buy"):
                             paper['price'] = oldprice+newprice
                             paper['count'] = paper['count']+count
+                            db_position.shares = paper['count']
+                            db_position.price = paper['price']
+                            database.session.add(db_position)
+                            db_trade = database.Trade(position_id=db_position.id,shares=count, price=price,datetime=datetime.datetime.now())
+                            database.session.add(db_trade)
                         elif match.command("sell"):
                             if newprice>oldprice:
                                 newprice = oldprice
                             paper['price'] = oldprice-newprice
                             paper['count'] = paper['count']-count
+                            db_position.shares = paper['count']
+                            db_position.price = paper['price']
+                            database.session.add(db_position)
+                            db_trade = database.Trade(position_id=db_position.id,shares=-count, price=price,datetime=datetime.datetime.now())
+                            database.session.add(db_trade)
                         await save_servers()
+                        database.session.commit()
                         await bot.api.send_text_message(room.room_id, 'ok')
                         loop = asyncio.get_running_loop()
                         for datasource in datasources:

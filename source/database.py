@@ -5,12 +5,12 @@ class Depot(Base):
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
     room = sqlalchemy.Column(sqlalchemy.String(200), nullable=False)
     name = sqlalchemy.Column(sqlalchemy.String(100), nullable=False)
-    cash = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
+    cash = sqlalchemy.Column(sqlalchemy.Float, nullable=True)
     taxCost = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
     taxCostPercent = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
     tradingCost = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
     tradingCostPercent = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
-    Currency = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
+    currency = sqlalchemy.Column(sqlalchemy.String(5), nullable=False)
 class Position(Base):
     __tablename__ = 'position'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
@@ -18,6 +18,7 @@ class Position(Base):
     ticker = sqlalchemy.Column(sqlalchemy.String(50), nullable=False)
     isin = sqlalchemy.Column(sqlalchemy.String(50), nullable=False)
     shares = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
+    price = sqlalchemy.Column(sqlalchemy.Float, nullable=True)
     depot = sqlalchemy.orm.relationship("Depot", backref="positions")
 class Trade(Base):
     __tablename__ = 'trade'
