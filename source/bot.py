@@ -66,7 +66,7 @@ async def tell(room, message):
                                         isin=paper['isin'],
                                         shares=paper['count'],
                                         price=paper['price'],
-                                        ticker=paper['ticker'])
+                                        ticker='')
                 database.session.add(db_position)
                 database.session.commit()
                 for paper in depot.papers:
@@ -77,6 +77,8 @@ async def tell(room, message):
                         if not price:
                             price = oldprice
                         newprice = price*count
+                        if 'ticker' in paper:
+                            db_position.ticker = paper['ticker']
                         if match.command("buy"):
                             paper['price'] = oldprice+newprice
                             paper['count'] = paper['count']+count
