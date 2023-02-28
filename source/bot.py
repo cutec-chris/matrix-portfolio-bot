@@ -108,7 +108,6 @@ async def tell(room, message):
         and match.command("analyze",case_sensitive=False):
             depot = None
             strategy = 'sma'
-            if len(match.args())>2: strategy = match.args()[2]
             days = 30
             if len(match.args())>3: days = float(match.args()[3])
             date = None
@@ -117,6 +116,9 @@ async def tell(room, message):
                 if adepot.room == room.room_id and (adepot.name == depot or depot == None):
                     depot = adepot
             if not depot is str:
+                if hasattr(depot,'strategy'):
+                    strategy = depot.strategy
+                if len(match.args())>2: strategy = match.args()[2]
                 npaper = None
                 found = False
                 sym = database.session.query(database.Symbol).filter_by(isin=match.args()[1]).first()
