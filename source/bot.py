@@ -158,6 +158,11 @@ async def tell(room, message):
                             cerebro.saveplots(file_path = '/tmp/plot.png')
                         await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
                         msg += 'Statistic ROI: %.2f' % (((cerebro.broker.getvalue() - initial_capital) / initial_capital)*100)
+                        for order in cerebro._broker.orders:
+                            if order.executed.dt: orderdate = backtrader.num2date(order.executed.dt)
+                            if orderdate > checkfrom:
+                                size_sum = order.size
+                                msg += 'Last order: %.2f from %s' % (order.size,str(backtrader.num2date(order.executed.dt)))
                         await bot.api.send_markdown_message(room.room_id, msg)
                         await bot.api.send_image_message(room.room_id,'/tmp/plot.png')
                     else:
