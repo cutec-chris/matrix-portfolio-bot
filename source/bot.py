@@ -310,41 +310,34 @@ async def ProcessStrategy(paper,depot,data):
 async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
-        try:
+        for paper in depot.papers:
+            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+            date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
+            paper['_updated'] = latest_date
+        for datasource in datasources:
+            started = time.time()
+            if not fast:
+                UpdateTime = datasource['mod'].GetUpdateFrequency()
+            else:
+                UpdateTime = 0
+            ShouldSave = False
             for paper in depot.papers:
-                sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
-                date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
-                paper['_updated'] = latest_date
-            for datasource in datasources:
-                started = time.time()
-                if not fast:
-                    UpdateTime = datasource['mod'].GetUpdateFrequency()
-                else:
-                    UpdateTime = 0
-                ShouldSave = False
-                for paper in depot.papers:
-                    await datasource['mod'].UpdateTicker(paper)
-                    try:
-                        sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
-                        if 'ticker' in paper and sym:
-                            logging.info(str(depot.name)+': processing ticker '+paper['ticker'])
-                            if sym:
-                                df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
-                                ShouldSave = ShouldSave or await ProcessStrategy(paper,depot,df) 
-                    except BaseException as e:
-                        logging.error(str(e), exc_info=True)
-                if ShouldSave: 
-                    await save_servers()
-                logging.info('Update finished sleeping for %ds' % round(UpdateTime-(time.time()-started)))
-                await asyncio.sleep(UpdateTime-(time.time()-started))
-            if fast:
-                break
-        except BaseException as e:
-            logging.error(str(e), exc_info=True)
-            if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
-                await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
-                depot.lasterror = str(e)
-            raise
+                await datasource['mod'].UpdateTicker(paper)
+                try:
+                    sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+                    if 'ticker' in paper and sym:
+                        logging.info(str(depot.name)+': processing ticker '+paper['ticker'])
+                        if sym:
+                            df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
+                            ShouldSave = ShouldSave or await ProcessStrategy(paper,depot,df) 
+                except BaseException as e:
+                    logging.error(str(e), exc_info=True)
+            if ShouldSave: 
+                await save_servers()
+            logging.info('Update finished sleeping for %ds' % round(UpdateTime-(time.time()-started)))
+            await asyncio.sleep(UpdateTime-(time.time()-started))
+        if fast:
+            break
 datasources = []
 strategies = []
 try:
