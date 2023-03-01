@@ -158,6 +158,7 @@ async def tell(room, message):
                             cerebro.saveplots(file_path = '/tmp/plot.png')
                         await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
                         msg += 'Statistic ROI: %.2f' % (((cerebro.broker.getvalue() - initial_capital) / initial_capital)*100)
+                        checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
                         for order in cerebro._broker.orders:
                             if order.executed.dt: orderdate = backtrader.num2date(order.executed.dt)
                             if orderdate > checkfrom:
