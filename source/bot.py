@@ -159,11 +159,14 @@ async def tell(room, message):
                         await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
                         msg += 'Statistic ROI: %.2f' % (((cerebro.broker.getvalue() - initial_capital) / initial_capital)*100)
                         checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
+                        amsg = None
                         for order in cerebro._broker.orders:
-                            if order.executed.dt: orderdate = backtrader.num2date(order.executed.dt)
-                            if orderdate > checkfrom:
-                                size_sum = order.size
-                                msg += 'Last order: %.2f from %s' % (order.size,str(backtrader.num2date(order.executed.dt)))
+                            if order.status == 4:
+                                if order.executed.dt: orderdate = backtrader.num2date(order.executed.dt)
+                                if orderdate > checkfrom:
+                                    size_sum = order.size
+                                    amsg = 'Last order: %.2f from %s %s\n' % (order.size,str(backtrader.num2date(order.executed.dt)),str(order.isbuy()))
+                        if amsg: msg += amsg
                         await bot.api.send_markdown_message(room.room_id, msg)
                         await bot.api.send_image_message(room.room_id,'/tmp/plot.png')
                     else:
@@ -282,10 +285,11 @@ async def ProcessStrategy(paper,depot,data):
         if 'lastcheck' in paper: checkfrom = datetime.datetime.strptime(paper['lastcheck'], "%Y-%m-%d %H:%M:%S")
         orderdate = datetime.datetime.now()
         for order in cerebro._broker.orders:
-            if order.executed.dt: orderdate = backtrader.num2date(order.executed.dt)
-            if orderdate > checkfrom:
-                size_sum = order.size
-                #print(order.isbuy(),order.size,orderdate)
+            if order.status == 4:
+                if order.executed.dt: orderdate = backtrader.num2date(order.executed.dt)
+                if orderdate > checkfrom:
+                    size_sum = order.size
+                    #print(order.isbuy(),order.size,orderdate)
         if size_sum != 0:
             if not 'lastreco' in paper: paper['lastreco'] = ''
             if size_sum > 0:
