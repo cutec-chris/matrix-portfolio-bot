@@ -15,6 +15,7 @@ async def UpdateTicker(paper):
             return None,None
     started = time.time()
     updatetime = 0.5
+    res = False
     try:
         sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
         if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
@@ -73,6 +74,7 @@ async def UpdateTicker(paper):
                                             database.session.commit()
                                             logging.info('succesful updated till '+str(pdata['Datetime'].iloc[-1]))
                                             updatetime = 20
+                                            res = True
                                         except BaseException as e:
                                             logging.warning('failed writing to db:'+str(e))
                                             database.session.rollback()
@@ -83,6 +85,7 @@ async def UpdateTicker(paper):
     except BaseException as e:
         logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
     await asyncio.sleep(updatetime-(time.time()-started)) #3 times per minute
+    return res
 def GetUpdateFrequency():
     return 15*60
 async def SearchPaper(isin):
