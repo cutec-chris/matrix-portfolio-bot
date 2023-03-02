@@ -43,6 +43,7 @@ class Symbol(Base):
     active = sqlalchemy.Column(sqlalchemy.Boolean, nullable=False)
     tradingstart = sqlalchemy.Column(sqlalchemy.DateTime)
     tradingend = sqlalchemy.Column(sqlalchemy.DateTime)
+    currency = sqlalchemy.Column(sqlalchemy.String(5), nullable=False)
 
     def AppendData(self, df):
         for index, row in df.iterrows():
@@ -70,6 +71,12 @@ class Symbol(Base):
         last_minute_bar = session.query(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()).first()
         if last_minute_bar:
             return last_minute_bar.close
+        else:
+            return 0
+    def GetActDate(self):
+        last_minute_bar = session.query(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()).first()
+        if last_minute_bar:
+            return last_minute_bar.date
         else:
             return 0
 class MinuteBar(Base):
