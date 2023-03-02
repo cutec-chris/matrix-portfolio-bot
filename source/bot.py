@@ -331,6 +331,7 @@ async def check_depot(depot,fast=False):
             for paper in depot.papers:
                 if await datasource['mod'].UpdateTicker(paper):
                     try:
+                        currencypaper = None
                         sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
                         #Update also Currencys when currency is not depot cur
                         if sym and sym.currency and sym.currency != depot.currency and not sym.currency in updatedcurrencys:
@@ -346,7 +347,10 @@ async def check_depot(depot,fast=False):
                         if 'ticker' in paper and sym:
                             logging.info(str(depot.name)+': processing ticker '+paper['ticker'])
                             if sym:
-                                df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
+                                if currencypaper:
+                                    df = sym.GetConvertedData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3),None,depot.currency)
+                                else:
+                                    df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
                                 ShouldSave = ShouldSave or await ProcessStrategy(paper,depot,df) 
                     except BaseException as e:
                         logging.error(str(e), exc_info=True)
