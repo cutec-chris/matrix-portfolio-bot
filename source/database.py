@@ -67,6 +67,23 @@ class Symbol(Base):
         )
         df.set_index("Datetime", inplace=True)
         return df
+    def GetConvertedData(self,start_date=None, end_date=None, TargetCurrency=None):
+        excs = session.query(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency,self.currency)).first()
+        if excs:
+            data = self.GetData(start_date,end_date)
+            exc = excs.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30))
+            for index, row in data.iterrows():
+                # Den nächsten verfügbaren Wechselkurs suchen
+                if not exc.loc[exc.index >= index].empty:
+                    exc_next = exc.loc[exc.index >= index].iloc[0] 
+                else: exc_next = exc.iloc[0]
+                # Umgerechnete Preise für diesen Zeitstempel berechnen
+                row['Open'] = row['Open'] / exc_next['Close']
+                row['High'] = row['High'] / exc_next['Close']
+                row['Low'] = row['Low'] / exc_next['Close']
+                row['Close'] = row['Close'] / exc_next['Close']
+            return data
+        return None
     def GetActPrice(self):
         last_minute_bar = session.query(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()).first()
         if last_minute_bar:
