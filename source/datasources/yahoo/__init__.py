@@ -54,6 +54,7 @@ async def UpdateTicker(paper):
                                 data = await resp.json()
                                 if data["chart"]["result"]:
                                     sym.tradingstart, sym.tradingend = extract_trading_times(data["chart"]["result"][0]['meta']['currentTradingPeriod'])
+                                    sym.currency = data["chart"]["result"][0]['meta']['currency']
                                     ohlc_data = data["chart"]["result"][0]["indicators"]["quote"][0]
                                     if len(ohlc_data)>0:
                                         pdata = pandas.DataFrame({
