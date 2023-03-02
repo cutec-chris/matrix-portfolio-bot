@@ -1,5 +1,5 @@
 import asyncio,aiohttp,csv,datetime,pytz,time
-import requests,yfinance,pandas,pathlib,database,sqlalchemy.sql.expression,asyncio,logging,io
+import requests,pandas,pathlib,database,sqlalchemy.sql.expression,asyncio,logging,io
 UserAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.109 Safari/537.36'
 async def UpdateTicker(paper):
     def extract_trading_times(metadata):
@@ -14,7 +14,7 @@ async def UpdateTicker(paper):
         except:
             return None,None
     started = time.time()
-    updatetime = 5
+    updatetime = 0.5
     try:
         sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
         if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
@@ -54,6 +54,7 @@ async def UpdateTicker(paper):
                                 data = await resp.json()
                                 if data["chart"]["result"]:
                                     sym.tradingstart, sym.tradingend = extract_trading_times(data["chart"]["result"][0]['meta']['currentTradingPeriod'])
+                                    sym.currency = data["chart"]["result"][0]['meta']['currency']
                                     ohlc_data = data["chart"]["result"][0]["indicators"]["quote"][0]
                                     if len(ohlc_data)>0:
                                         pdata = pandas.DataFrame({

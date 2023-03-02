@@ -55,6 +55,20 @@ async def tell(room, message):
                     count = paper['lastcount']
                 if paper['count'] > 0:
                     paper['lastcount'] = paper['count']
+                db_depot = database.session.query(database.Depot).filter_by(room=depot.room,name=depot.name).first()
+                if not db_depot:
+                    db_depot = database.Depot(room=room.room_id, name=depot.name, taxCost=0, taxCostPercent=depot.taxCostPercent, tradingCost=depot.tradingCost, tradingCostPercent=depot.tradingCostPercent, currency=depot.currency, cash=0)
+                    database.session.add(db_depot)
+                sym = database.session.query(database.Symbol).filter_by(isin=match.args()[1]).first()
+                db_position = database.session.query(database.Position).filter_by(isin=paper['isin'], depot_id=db_depot.id).first()
+                if not db_position:
+                    db_position = database.Position(depot_id=db_depot.id,
+                                        isin=paper['isin'],
+                                        shares=paper['count'],
+                                        price=paper['price'],
+                                        ticker='')
+                database.session.add(db_position)
+                database.session.commit()
                 for paper in depot.papers:
                     if paper['isin'] == match.args()[1]:
                         oldprice = float(paper['price'])
@@ -63,24 +77,37 @@ async def tell(room, message):
                         if not price:
                             price = oldprice
                         newprice = price*count
+                        if 'ticker' in paper:
+                            db_position.ticker = paper['ticker']
                         if match.command("buy"):
                             paper['price'] = oldprice+newprice
                             paper['count'] = paper['count']+count
+                            db_position.shares = paper['count']
+                            db_position.price = paper['price']
+                            database.session.add(db_position)
+                            db_trade = database.Trade(position_id=db_position.id,shares=count, price=price,datetime=datetime.datetime.now())
+                            database.session.add(db_trade)
                         elif match.command("sell"):
                             if newprice>oldprice:
                                 newprice = oldprice
                             paper['price'] = oldprice-newprice
                             paper['count'] = paper['count']-count
+                            db_position.shares = paper['count']
+                            db_position.price = paper['price']
+                            database.session.add(db_position)
+                            db_trade = database.Trade(position_id=db_position.id,shares=-count, price=price,datetime=datetime.datetime.now())
+                            database.session.add(db_trade)
                         await save_servers()
+                        database.session.commit()
                         await bot.api.send_text_message(room.room_id, 'ok')
                         loop = asyncio.get_running_loop()
-                        loop.create_task(check_depot(depot,True))
+                        for datasource in datasources:
+                            await datasource['mod'].UpdateTicker(paper)
                         break
         elif (match.is_not_from_this_bot() and match.prefix())\
         and match.command("analyze",case_sensitive=False):
             depot = None
             strategy = 'sma'
-            if len(match.args())>2: strategy = match.args()[2]
             days = 30
             if len(match.args())>3: days = float(match.args()[3])
             date = None
@@ -89,6 +116,9 @@ async def tell(room, message):
                 if adepot.room == room.room_id and (adepot.name == depot or depot == None):
                     depot = adepot
             if not depot is str:
+                if hasattr(depot,'strategy'):
+                    strategy = depot.strategy
+                if len(match.args())>2: strategy = match.args()[2]
                 npaper = None
                 found = False
                 sym = database.session.query(database.Symbol).filter_by(isin=match.args()[1]).first()
@@ -98,30 +128,49 @@ async def tell(room, message):
                     for index, row in df.iterrows():
                         avola = ((row['High']-row['Low'])/row['Close'])*100
                         if avola > vola: vola = avola
-                    msg = 'Analyse of %s (%s)\n' % (sym.name,sym.isin)\
+                    msg = 'Analyse of %s (%s,%s) with %s\n' % (sym.name,sym.isin,sym.ticker,strategy)\
                             +'Open: %.2f Close: %.2f\n' % (float(df.iloc[0]['Open']),float(df.iloc[-1]['Close']))\
                             +'Change: %.2f\n' % (float(df.iloc[-1]['Close'])-float(df.iloc[0]['Close']))\
-                            +'Volatility: %.2f\n' % vola
-                    await bot.api.send_markdown_message(room.room_id, msg)
+                            +'Volatility: %.2f\n' % vola\
+                            +'ROI: %.2f\n' % ((float(df.iloc[-1]['Close']) - float(df.iloc[0]['Open'])) / float(df.iloc[0]['Open']) * 100)
+                    ast = None
                     for st in strategies:
                         if st['name'] == strategy:
-                            cerebro = database.BotCerebro(stdstats=False)
-                            cerebro.addstrategy(st['mod'].Strategy)
-                            cerebro.broker.setcash(1000)
-                            cerebro.addobserver(
-                                backtrader.observers.BuySell,
-                                barplot=True,
-                                bardist=0.001)  # buy / sell arrows
-                            #cerebro.addobserver(backtrader.observers.DrawDown)
-                            #cerebro.addobserver(backtrader.observers.DataTrades)
-                            cerebro.addobserver(backtrader.observers.Broker)
-                            cerebro.addobserver(backtrader.observers.Trades)
-                            def run_cerebro():
-                                cerebro.adddata(backtrader.feeds.PandasData(dataname=df))
-                                cerebro.run()
-                                cerebro.saveplots(file_path = '/tmp/plot.png')
-                            await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
-                            await bot.api.send_image_message(room.room_id,'/tmp/plot.png')
+                            ast = st
+                            break
+                    if ast:
+                        cerebro = database.BotCerebro(stdstats=False)
+                        cerebro.addstrategy(ast['mod'].Strategy)
+                        cerebro.broker.setcash(1000)
+                        cerebro.addobserver(
+                            backtrader.observers.BuySell,
+                            barplot=True,
+                            bardist=0.001)  # buy / sell arrows
+                        #cerebro.addobserver(backtrader.observers.DrawDown)
+                        #cerebro.addobserver(backtrader.observers.DataTrades)
+                        cerebro.addobserver(backtrader.observers.Broker)
+                        cerebro.addobserver(backtrader.observers.Trades)
+                        initial_capital = cerebro.broker.getvalue()
+                        cerebro.addsizer(backtrader.sizers.PercentSizer, percents=100)
+                        def run_cerebro():
+                            cerebro.adddata(backtrader.feeds.PandasData(dataname=df))
+                            cerebro.run()
+                            cerebro.saveplots(file_path = '/tmp/plot.png')
+                        await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
+                        msg += 'Statistic ROI: %.2f' % (((cerebro.broker.getvalue() - initial_capital) / initial_capital)*100)
+                        checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
+                        amsg = None
+                        for order in cerebro._broker.orders:
+                            if order.status == 4:
+                                if order.executed.dt: orderdate = backtrader.num2date(order.executed.dt)
+                                if orderdate > checkfrom:
+                                    size_sum = order.size
+                                    amsg = 'Last order: %.2f from %s %s\n' % (order.size,str(backtrader.num2date(order.executed.dt)),str(order.isbuy()))
+                        if amsg: msg += amsg
+                        await bot.api.send_markdown_message(room.room_id, msg)
+                        await bot.api.send_image_message(room.room_id,'/tmp/plot.png')
+                    else:
+                        await bot.api.send_markdown_message(room.room_id, msg)
                 else:
                     await bot.api.send_markdown_message(room.room_id, 'no data for symbol found')
         elif (match.is_not_from_this_bot() and match.prefix())\
@@ -186,38 +235,46 @@ async def tell(room, message):
             loop.create_task(check_depot(pf))
             await save_servers()
             await bot.api.send_text_message(room.room_id, 'ok')
+        elif (match.is_not_from_this_bot() and match.prefix())\
+        and match.command("change-setting"):
+            set_target = None
+            for server in servers:
+                if server.room == room.room_id and server.name == match.args()[1]:
+                    setattr(server,match.args()[2],match.args()[3])
+                    set_target = server
+                    break
+                for apaper in server.papers:
+                    if apaper['isin'] == match.args()[1]:
+                        apaper[match.args()[2]] = match.args()[3]
+                        set_target = apaper
+                        break
+            if set_target:
+                await save_servers()
+                await bot.api.send_text_message(room.room_id, 'ok')
     except BaseException as e:
         logging.error(str(e), exc_info=True)
         if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
             await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
             depot.lasterror = str(e)
-paper_strategies = []
 async def ProcessStrategy(paper,depot,data):
     cerebro = None
-    paper_strategy = None
-    for st in paper_strategies:
-        if st['isin'] == paper['isin']:
-            paper_strategy = st
-    if paper_strategy == None:
-        strategy = 'sma'
-        if 'strategy' in paper:
-            strategy = paper['strategy']
-        for st in strategies:
-            if st['name'] == strategy:
-                cerebro = database.BotCerebro()
-                cerebro.broker.setcash(1000)
-                paper_strategy = {
-                        'isin': paper['isin'],
-                        'cerebro': cerebro
-                    }
-                cerebro.addstrategy(st['mod'].Strategy)
-                paper_strategies.append(paper_strategy)
-                break
-    if paper_strategy and isinstance(data, pandas.DataFrame) and cerebro:
+    strategy = 'sma'
+    if 'strategy' in paper:
+        strategy = paper['strategy']
+    elif hasattr(depot,'strategy'):
+        strategy = depot.strategy
+    for st in strategies:
+        if st['name'] == strategy:
+            cerebro = database.BotCerebro()
+            cerebro.broker.setcash(1000)
+            cerebro.addsizer(backtrader.sizers.PercentSizer, percents=100)
+            cerebro.addstrategy(st['mod'].Strategy)
+            break
+    if cerebro and isinstance(data, pandas.DataFrame) and cerebro:
         try:
             def run_cerebro():
-                paper_strategy['cerebro'].adddata(backtrader.feeds.PandasData(dataname=data))
-                paper_strategy['cerebro'].run()
+                cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
+                cerebro.run()
             await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
         except BaseException as e:
             logging.error(str(e))
@@ -228,10 +285,11 @@ async def ProcessStrategy(paper,depot,data):
         if 'lastcheck' in paper: checkfrom = datetime.datetime.strptime(paper['lastcheck'], "%Y-%m-%d %H:%M:%S")
         orderdate = datetime.datetime.now()
         for order in cerebro._broker.orders:
-            if order.executed.dt: orderdate = backtrader.num2date(order.executed.dt)
-            if orderdate > checkfrom:
-                size_sum = order.size
-                #print(order.isbuy(),order.size,orderdate)
+            if order.status == 4:
+                if order.executed.dt: orderdate = backtrader.num2date(order.executed.dt)
+                if orderdate > checkfrom:
+                    size_sum = order.size
+                    #print(order.isbuy(),order.size,orderdate)
         if size_sum != 0:
             if not 'lastreco' in paper: paper['lastreco'] = ''
             if size_sum > 0:
@@ -242,50 +300,54 @@ async def ProcessStrategy(paper,depot,data):
                 msg1 = 'strategy %s propose selling %d x %s %s (%s)' % (strategy,round(-size_sum),paper['isin'],paper['name'],paper['ticker'])
                 msg2 = 'sell %s %d' % (paper['isin'],round(-size_sum))
                 if paper['count']==0: return False
-            if msg2 != paper['lastreco']:
+            if strategy+':'+msg2 != paper['lastreco']:
                 await bot.api.send_text_message(depot.room,msg1)
                 await bot.api.send_text_message(depot.room,msg2)
-                paper['lastreco'] = msg2
+                paper['lastreco'] = strategy+':'+msg2
                 paper['lastcheck'] = orderdate.strftime("%Y-%m-%d %H:%M:%S")
                 return True
     return False
 async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
-        try:
+        updatedcurrencys = []
+        for paper in depot.papers:
+            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+            date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
+            paper['_updated'] = latest_date
+        for datasource in datasources:
+            started = time.time()
+            if not fast:
+                UpdateTime = datasource['mod'].GetUpdateFrequency()
+            else:
+                UpdateTime = 0
+            ShouldSave = False
             for paper in depot.papers:
-                sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
-                date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
-                paper['_updated'] = latest_date
-            for datasource in datasources:
-                started = time.time()
-                if not fast:
-                    UpdateTime = datasource['mod'].GetUpdateFrequency()
-                else:
-                    UpdateTime = 0
-                ShouldSave = False
-                for paper in depot.papers:
-                    await datasource['mod'].UpdateTicker(paper)
-                    try:
-                        sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
-                        if 'ticker' in paper and sym:
-                            logging.info(str(depot.name)+': processing ticker '+paper['ticker'])
-                            if sym:
-                                df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
-                                ShouldSave = ShouldSave or await ProcessStrategy(paper,depot,df) 
-                    except BaseException as e:
-                        logging.error(str(e), exc_info=True)
-                if ShouldSave: 
-                    await save_servers()
-                await asyncio.sleep(UpdateTime-(time.time()-started))
-            if fast:
-                break
-        except BaseException as e:
-            logging.error(str(e), exc_info=True)
-            if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
-                await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
-                depot.lasterror = str(e)
-            raise
+                await datasource['mod'].UpdateTicker(paper)
+                try:
+                    sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+                    if sym and sym.currency and sym.currency != depot.currency and not sym.currency in updatedcurrencys:
+                        currencypaper = {
+                            'isin': '%s%s=X' % (depot.currency,sym.currency),
+                            'ticker': '%s%s=X' % (depot.currency,sym.currency),
+                            'name': '%s/%s' % (depot.currency,sym.currency),
+                            '_updated': sym.GetActDate()
+                        }
+                        await datasource['mod'].UpdateTicker(currencypaper)
+                        updatedcurrencys.append(sym.currency)
+                    if 'ticker' in paper and sym:
+                        logging.info(str(depot.name)+': processing ticker '+paper['ticker'])
+                        if sym:
+                            df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
+                            ShouldSave = ShouldSave or await ProcessStrategy(paper,depot,df) 
+                except BaseException as e:
+                    logging.error(str(e), exc_info=True)
+            if ShouldSave: 
+                await save_servers()
+            logging.info('Update finished sleeping for %ds' % round(UpdateTime-(time.time()-started)))
+            await asyncio.sleep(UpdateTime-(time.time()-started))
+        if fast:
+            break
 datasources = []
 strategies = []
 try:
@@ -297,6 +359,7 @@ try:
             if not 'papers' in server:
                 server['papers'] = []
             servers.append(Portfolio(server))
+    logging.info('loading datasources...')
     for folder in (pathlib.Path(__file__).parent / 'datasources').glob('*'):
         try:
             spec = importlib.util.spec_from_file_location(folder.name, str(folder / '__init__.py'))
@@ -309,14 +372,15 @@ try:
             datasources.append(module)
         except BaseException as e:
             logging.error('Failed to import datasource:'+str(e))
-    for folder in (pathlib.Path(__file__).parent / 'strategy').glob('*'):
+    logging.info('loading strategys...')
+    for folder in (pathlib.Path(__file__).parent / 'strategy').glob('*/*.py'):
         try:
-            spec = importlib.util.spec_from_file_location(folder.name, str(folder / '__init__.py'))
+            spec = importlib.util.spec_from_file_location(folder.name, str(folder))
             mod_ = importlib.util.module_from_spec(spec)
             sys.modules[folder.name] = mod_
             spec.loader.exec_module(mod_)
             module = {
-                    'name': folder.name,
+                    'name': folder.name.replace('.py',''),
                     'mod': mod_        
                 }
             strategies.append(module)
@@ -355,12 +419,10 @@ async def bot_help(room, message):
             analyze:
                 command: analyze isin/ticker [strategy] [count] [date]
                 description: analyze an paper
-            stop:
-                command: stop isin/ticker price [count]
-                description: add an stop order for isin/ticker
-            tsl:
-                command: tsl isin/ticker price percent [count]
-                description: add an tsl order for isin/ticker
+            change-setting:
+                command: change-setting depot/isin setting value
+                    settings:
+                        strategy: per depot/paper
             help:
                 command: help, ?, h
                 description: display help command

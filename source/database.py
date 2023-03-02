@@ -1,5 +1,33 @@
 import sqlalchemy,sqlalchemy.orm,pathlib,enum,datetime,pandas,asyncio,backtrader
 Base = sqlalchemy.orm.declarative_base()
+class Depot(Base):
+    __tablename__ = 'depot'
+    id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
+    room = sqlalchemy.Column(sqlalchemy.String(200), nullable=False)
+    name = sqlalchemy.Column(sqlalchemy.String(100), nullable=False)
+    cash = sqlalchemy.Column(sqlalchemy.Float, nullable=True)
+    taxCost = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
+    taxCostPercent = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
+    tradingCost = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
+    tradingCostPercent = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
+    currency = sqlalchemy.Column(sqlalchemy.String(5), nullable=False)
+class Position(Base):
+    __tablename__ = 'position'
+    id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
+    depot_id = sqlalchemy.Column(sqlalchemy.Integer, sqlalchemy.ForeignKey('depot.id'), nullable=False)
+    ticker = sqlalchemy.Column(sqlalchemy.String(50), nullable=False)
+    isin = sqlalchemy.Column(sqlalchemy.String(50), nullable=False)
+    shares = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
+    price = sqlalchemy.Column(sqlalchemy.Float, nullable=True)
+    depot = sqlalchemy.orm.relationship("Depot", backref="positions")
+class Trade(Base):
+    __tablename__ = 'trade'
+    id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
+    position_id = sqlalchemy.Column(sqlalchemy.Integer, sqlalchemy.ForeignKey('position.id'), nullable=False)
+    datetime = sqlalchemy.Column(sqlalchemy.DateTime, nullable=False)
+    shares = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
+    price = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
+    position = sqlalchemy.orm.relationship("Position", backref="trades")
 class Market(enum.Enum):
     crypto = 'crypto'
     stock = 'stock'
@@ -15,6 +43,7 @@ class Symbol(Base):
     active = sqlalchemy.Column(sqlalchemy.Boolean, nullable=False)
     tradingstart = sqlalchemy.Column(sqlalchemy.DateTime)
     tradingend = sqlalchemy.Column(sqlalchemy.DateTime)
+    currency = sqlalchemy.Column(sqlalchemy.String(5), nullable=False)
 
     def AppendData(self, df):
         for index, row in df.iterrows():
@@ -42,6 +71,12 @@ class Symbol(Base):
         last_minute_bar = session.query(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()).first()
         if last_minute_bar:
             return last_minute_bar.close
+        else:
+            return 0
+    def GetActDate(self):
+        last_minute_bar = session.query(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()).first()
+        if last_minute_bar:
+            return last_minute_bar.date
         else:
             return 0
 class MinuteBar(Base):
@@ -77,11 +112,12 @@ class AnalystRating(Base):
                             ondelete="CASCADE"),
                 nullable=False)
     symbol = sqlalchemy.orm.relationship('Symbol', backref='analyst_ratings')
+
 class BotCerebro(backtrader.Cerebro):
     def __init__(self):
         super().__init__()
     def saveplots(cerebro, numfigs=1, iplot=True, start=None, end=None,
-                width=16, height=9, dpi=300, tight=True, use=None, file_path = '', **kwargs):
+                width=16*4, height=9*4, dpi=300, tight=True, use=None, file_path = '', **kwargs):
         from backtrader import plot
         if cerebro.p.oldsync:
             plotter = plot.Plot_OldSync(**kwargs)
