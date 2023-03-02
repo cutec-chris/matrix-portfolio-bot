@@ -323,25 +323,27 @@ async def check_depot(depot,fast=False):
                 UpdateTime = 0
             ShouldSave = False
             for paper in depot.papers:
-                await datasource['mod'].UpdateTicker(paper)
-                try:
-                    sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
-                    if sym and sym.currency and sym.currency != depot.currency and not sym.currency in updatedcurrencys:
-                        currencypaper = {
-                            'isin': '%s%s=X' % (depot.currency,sym.currency),
-                            'ticker': '%s%s=X' % (depot.currency,sym.currency),
-                            'name': '%s/%s' % (depot.currency,sym.currency),
-                            '_updated': sym.GetActDate()
-                        }
-                        await datasource['mod'].UpdateTicker(currencypaper)
-                        updatedcurrencys.append(sym.currency)
-                    if 'ticker' in paper and sym:
-                        logging.info(str(depot.name)+': processing ticker '+paper['ticker'])
-                        if sym:
-                            df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
-                            ShouldSave = ShouldSave or await ProcessStrategy(paper,depot,df) 
-                except BaseException as e:
-                    logging.error(str(e), exc_info=True)
+                if await datasource['mod'].UpdateTicker(paper):
+                    try:
+                        sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+                        #Update also Currencys when currency is not depot cur
+                        if sym and sym.currency and sym.currency != depot.currency and not sym.currency in updatedcurrencys:
+                            currencypaper = {
+                                'isin': '%s%s=X' % (depot.currency,sym.currency),
+                                'ticker': '%s%s=X' % (depot.currency,sym.currency),
+                                'name': '%s/%s' % (depot.currency,sym.currency),
+                                '_updated': sym.GetActDate()
+                            }
+                            await datasource['mod'].UpdateTicker(currencypaper)
+                            updatedcurrencys.append(sym.currency)
+                        #Process strategy
+                        if 'ticker' in paper and sym:
+                            logging.info(str(depot.name)+': processing ticker '+paper['ticker'])
+                            if sym:
+                                df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
+                                ShouldSave = ShouldSave or await ProcessStrategy(paper,depot,df) 
+                    except BaseException as e:
+                        logging.error(str(e), exc_info=True)
             if ShouldSave: 
                 await save_servers()
             logging.info('Update finished sleeping for %ds' % round(UpdateTime-(time.time()-started)))
