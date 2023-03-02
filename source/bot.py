@@ -310,6 +310,7 @@ async def ProcessStrategy(paper,depot,data):
 async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
+        updatedcurrencys = []
         for paper in depot.papers:
             sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
             date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
@@ -325,6 +326,15 @@ async def check_depot(depot,fast=False):
                 await datasource['mod'].UpdateTicker(paper)
                 try:
                     sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+                    if sym and sym.currency and sym.currency != depot.currency and not sym.currency in updatedcurrencys:
+                        currencypaper = {
+                            'isin': '%s%s=X' % (depot.currency,sym.currency),
+                            'ticker': '%s%s=X' % (depot.currency,sym.currency),
+                            'name': '%s/%s' % (depot.currency,sym.currency),
+                            '_updated': sym.GetActDate()
+                        }
+                        await datasource['mod'].UpdateTicker(currencypaper)
+                        updatedcurrencys.append(sym.currency)
                     if 'ticker' in paper and sym:
                         logging.info(str(depot.name)+': processing ticker '+paper['ticker'])
                         if sym:
