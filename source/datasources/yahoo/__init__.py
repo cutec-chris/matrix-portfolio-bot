@@ -8,8 +8,8 @@ async def UpdateTicker(paper):
             # Convert the timezone information to UTC
             utc = pytz.timezone('UTC')
             local_tz = pytz.timezone(timezone)
-            start_time = datetime.datetime.fromtimestamp(metadata['regular']['start'], local_tz)
-            end_time = datetime.datetime.fromtimestamp(metadata['regular']['end'], local_tz)
+            start_time = datetime.datetime.fromtimestamp(metadata['pre']['start'], local_tz)
+            end_time = datetime.datetime.fromtimestamp(metadata['post']['end'], local_tz)
             return start_time, end_time
         except:
             return None,None
@@ -47,9 +47,9 @@ async def UpdateTicker(paper):
                 to_timestamp = int(((startdate+datetime.timedelta(days=59)) - datetime.datetime(1970, 1, 1)).total_seconds())
                 try:
                     if (not (sym.tradingstart and sym.tradingend))\
-                    or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8))\
+                    or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8)):
                     or sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time():
-                        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=false&events=history&period1={from_timestamp}&period2={to_timestamp}"
+                        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=true&events=history&period1={from_timestamp}&period2={to_timestamp}"
                         async with aiohttp.ClientSession(headers={'User-Agent': UserAgent}) as session:
                             async with session.get(url) as resp:
                                 data = await resp.json()
@@ -72,7 +72,7 @@ async def UpdateTicker(paper):
                                             sym.AppendData(pdata)
                                             database.session.add(sym)
                                             database.session.commit()
-                                            logging.info('succesful updated till '+str(pdata['Datetime'].iloc[-1]))
+                                            logging.info(sym.ticker+' succesful updated till '+str(pdata['Datetime'].iloc[-1])+' ('+str(sym.tradingend)+')')
                                             updatetime = 20
                                             res = True
                                         except BaseException as e:
