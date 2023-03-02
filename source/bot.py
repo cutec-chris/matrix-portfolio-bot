@@ -131,7 +131,7 @@ async def tell(room, message):
                     msg = 'Analyse of %s (%s,%s) with %s\n' % (sym.name,sym.isin,sym.ticker,strategy)\
                             +'Open: %.2f Close: %.2f\n' % (float(df.iloc[0]['Open']),float(df.iloc[-1]['Close']))\
                             +'Change: %.2f\n' % (float(df.iloc[-1]['Close'])-float(df.iloc[0]['Close']))\
-                            +'Last updated: %s' % (str(sym.GetActDate()))\
+                            +'Last updated: %s\n' % (str(sym.GetActDate()))\
                             +'Volatility: %.2f\n' % vola\
                             +'ROI: %.2f\n' % ((float(df.iloc[-1]['Close']) - float(df.iloc[0]['Open'])) / float(df.iloc[0]['Open']) * 100)
                     ast = None
