@@ -47,7 +47,7 @@ async def UpdateTicker(paper):
                 to_timestamp = int(((startdate+datetime.timedelta(days=59)) - datetime.datetime(1970, 1, 1)).total_seconds())
                 try:
                     if (not (sym.tradingstart and sym.tradingend))\
-                    or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8)):
+                    or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8))\
                     or sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time():
                         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=true&events=history&period1={from_timestamp}&period2={to_timestamp}"
                         async with aiohttp.ClientSession(headers={'User-Agent': UserAgent}) as session:
