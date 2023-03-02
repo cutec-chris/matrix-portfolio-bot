@@ -123,7 +123,10 @@ async def tell(room, message):
                 found = False
                 sym = database.session.query(database.Symbol).filter_by(isin=match.args()[1]).first()
                 if sym:
-                    df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=days))
+                    if sym.currency and sym.currency != depot.currency:
+                        df = sym.GetConvertedData(datetime.datetime.utcnow()-datetime.timedelta(days=days),None,depot.currency)
+                    else:
+                        df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=days))
                     vola = 0.0
                     for index, row in df.iterrows():
                         avola = ((row['High']-row['Low'])/row['Close'])*100
@@ -199,7 +202,7 @@ async def tell(room, message):
                             if not 'name' in paper: paper['name'] = paper['ticker']
                             sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
                             if sym:
-                                actprice = sym.GetActPrice()
+                                actprice = sym.GetActPrice(depot.currency)
                             else: 
                                 actprice = 0
                             sumactprice += actprice*paper['count']
@@ -347,7 +350,7 @@ async def check_depot(depot,fast=False):
                         if 'ticker' in paper and sym:
                             logging.info(str(depot.name)+': processing ticker '+paper['ticker'])
                             if sym:
-                                if currencypaper:
+                                if sym.currency and sym.currency != depot.currency:
                                     df = sym.GetConvertedData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3),None,depot.currency)
                                 else:
                                     df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
