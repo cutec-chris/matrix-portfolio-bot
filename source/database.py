@@ -31,6 +31,7 @@ class Trade(Base):
 class Market(enum.Enum):
     crypto = 'crypto'
     stock = 'stock'
+    etf = 'etf'
     forex = 'forex'
     futures = 'futures'
 class Symbol(Base):
@@ -38,6 +39,7 @@ class Symbol(Base):
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
     ticker = sqlalchemy.Column(sqlalchemy.String(50), nullable=False)
     isin = sqlalchemy.Column(sqlalchemy.String(50), nullable=False)
+    marketplace = sqlalchemy.Column(sqlalchemy.String, nullable=True)
     name = sqlalchemy.Column(sqlalchemy.String(200), nullable=False)
     market = sqlalchemy.Column(sqlalchemy.Enum(Market), nullable=False)
     active = sqlalchemy.Column(sqlalchemy.Boolean, nullable=False)
