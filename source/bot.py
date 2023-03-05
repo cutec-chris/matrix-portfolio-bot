@@ -325,6 +325,7 @@ async def check_depot(depot,fast=False):
             date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
             paper['_updated'] = latest_date
         for datasource in datasources:
+            if hasattr(depot,'datasource') and depot.datasource != datasource['name']: continue
             started = time.time()
             if not fast:
                 UpdateTime = datasource['mod'].GetUpdateFrequency()
@@ -332,7 +333,9 @@ async def check_depot(depot,fast=False):
                 UpdateTime = 0
             ShouldSave = False
             for paper in depot.papers:
-                if await datasource['mod'].UpdateTicker(paper):
+                targetmarket = None
+                if hasattr(depot,'market'): targetmarket = depot.market
+                if await datasource['mod'].UpdateTicker(paper,targetmarket):
                     try:
                         currencypaper = None
                         sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
