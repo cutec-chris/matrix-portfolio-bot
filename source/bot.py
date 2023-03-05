@@ -36,7 +36,7 @@ async def tell(room, message):
                     if paper['isin'] == match.args()[1]:
                         found = True
                         if not price:
-                            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+                            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
                             if sym: 
                                 price = sym.GetActPrice()
                             else:
@@ -59,7 +59,7 @@ async def tell(room, message):
                 if not db_depot:
                     db_depot = database.Depot(room=room.room_id, name=depot.name, taxCost=0, taxCostPercent=depot.taxCostPercent, tradingCost=depot.tradingCost, tradingCostPercent=depot.tradingCostPercent, currency=depot.currency, cash=0)
                     database.session.add(db_depot)
-                sym = database.session.query(database.Symbol).filter_by(isin=match.args()[1]).first()
+                sym = database.session.query(database.Symbol).filter_by(isin=match.args()[1],marketplace=depot.market).first()
                 db_position = database.session.query(database.Position).filter_by(isin=paper['isin'], depot_id=db_depot.id).first()
                 if not db_position:
                     db_position = database.Position(depot_id=db_depot.id,
@@ -121,7 +121,7 @@ async def tell(room, message):
                 if len(match.args())>2: strategy = match.args()[2]
                 npaper = None
                 found = False
-                sym = database.session.query(database.Symbol).filter_by(isin=match.args()[1]).first()
+                sym = database.session.query(database.Symbol).filter_by(isin=match.args()[1],marketplace=depot.market).first()
                 if sym:
                     if sym.currency and sym.currency != depot.currency:
                         df = sym.GetConvertedData(datetime.datetime.utcnow()-datetime.timedelta(days=days),None,depot.currency)
@@ -200,7 +200,7 @@ async def tell(room, message):
                         if paper['count'] > 0:
                             if not 'ticker' in paper: paper['ticker'] = ''
                             if not 'name' in paper: paper['name'] = paper['ticker']
-                            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+                            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
                             if sym:
                                 actprice = sym.GetActPrice(depot.currency)
                             else: 
@@ -319,9 +319,10 @@ async def ProcessStrategy(paper,depot,data):
 async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
+        if not hasattr(depot,'market'): depot.market = None
         updatedcurrencys = []
         for paper in depot.papers:
-            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
             date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
             paper['_updated'] = latest_date
         for datasource in datasources:
@@ -338,7 +339,7 @@ async def check_depot(depot,fast=False):
                 if await datasource['mod'].UpdateTicker(paper,targetmarket):
                     try:
                         currencypaper = None
-                        sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+                        sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=targetmarket).first()
                         #Update also Currencys when currency is not depot cur
                         if sym and sym.currency and sym.currency != depot.currency and not sym.currency in updatedcurrencys:
                             currencypaper = {
