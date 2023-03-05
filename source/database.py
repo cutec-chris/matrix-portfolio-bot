@@ -83,6 +83,9 @@ class Symbol(Base):
                 row['Low'] = row['Low'] / exc_next['Close']
                 row['Close'] = row['Close'] / exc_next['Close']
             return data
+        elif TargetCurrency == self.currency:
+            data = self.GetData(start_date,end_date)
+            return data
         return None
     def GetActPrice(self,TargetCurrency=None):
         last_minute_bar = session.query(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()).first()
