@@ -79,7 +79,8 @@ async def UpdateTicker(paper,market=None):
                     await asyncio.sleep(1)
                     startdate += datetime.timedelta(days=7)
     except BaseException as e:
-        logging.error(str(e))
+        logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
+        await asyncio.sleep(10)
 def GetUpdateFrequency():
     return 15*60
 async def SearchPaper(isin):
@@ -88,10 +89,11 @@ async def SearchPaper(isin):
     await api.install_client(client)
     async with client:
         instruments = await api.search_instrument(key=isin)
-        instrument = await api.request_instrument(instruments[0])
-        return {
-            'longname': instrument.name,
-            'symbol': instrument.symbol,
-            'type': instrument.type
-        }
+        if len(instruments)>0:
+            instrument = await api.request_instrument(instruments[0])
+            return {
+                'longname': instrument.name,
+                'symbol': instrument.symbol,
+                'type': instrument.type
+            }
     return None
