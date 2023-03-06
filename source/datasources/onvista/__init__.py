@@ -36,51 +36,55 @@ async def UpdateTicker(paper,market=None):
             elif paper['_updated']:
                 startdate = paper['_updated']
             sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=market).first()
-            async with client:
-                i = pyonvista.api.Instrument()
-                i.type=str(sym.market).upper()[7:]
-                i.isin = paper['isin']
-                i.notations = []
-                instrument = await api.request_instrument(isin=paper['isin'],instrument=i)
-                t_market = None
-                if market:
-                    for m in instrument.notations:
-                        if m.market.name == market:
-                            t_market = m
-                            break
-                while startdate < datetime.datetime.utcnow():
-                    quotes = await api.request_quotes(instrument,notation=t_market,start=startdate,end=startdate+datetime.timedelta(days=7))
-                    if len(quotes)>0:
-                        data = [
-                            {
-                                'Datetime': quote.timestamp,
-                                'Open': quote.open,
-                                'High': quote.high,
-                                'Low': quote.low,
-                                'Close': quote.close,
-                                'Volume': quote.volume,
-                                'Pieces': quote.pieces,
-                            }
-                            for quote in quotes
-                        ]
-                        # Erstellen des DataFrames aus der Liste von Dictionaries
-                        df = pandas.DataFrame(data)
-                        pdata = df.dropna()
-                        try:
-                            sym.AppendData(pdata)
-                            database.session.add(sym)
-                            database.session.commit()
-                            logging.info(sym.ticker+' succesful updated till '+str(pdata['Datetime'].iloc[-1])+' ('+str(sym.tradingend)+')')
-                            updatetime = 20
-                            res = True
-                        except BaseException as e:
-                            logging.warning('failed writing to db:'+str(e))
-                            database.session.rollback()
-                    await asyncio.sleep(1)
-                    startdate += datetime.timedelta(days=7)
+            if (not (sym.tradingstart and sym.tradingend))\
+            or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8))\
+            or sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time():
+                async with client:
+                    i = pyonvista.api.Instrument()
+                    i.type=str(sym.market).upper()[7:]
+                    i.isin = paper['isin']
+                    i.notations = []
+                    instrument = await api.request_instrument(isin=paper['isin'],instrument=i)
+                    t_market = None
+                    if market:
+                        for m in instrument.notations:
+                            if m.market.name == market:
+                                t_market = m
+                                break
+                    while startdate < datetime.datetime.utcnow():
+                        quotes = await api.request_quotes(instrument,notation=t_market,start=startdate,end=startdate+datetime.timedelta(days=7))
+                        if len(quotes)>0:
+                            data = [
+                                {
+                                    'Datetime': quote.timestamp,
+                                    'Open': quote.open,
+                                    'High': quote.high,
+                                    'Low': quote.low,
+                                    'Close': quote.close,
+                                    'Volume': quote.volume,
+                                    'Pieces': quote.pieces,
+                                }
+                                for quote in quotes
+                            ]
+                            # Erstellen des DataFrames aus der Liste von Dictionaries
+                            df = pandas.DataFrame(data)
+                            pdata = df.dropna()
+                            try:
+                                sym.AppendData(pdata)
+                                database.session.add(sym)
+                                database.session.commit()
+                                logging.info(sym.ticker+' succesful updated till '+str(pdata['Datetime'].iloc[-1])+' ('+str(sym.tradingend)+')')
+                                updatetime = 10
+                                res = True
+                            except BaseException as e:
+                                logging.warning('failed writing to db:'+str(e))
+                                database.session.rollback()
+                        await asyncio.sleep(1)
+                        startdate += datetime.timedelta(days=7)
     except BaseException as e:
         logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
         await asyncio.sleep(10)
+    await asyncio.sleep(updatetime-(time.time()-started)) #3 times per minute
 def GetUpdateFrequency():
     return 15*60
 async def SearchPaper(isin):

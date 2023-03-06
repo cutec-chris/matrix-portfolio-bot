@@ -73,7 +73,7 @@ async def UpdateTicker(paper):
                                             database.session.add(sym)
                                             database.session.commit()
                                             logging.info(sym.ticker+' succesful updated till '+str(pdata['Datetime'].iloc[-1])+' ('+str(sym.tradingend)+')')
-                                            updatetime = 20
+                                            updatetime = 10
                                             res = True
                                         except BaseException as e:
                                             logging.warning('failed writing to db:'+str(e))
