@@ -62,7 +62,7 @@ async def UpdateTicker(paper,market=None):
                                 if m.market.name == market:
                                     t_market = m
                                     break
-                        while startdate < datetime.datetime.utcnow():
+                        while startdate.date() <= datetime.datetime.utcnow().date():
                             todate = startdate+datetime.timedelta(days=7)
                             if todate>datetime.datetime.now():
                                 todate = None
@@ -87,7 +87,10 @@ async def UpdateTicker(paper,market=None):
                                     res = res or sym.AppendData(pdata)
                                     database.session.add(sym)
                                     database.session.commit()
-                                    logging.info(sym.ticker+' succesful updated till '+str(pdata['Datetime'].iloc[-1])+' ('+str(sym.tradingend)+')')
+                                    if res: 
+                                        logging.info(sym.ticker+' succesful updated till '+str(pdata['Datetime'].iloc[-1])+' ('+str(sym.tradingend)+')')
+                                    else:
+                                        logging.info(sym.ticker+' no new data')
                                     updatetime = 10
                                 except BaseException as e:
                                     logging.warning('failed writing to db:'+str(e))
