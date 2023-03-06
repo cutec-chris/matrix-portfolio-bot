@@ -1,9 +1,6 @@
 import sys,pathlib;sys.path.append(str(pathlib.Path(__file__).parent / 'pyonvista' / 'src'))
 import pyonvista,asyncio,aiohttp,datetime,pytz,time,logging,database,pandas
 async def UpdateTicker(paper,market=None):
-    client = aiohttp.ClientSession()
-    api = pyonvista.PyOnVista()
-    await api.install_client(client)
     started = time.time()
     updatetime = 0.5
     res = False
@@ -41,6 +38,9 @@ async def UpdateTicker(paper,market=None):
                 if (not (sym.tradingstart and sym.tradingend))\
                 or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8))\
                 or sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time():
+                    client = aiohttp.ClientSession()
+                    api = pyonvista.PyOnVista()
+                    await api.install_client(client)
                     async with client:
                         i = pyonvista.api.Instrument()
                         i.type=str(sym.market).upper()[7:]
