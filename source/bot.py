@@ -442,6 +442,8 @@ async def bot_help(room, message):
                 command: change-setting depot/isin setting value
                     settings:
                         strategy: per depot/paper
+                        datasource: per depot
+                        market: per depot
             help:
                 command: help, ?, h
                 description: display help command
