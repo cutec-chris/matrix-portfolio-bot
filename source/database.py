@@ -99,7 +99,7 @@ class Symbol(Base):
             excs = session.query(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency,self.currency)).first()
             if excs:
                 last_minute_bar.close = last_minute_bar.close / excs.GetActPrice()
-            elif TargetCurrency != self.currency:
+            elif self.currency and (TargetCurrency != self.currency):
                 return 0
         if last_minute_bar:
             return last_minute_bar.close
