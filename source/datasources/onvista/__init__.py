@@ -19,6 +19,7 @@ async def UpdateTicker(paper,market=None):
                     paper['name'] = res['shortname']
             else:
                 logging.warning('paper '+paper['isin']+' not found !')
+                return False
         if 'ticker' in paper and paper['ticker']:
             startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
             if sym == None and res:
