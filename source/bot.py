@@ -319,7 +319,6 @@ async def ProcessStrategy(paper,depot,data):
 async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
-        if not hasattr(depot,'market'): depot.market = None
         updatedcurrencys = []
         for paper in depot.papers:
             sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
@@ -413,6 +412,7 @@ async def startup(room):
     loop = asyncio.get_running_loop()
     for server in servers:
         if server.room == room:
+            if not hasattr(server,'market'): setattr(server,'market',None)
             loop.create_task(check_depot(server))
 @bot.listener.on_message_event
 async def bot_help(room, message):
