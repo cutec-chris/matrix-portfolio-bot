@@ -21,7 +21,7 @@ async def UpdateTicker(paper,market=None):
             startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
             if sym == None and res:
                 #initial download
-                sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=database.Market[res['type']],marketplace=market,active=True)
+                sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=database.Market[res['type'].lower()],marketplace=market,active=True)
                 if market == 'gettex':
                     sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)
                     sym.tradingend = datetime.datetime.now().replace(hour=21,minute=0)
