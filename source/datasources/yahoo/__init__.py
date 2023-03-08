@@ -1,20 +1,21 @@
 import asyncio,aiohttp,csv,datetime,pytz,time
 import requests,pandas,pathlib,database,sqlalchemy.sql.expression,asyncio,logging,io
 UserAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.109 Safari/537.36'
-async def UpdateTicker(paper):
+async def UpdateTicker(paper,market=None):
     def extract_trading_times(metadata):
         try:
             timezone = metadata['regular']['timezone']
             # Convert the timezone information to UTC
             utc = pytz.timezone('UTC')
             local_tz = pytz.timezone(timezone)
-            start_time = datetime.datetime.fromtimestamp(metadata['regular']['start'], local_tz)
-            end_time = datetime.datetime.fromtimestamp(metadata['regular']['end'], local_tz)
+            start_time = datetime.datetime.fromtimestamp(metadata['pre']['start'], local_tz)
+            end_time = datetime.datetime.fromtimestamp(metadata['post']['end'], local_tz)
             return start_time, end_time
         except:
             return None,None
     started = time.time()
     updatetime = 0.5
+    res = False
     try:
         sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
         if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
@@ -48,7 +49,7 @@ async def UpdateTicker(paper):
                     if (not (sym.tradingstart and sym.tradingend))\
                     or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8))\
                     or sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time():
-                        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=false&events=history&period1={from_timestamp}&period2={to_timestamp}"
+                        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=true&events=history&period1={from_timestamp}&period2={to_timestamp}"
                         async with aiohttp.ClientSession(headers={'User-Agent': UserAgent}) as session:
                             async with session.get(url) as resp:
                                 data = await resp.json()
@@ -71,8 +72,9 @@ async def UpdateTicker(paper):
                                             sym.AppendData(pdata)
                                             database.session.add(sym)
                                             database.session.commit()
-                                            logging.info('succesful updated till '+str(pdata['Datetime'].iloc[-1]))
-                                            updatetime = 20
+                                            logging.info(sym.ticker+' succesful updated till '+str(pdata['Datetime'].iloc[-1])+' ('+str(sym.tradingend)+')')
+                                            updatetime = 10
+                                            res = True
                                         except BaseException as e:
                                             logging.warning('failed writing to db:'+str(e))
                                             database.session.rollback()
@@ -83,6 +85,7 @@ async def UpdateTicker(paper):
     except BaseException as e:
         logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
     await asyncio.sleep(updatetime-(time.time()-started)) #3 times per minute
+    return res
 def GetUpdateFrequency():
     return 15*60
 async def SearchPaper(isin):

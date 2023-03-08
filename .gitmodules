@@ -1,0 +1,3 @@
+[submodule "source/datasources/onvista/pyonvista"]
+	path = source/datasources/onvista/pyonvista
+	url = https://github.com/cloasdata/pyonvista

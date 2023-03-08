@@ -31,6 +31,8 @@ class Trade(Base):
 class Market(enum.Enum):
     crypto = 'crypto'
     stock = 'stock'
+    etf = 'etf'
+    fund = 'fund'
     forex = 'forex'
     futures = 'futures'
 class Symbol(Base):
@@ -38,6 +40,7 @@ class Symbol(Base):
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
     ticker = sqlalchemy.Column(sqlalchemy.String(50), nullable=False)
     isin = sqlalchemy.Column(sqlalchemy.String(50), nullable=False)
+    marketplace = sqlalchemy.Column(sqlalchemy.String, nullable=True)
     name = sqlalchemy.Column(sqlalchemy.String(200), nullable=False)
     market = sqlalchemy.Column(sqlalchemy.Enum(Market), nullable=False)
     active = sqlalchemy.Column(sqlalchemy.Boolean, nullable=False)
@@ -46,6 +49,7 @@ class Symbol(Base):
     currency = sqlalchemy.Column(sqlalchemy.String(5), nullable=False)
 
     def AppendData(self, df):
+        res = False
         for index, row in df.iterrows():
             date = row["Datetime"]
             # Check if data for the date already exists
@@ -54,6 +58,8 @@ class Symbol(Base):
                 continue
             # Add new data if it doesn't exist
             session.add(MinuteBar(date=date, open=row["Open"], high=row["High"], low=row["Low"], close=row["Close"], volume=row["Volume"], symbol=self))
+            res = True
+        return res
     def GetData(self, start_date=None, end_date=None):
         query = session.query(MinuteBar).filter_by(symbol=self)
         if start_date:
@@ -67,8 +73,34 @@ class Symbol(Base):
         )
         df.set_index("Datetime", inplace=True)
         return df
-    def GetActPrice(self):
+    def GetConvertedData(self,start_date=None, end_date=None, TargetCurrency=None):
+        excs = session.query(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency,self.currency)).first()
+        if excs:
+            data = self.GetData(start_date,end_date)
+            exc = excs.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30))
+            for index, row in data.iterrows():
+                # Den nächsten verfügbaren Wechselkurs suchen
+                if not exc.loc[exc.index >= index].empty:
+                    exc_next = exc.loc[exc.index >= index].iloc[0] 
+                else: exc_next = exc.iloc[0]
+                # Umgerechnete Preise für diesen Zeitstempel berechnen
+                row['Open'] = row['Open'] / exc_next['Close']
+                row['High'] = row['High'] / exc_next['Close']
+                row['Low'] = row['Low'] / exc_next['Close']
+                row['Close'] = row['Close'] / exc_next['Close']
+            return data
+        elif TargetCurrency == self.currency:
+            data = self.GetData(start_date,end_date)
+            return data
+        return None
+    def GetActPrice(self,TargetCurrency=None):
         last_minute_bar = session.query(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()).first()
+        if TargetCurrency:
+            excs = session.query(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency,self.currency)).first()
+            if excs:
+                last_minute_bar.close = last_minute_bar.close / excs.GetActPrice()
+            elif self.currency and (TargetCurrency != self.currency):
+                return 0
         if last_minute_bar:
             return last_minute_bar.close
         else:

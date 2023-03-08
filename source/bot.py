@@ -36,7 +36,7 @@ async def tell(room, message):
                     if paper['isin'] == match.args()[1]:
                         found = True
                         if not price:
-                            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+                            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
                             if sym: 
                                 price = sym.GetActPrice()
                             else:
@@ -59,7 +59,7 @@ async def tell(room, message):
                 if not db_depot:
                     db_depot = database.Depot(room=room.room_id, name=depot.name, taxCost=0, taxCostPercent=depot.taxCostPercent, tradingCost=depot.tradingCost, tradingCostPercent=depot.tradingCostPercent, currency=depot.currency, cash=0)
                     database.session.add(db_depot)
-                sym = database.session.query(database.Symbol).filter_by(isin=match.args()[1]).first()
+                sym = database.session.query(database.Symbol).filter_by(isin=match.args()[1],marketplace=depot.market).first()
                 db_position = database.session.query(database.Position).filter_by(isin=paper['isin'], depot_id=db_depot.id).first()
                 if not db_position:
                     db_position = database.Position(depot_id=db_depot.id,
@@ -121,9 +121,12 @@ async def tell(room, message):
                 if len(match.args())>2: strategy = match.args()[2]
                 npaper = None
                 found = False
-                sym = database.session.query(database.Symbol).filter_by(isin=match.args()[1]).first()
+                sym = database.session.query(database.Symbol).filter_by(isin=match.args()[1],marketplace=depot.market).first()
                 if sym:
-                    df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=days))
+                    if sym.currency and sym.currency != depot.currency:
+                        df = sym.GetConvertedData(datetime.datetime.utcnow()-datetime.timedelta(days=days),None,depot.currency)
+                    else:
+                        df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=days))
                     vola = 0.0
                     for index, row in df.iterrows():
                         avola = ((row['High']-row['Low'])/row['Close'])*100
@@ -131,6 +134,7 @@ async def tell(room, message):
                     msg = 'Analyse of %s (%s,%s) with %s\n' % (sym.name,sym.isin,sym.ticker,strategy)\
                             +'Open: %.2f Close: %.2f\n' % (float(df.iloc[0]['Open']),float(df.iloc[-1]['Close']))\
                             +'Change: %.2f\n' % (float(df.iloc[-1]['Close'])-float(df.iloc[0]['Close']))\
+                            +'Last updated: %s\n' % (str(sym.GetActDate()))\
                             +'Volatility: %.2f\n' % vola\
                             +'ROI: %.2f\n' % ((float(df.iloc[-1]['Close']) - float(df.iloc[0]['Open'])) / float(df.iloc[0]['Open']) * 100)
                     ast = None
@@ -157,7 +161,7 @@ async def tell(room, message):
                             cerebro.run()
                             cerebro.saveplots(file_path = '/tmp/plot.png')
                         await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
-                        msg += 'Statistic ROI: %.2f' % (((cerebro.broker.getvalue() - initial_capital) / initial_capital)*100)
+                        msg += 'Statistic ROI: %.2f\n' % (((cerebro.broker.getvalue() - initial_capital) / initial_capital)*100)
                         checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
                         amsg = None
                         for order in cerebro._broker.orders:
@@ -165,7 +169,12 @@ async def tell(room, message):
                                 if order.executed.dt: orderdate = backtrader.num2date(order.executed.dt)
                                 if orderdate > checkfrom:
                                     size_sum = order.size
-                                    amsg = 'Last order: %.2f from %s %s\n' % (order.size,str(backtrader.num2date(order.executed.dt)),str(order.isbuy()))
+                                    if order.isbuy():
+                                        otyp = 'buy'
+                                    else:
+                                        otyp = 'sell'
+                                    amsg = 'Last order from %s: %s %.2f\n' % (str(backtrader.num2date(order.executed.dt)),otyp,order.size)
+                                
                         if amsg: msg += amsg
                         await bot.api.send_markdown_message(room.room_id, msg)
                         await bot.api.send_image_message(room.room_id,'/tmp/plot.png')
@@ -191,9 +200,9 @@ async def tell(room, message):
                         if paper['count'] > 0:
                             if not 'ticker' in paper: paper['ticker'] = ''
                             if not 'name' in paper: paper['name'] = paper['ticker']
-                            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+                            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
                             if sym:
-                                actprice = sym.GetActPrice()
+                                actprice = sym.GetActPrice(depot.currency)
                             else: 
                                 actprice = 0
                             sumactprice += actprice*paper['count']
@@ -312,10 +321,11 @@ async def check_depot(depot,fast=False):
     while True:
         updatedcurrencys = []
         for paper in depot.papers:
-            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
             date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
             paper['_updated'] = latest_date
         for datasource in datasources:
+            if hasattr(depot,'datasource') and depot.datasource != datasource['name']: continue
             started = time.time()
             if not fast:
                 UpdateTime = datasource['mod'].GetUpdateFrequency()
@@ -323,25 +333,33 @@ async def check_depot(depot,fast=False):
                 UpdateTime = 0
             ShouldSave = False
             for paper in depot.papers:
-                await datasource['mod'].UpdateTicker(paper)
-                try:
-                    sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
-                    if sym and sym.currency and sym.currency != depot.currency and not sym.currency in updatedcurrencys:
-                        currencypaper = {
-                            'isin': '%s%s=X' % (depot.currency,sym.currency),
-                            'ticker': '%s%s=X' % (depot.currency,sym.currency),
-                            'name': '%s/%s' % (depot.currency,sym.currency),
-                            '_updated': sym.GetActDate()
-                        }
-                        await datasource['mod'].UpdateTicker(currencypaper)
-                        updatedcurrencys.append(sym.currency)
-                    if 'ticker' in paper and sym:
-                        logging.info(str(depot.name)+': processing ticker '+paper['ticker'])
-                        if sym:
-                            df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
-                            ShouldSave = ShouldSave or await ProcessStrategy(paper,depot,df) 
-                except BaseException as e:
-                    logging.error(str(e), exc_info=True)
+                targetmarket = None
+                if hasattr(depot,'market'): targetmarket = depot.market
+                if await datasource['mod'].UpdateTicker(paper,targetmarket):
+                    try:
+                        currencypaper = None
+                        sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=targetmarket).first()
+                        #Update also Currencys when currency is not depot cur
+                        if sym and sym.currency and sym.currency != depot.currency and not sym.currency in updatedcurrencys:
+                            currencypaper = {
+                                'isin': '%s%s=X' % (depot.currency,sym.currency),
+                                'ticker': '%s%s=X' % (depot.currency,sym.currency),
+                                'name': '%s/%s' % (depot.currency,sym.currency),
+                                '_updated': sym.GetActDate()
+                            }
+                            await datasource['mod'].UpdateTicker(currencypaper)
+                            updatedcurrencys.append(sym.currency)
+                        #Process strategy
+                        if 'ticker' in paper and sym:
+                            logging.info(str(depot.name)+': processing ticker '+paper['ticker'])
+                            if sym:
+                                if sym.currency and sym.currency != depot.currency:
+                                    df = sym.GetConvertedData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3),None,depot.currency)
+                                else:
+                                    df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
+                                ShouldSave = ShouldSave or await ProcessStrategy(paper,depot,df) 
+                    except BaseException as e:
+                        logging.error(str(e), exc_info=True)
             if ShouldSave: 
                 await save_servers()
             logging.info('Update finished sleeping for %ds' % round(UpdateTime-(time.time()-started)))
@@ -394,6 +412,7 @@ async def startup(room):
     loop = asyncio.get_running_loop()
     for server in servers:
         if server.room == room:
+            if not hasattr(server,'market'): setattr(server,'market',None)
             loop.create_task(check_depot(server))
 @bot.listener.on_message_event
 async def bot_help(room, message):
@@ -423,6 +442,8 @@ async def bot_help(room, message):
                 command: change-setting depot/isin setting value
                     settings:
                         strategy: per depot/paper
+                        datasource: per depot
+                        market: per depot
             help:
                 command: help, ?, h
                 description: display help command
