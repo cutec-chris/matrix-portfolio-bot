@@ -84,11 +84,12 @@ async def UpdateTicker(paper,market=None):
                                 df = pandas.DataFrame(data)
                                 pdata = df.dropna()
                                 try:
-                                    res = res or sym.AppendData(pdata)
+                                    acnt = sym.AppendData(pdata)
+                                    res = res or acnt>0
                                     database.session.add(sym)
                                     database.session.commit()
                                     if res: 
-                                        logging.info(sym.ticker+' succesful updated till '+str(pdata['Datetime'].iloc[-1])+' ('+str(sym.tradingend)+')')
+                                        logging.info(sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' ('+str(sym.tradingend)+')')
                                     else:
                                         logging.info(sym.ticker+' no new data')
                                     updatetime = 10
@@ -103,7 +104,7 @@ async def UpdateTicker(paper,market=None):
     await asyncio.sleep(updatetime-(time.time()-started)) #3 times per minute
     return res
 def GetUpdateFrequency():
-    return 16*60
+    return 25*60
 async def SearchPaper(isin):
     client = aiohttp.ClientSession()
     api = pyonvista.PyOnVista()
