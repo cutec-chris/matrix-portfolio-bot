@@ -336,7 +336,7 @@ async def check_depot(depot,fast=False):
                 targetmarket = None
                 if hasattr(depot,'market'): targetmarket = depot.market
                 if await datasource['mod'].UpdateTicker(paper,targetmarket)\
-                and hasattr(depot,'datasource') and depot.datasource != datasource['name']:
+                and hasattr(depot,'datasource') and depot.datasource == datasource['name']:
                     try:
                         currencypaper = None
                         sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=targetmarket).first()
@@ -352,7 +352,7 @@ async def check_depot(depot,fast=False):
                             updatedcurrencys.append(sym.currency)
                         #Process strategy
                         if 'ticker' in paper and sym:
-                            logging.info(str(depot.name)+': processing ticker '+paper['ticker'])
+                            logging.info(str(depot.name)+': processing ticker '+sym.ticker)
                             if sym:
                                 if sym.currency and sym.currency != depot.currency:
                                     df = sym.GetConvertedData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3),None,depot.currency)
