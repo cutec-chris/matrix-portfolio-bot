@@ -49,7 +49,7 @@ class Symbol(Base):
     currency = sqlalchemy.Column(sqlalchemy.String(5), nullable=False)
 
     def AppendData(self, df):
-        res = False
+        res = 0
         for index, row in df.iterrows():
             date = row["Datetime"]
             # Check if data for the date already exists
@@ -58,7 +58,7 @@ class Symbol(Base):
                 continue
             # Add new data if it doesn't exist
             session.add(MinuteBar(date=date, open=row["Open"], high=row["High"], low=row["Low"], close=row["Close"], volume=row["Volume"], symbol=self))
-            res = True
+            res += 1
         return res
     def GetData(self, start_date=None, end_date=None):
         query = session.query(MinuteBar).filter_by(symbol=self)

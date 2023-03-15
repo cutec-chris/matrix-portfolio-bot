@@ -324,8 +324,8 @@ async def check_depot(depot,fast=False):
             sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
             date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
             paper['_updated'] = latest_date
-        for datasource in datasources:
-            if hasattr(depot,'datasource') and depot.datasource != datasource['name']: continue
+        logging.info('starting Update of Tickers')
+        async def checkdatasource(datasource):
             started = time.time()
             if not fast:
                 UpdateTime = datasource['mod'].GetUpdateFrequency()
@@ -335,7 +335,8 @@ async def check_depot(depot,fast=False):
             for paper in depot.papers:
                 targetmarket = None
                 if hasattr(depot,'market'): targetmarket = depot.market
-                if await datasource['mod'].UpdateTicker(paper,targetmarket):
+                if await datasource['mod'].UpdateTicker(paper,targetmarket)\
+                and hasattr(depot,'datasource') and depot.datasource != datasource['name']:
                     try:
                         currencypaper = None
                         sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=targetmarket).first()
@@ -362,10 +363,9 @@ async def check_depot(depot,fast=False):
                         logging.error(str(e), exc_info=True)
             if ShouldSave: 
                 await save_servers()
-            logging.info('Update finished sleeping for %ds' % round(UpdateTime-(time.time()-started)))
             await asyncio.sleep(UpdateTime-(time.time()-started))
-        if fast:
-            break
+        datasourcetasks = [asyncio.create_task(checkdatasource(datasource)) for datasource in datasources]
+        await asyncio.gather(*datasourcetasks)
 datasources = []
 strategies = []
 try:
