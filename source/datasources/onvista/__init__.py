@@ -104,7 +104,7 @@ async def UpdateTicker(paper,market=None):
     await asyncio.sleep(updatetime-(time.time()-started)) #3 times per minute
     return res
 def GetUpdateFrequency():
-    return 25*60
+    return 15*60
 async def SearchPaper(isin):
     client = aiohttp.ClientSession()
     api = pyonvista.PyOnVista()
