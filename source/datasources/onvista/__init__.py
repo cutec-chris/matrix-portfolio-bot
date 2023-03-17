@@ -1,5 +1,5 @@
 import sys,pathlib;sys.path.append(str(pathlib.Path(__file__).parent / 'pyonvista' / 'src'))
-import pyonvista,asyncio,aiohttp,datetime,pytz,time,logging,database,pandas,json,aiofiles,datetime
+import pyonvista,asyncio,aiohttp,datetime,pytz,time,logging,database,pandas,json,aiofiles,datetime,sqlalchemy
 async def UpdateTicker(paper,market=None):
     started = time.time()
     updatetime = 0.5
@@ -31,10 +31,17 @@ async def UpdateTicker(paper,market=None):
                 except BaseException as e:
                     logging.warning('failed writing to db:'+str(e))
                     database.session.rollback()
-            elif paper['_updated']:
-                startdate = paper['_updated']
             sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=market).first()
             if sym:
+                date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
+                startdate = latest_date
+                if latest_date:
+                    next_update = latest_date+datetime.timedelta(seconds=GetUpdateFrequency())
+                    if datetime.datetime.utcnow()<next_update:
+                        if (next_update-datetime.datetime.utcnow() < (datetime.timedelta(minutes=GetUpdateFrequency() / 4))):
+                            await asyncio.sleep((next_update-datetime.datetime.utcnow()).total_seconds())
+                        else: #when wait-time >90% return and wait for next cycle
+                            return False
                 if (not (sym.tradingstart and sym.tradingend))\
                 or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8))\
                 or sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time():
@@ -67,9 +74,10 @@ async def UpdateTicker(paper,market=None):
                             if todate>datetime.datetime.now():
                                 todate = None
                             quotes = await api.request_quotes(instrument,notation=t_market,start=startdate,end=todate)
-                            #async with aiofiles.open(str(pathlib.Path(__file__).parent / (paper['isin']+'_'+datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')+'.json')), 'w') as file:
-                            #    for quote in quotes:
-                            #        await file.write(str(quote)+'\n')
+                            if (pathlib.Path(__file__).parent / 'debug').exists():
+                                async with aiofiles.open(str(pathlib.Path(__file__).parent / 'debug' / (paper['isin']+'_'+datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')+'.json')), 'w') as file:
+                                    for quote in quotes:
+                                        await file.write(str(quote)+'\n')
                             if len(quotes)>0:
                                 data = [
                                     {
@@ -92,9 +100,9 @@ async def UpdateTicker(paper,market=None):
                                     database.session.add(sym)
                                     database.session.commit()
                                     if res: 
-                                        logging.info(sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' ('+str(sym.tradingend)+')')
+                                        logging.info('onvista:'+sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' ('+str(sym.tradingend)+')')
                                     else:
-                                        logging.info(sym.ticker+' no new data')
+                                        logging.info('onvista:'+sym.ticker+' no new data')
                                     updatetime = 10
                                 except BaseException as e:
                                     logging.warning('failed writing to db:'+str(e))
@@ -102,12 +110,10 @@ async def UpdateTicker(paper,market=None):
                             await asyncio.sleep(1)
                             startdate += datetime.timedelta(days=7)
     except BaseException as e:
-        logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)), exc_info=True)
-        await asyncio.sleep(10)
-    await asyncio.sleep(updatetime-(time.time()-started)) #3 times per minute
+        logging.error('onvista:'+'failed updating ticker %s: %s' % (str(paper['isin']),str(e)), exc_info=True)
     return res
 def GetUpdateFrequency():
-    return 15*60
+    return 16*60
 async def SearchPaper(isin):
     client = aiohttp.ClientSession()
     api = pyonvista.PyOnVista()

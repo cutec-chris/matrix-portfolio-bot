@@ -40,49 +40,57 @@ async def UpdateTicker(paper,market=None):
                 except BaseException as e:
                     logging.warning('failed writing to db:'+str(e))
                     database.session.rollback()
-            elif paper['_updated']:
-                startdate = paper['_updated']
             sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
-            try:
-                while startdate < datetime.datetime.utcnow():
-                    from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
-                    to_timestamp = int(((startdate+datetime.timedelta(days=59)) - datetime.datetime(1970, 1, 1)).total_seconds())
-                    if (not (sym.tradingstart and sym.tradingend))\
-                    or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8))\
-                    or sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time():
-                        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=true&events=history&period1={from_timestamp}&period2={to_timestamp}"
-                        async with aiohttp.ClientSession(headers={'User-Agent': UserAgent}) as session:
-                            async with session.get(url) as resp:
-                                data = await resp.json()
-                                if data["chart"]["result"]:
-                                    sym.tradingstart, sym.tradingend = extract_trading_times(data["chart"]["result"][0]['meta']['currentTradingPeriod'])
-                                    sym.currency = data["chart"]["result"][0]['meta']['currency']
-                                    ohlc_data = data["chart"]["result"][0]["indicators"]["quote"][0]
-                                    if len(ohlc_data)>0:
-                                        pdata = pandas.DataFrame({
-                                            "Datetime": data["chart"]["result"][0]["timestamp"],
-                                            "Open": ohlc_data["open"],
-                                            "High": ohlc_data["high"],
-                                            "Low": ohlc_data["low"],
-                                            "Close": ohlc_data["close"],
-                                            "Volume": ohlc_data["volume"]
-                                        })
-                                        pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
-                                        pdata = pdata.dropna()
-                                        try:
-                                            sym.AppendData(pdata)
-                                            database.session.add(sym)
-                                            database.session.commit()
-                                            logging.info(sym.ticker+' succesful updated till '+str(pdata['Datetime'].iloc[-1])+' ('+str(sym.tradingend)+')')
-                                            updatetime = 10
-                                            res = True
-                                        except BaseException as e:
-                                            logging.warning('failed writing to db:'+str(e))
-                                            database.session.rollback()
+            if sym:
+                date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
+                startdate = latest_date
+                if latest_date:
+                    next_update = latest_date+datetime.timedelta(seconds=GetUpdateFrequency())
+                    if (next_update-datetime.datetime.utcnow() < (datetime.timedelta(minutes=GetUpdateFrequency() / 4))):
+                        await asyncio.sleep((next_update-datetime.datetime.utcnow()).total_seconds())
+                    else: #when wait-time >90% return and wait for next cycle
+                        return False
+                try:
+                    while startdate < datetime.datetime.utcnow():
+                        from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
+                        to_timestamp = int(((startdate+datetime.timedelta(days=59)) - datetime.datetime(1970, 1, 1)).total_seconds())
+                        if (not (sym.tradingstart and sym.tradingend))\
+                        or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8))\
+                        or sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time():
+                            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=true&events=history&period1={from_timestamp}&period2={to_timestamp}"
+                            async with aiohttp.ClientSession(headers={'User-Agent': UserAgent}) as session:
+                                async with session.get(url) as resp:
+                                    data = await resp.json()
+                                    if data["chart"]["result"]:
+                                        sym.tradingstart, sym.tradingend = extract_trading_times(data["chart"]["result"][0]['meta']['currentTradingPeriod'])
+                                        sym.currency = data["chart"]["result"][0]['meta']['currency']
+                                        ohlc_data = data["chart"]["result"][0]["indicators"]["quote"][0]
+                                        if len(ohlc_data)>0:
+                                            pdata = pandas.DataFrame({
+                                                "Datetime": data["chart"]["result"][0]["timestamp"],
+                                                "Open": ohlc_data["open"],
+                                                "High": ohlc_data["high"],
+                                                "Low": ohlc_data["low"],
+                                                "Close": ohlc_data["close"],
+                                                "Volume": ohlc_data["volume"]
+                                            })
+                                            pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
+                                            pdata = pdata.dropna()
+                                            try:
+                                                database.session.add(sym)
+                                                database.session.commit()
+                                                if res: 
+                                                    logging.info('yahoo:'+sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' ('+str(sym.tradingend)+')')
+                                                else:
+                                                    logging.info('yahoo:'+sym.ticker+' no new data')
+                                                updatetime = 10
+                                                res = True
+                                            except BaseException as e:
+                                                logging.warning('failed writing to db:'+str(e))
+                                                database.session.rollback()
                         startdate += datetime.timedelta(days=59)
-            except BaseException as e:
-                logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
-                await asyncio.sleep(10)
+                except BaseException as e:
+                    logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
     except BaseException as e:
         logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
     await asyncio.sleep(updatetime-(time.time()-started)) #3 times per minute
