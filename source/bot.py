@@ -1,5 +1,5 @@
 from init import *
-import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time
+import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles
 loop = None
 lastsend = None
 class Portfolio(Config):
@@ -165,7 +165,7 @@ async def tell(room, message):
                         def run_cerebro():
                             cerebro.adddata(backtrader.feeds.PandasData(dataname=df))
                             cerebro.run()
-                            cerebro.saveplots(file_path = '/tmp/plot.png')
+                            cerebro.saveplots(file_path = '/tmp/plot.jpeg')
                         await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
                         msg += 'Statistic ROI: %.2f\n' % (((cerebro.broker.getvalue() - initial_capital) / initial_capital)*100)
                         checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
@@ -183,7 +183,7 @@ async def tell(room, message):
                                 
                         if amsg: msg += amsg
                         await bot.api.send_markdown_message(room.room_id, msg)
-                        await bot.api.send_image_message(room.room_id,'/tmp/plot.png')
+                        await bot.api.send_image_message(room.room_id,'/tmp/plot.jpeg')
                     else:
                         await bot.api.send_markdown_message(room.room_id, msg)
                 else:
@@ -221,7 +221,49 @@ async def tell(room, message):
                     msg += '<tr><td></td><td></td><td>Sell-Costs</td><td align=right>%.2f' % -(sellcosts)+'</td></tr>\n'
                     msg += '<tr><td></td><td></td><td>Complete</td><td>%.2f' % ((sumactprice-sumprice)-(((sumactprice-sumprice)*(depot.taxCostPercent/100))+sellcosts))+'</td></tr>\n'
                     msg += '</table>\n'
-            await bot.api.send_markdown_message(room.room_id, msg)
+                    await bot.api.send_markdown_message(room.room_id, msg)
+        elif (match.is_not_from_this_bot() and match.prefix())\
+        and match.command("overview",case_sensitive=False):
+            tdepot = None
+            msg = ''
+            if len(match.args())>1:
+                tdepot = match.args()[1]
+            days = 30
+            for depot in servers:
+                if depot.room == room.room_id and (depot.name == tdepot or tdepot == None):
+                    msg += '<h3>%s</h3>' % depot.name
+                    msg += '<table style="text-align: right">\n'
+                    msg += '<tr><th>Paper</th><th>Name</th><th>Price</th><th>Change</th><th>Visual</th></tr>\n'
+                    sumprice = 0
+                    sumactprice = 0
+                    sellcosts = 0
+                    for paper in depot.papers:
+                        if paper['count'] > 0:
+                            if not 'ticker' in paper: paper['ticker'] = ''
+                            if not 'name' in paper: paper['name'] = paper['ticker']
+                            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
+                            if sym:
+                                if sym.currency and sym.currency != depot.currency:
+                                    df = sym.GetConvertedData(datetime.datetime.utcnow()-datetime.timedelta(days=days),None,depot.currency)
+                                else:
+                                    df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=days))
+                                cerebro = database.BotCerebro(stdstats=False)
+                                fpath = '/tmp/%s.jpeg' % paper['isin']
+                                def run_cerebro():
+                                    cerebro.adddata(backtrader.feeds.PandasData(dataname=df))
+                                    cerebro.run(stdstats=False)
+                                    cerebro.saveplots(file_path = fpath,width=32*4, height=16*4,dpi=50,volume=False,grid=False,valuetags=False,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=False)
+                                await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
+                                image_uri = None
+                                try:
+                                    async with aiofiles.open(fpath, 'rb') as tmpf:
+                                        resp, maybe_keys = await bot.api.async_client.upload(tmpf,content_type='image/jpeg')
+                                    image_uri = resp.content_uri
+                                except BaseException as e:
+                                    logging.warning('failed to download avatar:'+str(e))
+                    msg += '<tr><td>'+paper['isin']+'</td><td>%.0fx' % paper['count']+paper['name']+'</td><td align=right>%.2f (%.2f)' % (0,0)+'</td><td align=right>%.2f' % 0+'</td><td><img src="'+str(image_uri)+'"></img></td></tr>\n'
+                    msg += '</table>\n'
+                    await bot.api.send_markdown_message(room.room_id, msg)
         elif (match.is_not_from_this_bot() and match.prefix())\
         and match.command("create-depot"):
             pf = None

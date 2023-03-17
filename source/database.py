@@ -149,7 +149,7 @@ class BotCerebro(backtrader.Cerebro):
     def __init__(self):
         super().__init__()
     def saveplots(cerebro, numfigs=1, iplot=True, start=None, end=None,
-                width=16*4, height=9*4, dpi=300, tight=True, use=None, file_path = '', **kwargs):
+                width=160*4, height=90*4, dpi=100, tight=True, use=None, file_path = '', **kwargs):
         from backtrader import plot
         if cerebro.p.oldsync:
             plotter = plot.Plot_OldSync(**kwargs)
@@ -167,7 +167,8 @@ class BotCerebro(backtrader.Cerebro):
 
         for fig in figs:
             for f in fig:
-                f.savefig(file_path, bbox_inches='tight')
+                f.set_size_inches(width / dpi, height / dpi)
+                f.savefig(file_path, dpi=dpi, bbox_inches='tight')
         return figs
 Data = pathlib.Path('.') / 'data'
 Data.mkdir(parents=True,exist_ok=True)
