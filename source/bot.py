@@ -58,6 +58,7 @@ async def tell(room, message):
                         if res: datafound = True
                     if not datafound:
                         await bot.api.send_text_message(room.room_id, 'no data avalible for symbol in (any) datasource, aborting...')
+                        return
                     depot.papers.append(paper)
                 if 'lastcount' in paper and count == None:
                     count = paper['lastcount']
