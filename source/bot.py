@@ -50,6 +50,14 @@ async def tell(room, message):
                         'count': 0,
                         'price': 0
                     }
+                    datafound = False
+                    for datasource in datasources:
+                        res = await datasource['mod'].UpdateTicker(paper)
+                        if hasattr(depot,'datasource') and depot.datasource == datasource['name']:
+                            if res: break
+                        if res: datafound = True
+                    if not datafound:
+                        await bot.api.send_text_message(room.room_id, 'no data avalible for symbol in (any) datasource, aborting...')
                     depot.papers.append(paper)
                 if 'lastcount' in paper and count == None:
                     count = paper['lastcount']
@@ -100,9 +108,6 @@ async def tell(room, message):
                         await save_servers()
                         database.session.commit()
                         await bot.api.send_text_message(room.room_id, 'ok')
-                        loop = asyncio.get_running_loop()
-                        for datasource in datasources:
-                            await datasource['mod'].UpdateTicker(paper)
                         break
         elif (match.is_not_from_this_bot() and match.prefix())\
         and match.command("analyze",case_sensitive=False):
