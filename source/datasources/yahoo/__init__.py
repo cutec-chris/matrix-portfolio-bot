@@ -28,6 +28,7 @@ async def UpdateTicker(paper,market=None):
                     paper['name'] = res['shortname']
             else:
                 logging.warning('paper '+paper['isin']+' not found !')
+                return False
         if 'ticker' in paper and paper['ticker']:
             startdate = datetime.datetime.utcnow()-datetime.timedelta(days=365*3)
             if sym == None and res:
@@ -42,10 +43,10 @@ async def UpdateTicker(paper,market=None):
             elif paper['_updated']:
                 startdate = paper['_updated']
             sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
-            while startdate < datetime.datetime.utcnow():
-                from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
-                to_timestamp = int(((startdate+datetime.timedelta(days=59)) - datetime.datetime(1970, 1, 1)).total_seconds())
-                try:
+            try:
+                while startdate < datetime.datetime.utcnow():
+                    from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
+                    to_timestamp = int(((startdate+datetime.timedelta(days=59)) - datetime.datetime(1970, 1, 1)).total_seconds())
                     if (not (sym.tradingstart and sym.tradingend))\
                     or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8))\
                     or sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time():
@@ -78,10 +79,10 @@ async def UpdateTicker(paper,market=None):
                                         except BaseException as e:
                                             logging.warning('failed writing to db:'+str(e))
                                             database.session.rollback()
-                    startdate += datetime.timedelta(days=59)
-                except BaseException as e:
-                    logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
-                    await asyncio.sleep(10)
+                        startdate += datetime.timedelta(days=59)
+            except BaseException as e:
+                logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
+                await asyncio.sleep(10)
     except BaseException as e:
         logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
     await asyncio.sleep(updatetime-(time.time()-started)) #3 times per minute

@@ -1,5 +1,5 @@
 import sys,pathlib;sys.path.append(str(pathlib.Path(__file__).parent / 'pyonvista' / 'src'))
-import pyonvista,asyncio,aiohttp,datetime,pytz,time,logging,database,pandas
+import pyonvista,asyncio,aiohttp,datetime,pytz,time,logging,database,pandas,json,aiofiles,datetime
 async def UpdateTicker(paper,market=None):
     started = time.time()
     updatetime = 0.5
@@ -67,6 +67,9 @@ async def UpdateTicker(paper,market=None):
                             if todate>datetime.datetime.now():
                                 todate = None
                             quotes = await api.request_quotes(instrument,notation=t_market,start=startdate,end=todate)
+                            #async with aiofiles.open(str(pathlib.Path(__file__).parent / (paper['isin']+'_'+datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')+'.json')), 'w') as file:
+                            #    for quote in quotes:
+                            #        await file.write(str(quote)+'\n')
                             if len(quotes)>0:
                                 data = [
                                     {
@@ -104,7 +107,7 @@ async def UpdateTicker(paper,market=None):
     await asyncio.sleep(updatetime-(time.time()-started)) #3 times per minute
     return res
 def GetUpdateFrequency():
-    return 25*60
+    return 15*60
 async def SearchPaper(isin):
     client = aiohttp.ClientSession()
     api = pyonvista.PyOnVista()
