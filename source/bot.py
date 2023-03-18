@@ -248,11 +248,13 @@ async def tell(room, message):
                             image_uri = None
                             if not (df.empty):
                                 cerebro = database.BotCerebro(stdstats=False)
-                                cerebro.adddata(backtrader.feeds.PandasData(dataname=df))
+                                cdata = backtrader.feeds.PandasData(dataname=df)
+                                #cdata.addfilter(backtrader.filters.HeikinAshi(cdata))
+                                cerebro.adddata(cdata)
                                 fpath = '/tmp/%s.jpeg' % paper['isin']
                                 def run_cerebro():
                                     cerebro.run(stdstats=False)
-                                    cerebro.saveplots(file_path = fpath,width=32*4, height=16*4,dpi=50,volume=False,grid=False,valuetags=False,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=False)
+                                    cerebro.saveplots(style='line',file_path = fpath,width=32*4, height=16*4,dpi=50,volume=False,grid=False,valuetags=False,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=False)
                                 try:
                                     await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
                                     async with aiofiles.open(fpath, 'rb') as tmpf:
