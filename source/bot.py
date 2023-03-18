@@ -231,37 +231,37 @@ async def tell(room, message):
             days = 30
             for depot in servers:
                 if depot.room == room.room_id and (depot.name == tdepot or tdepot == None):
-                    msg += '<h3>%s</h3>' % depot.name
-                    msg += '<table style="text-align: right">\n'
+                    msg = '<table style="text-align: right">\n'
                     msg += '<tr><th>Paper</th><th>Name</th><th>Price</th><th>Change</th><th>Visual</th></tr>\n'
-                    sumprice = 0
-                    sumactprice = 0
-                    sellcosts = 0
+                    count = 0
                     for paper in depot.papers:
-                        if paper['count'] > 0:
-                            if not 'ticker' in paper: paper['ticker'] = ''
-                            if not 'name' in paper: paper['name'] = paper['ticker']
-                            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
-                            if sym:
-                                if sym.currency and sym.currency != depot.currency:
-                                    df = sym.GetConvertedData(datetime.datetime.utcnow()-datetime.timedelta(days=days),None,depot.currency)
-                                else:
-                                    df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=days))
+                        count += 1
+                        if not 'ticker' in paper: paper['ticker'] = ''
+                        if not 'name' in paper: paper['name'] = paper['ticker']
+                        sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
+                        if sym:
+                            #if sym.currency and sym.currency != depot.currency:
+                            #    df = sym.GetConvertedData(datetime.datetime.utcnow()-datetime.timedelta(days=days),None,depot.currency)
+                            #else:
+                            #    df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=days))
+                            df = sym.GetDataHourly(datetime.datetime.utcnow()-datetime.timedelta(days=days))
+                            image_uri = None
+                            if not (df.empty):
                                 cerebro = database.BotCerebro(stdstats=False)
+                                cerebro.adddata(backtrader.feeds.PandasData(dataname=df))
                                 fpath = '/tmp/%s.jpeg' % paper['isin']
                                 def run_cerebro():
-                                    cerebro.adddata(backtrader.feeds.PandasData(dataname=df))
                                     cerebro.run(stdstats=False)
                                     cerebro.saveplots(file_path = fpath,width=32*4, height=16*4,dpi=50,volume=False,grid=False,valuetags=False,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=False)
-                                await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
-                                image_uri = None
                                 try:
+                                    await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
                                     async with aiofiles.open(fpath, 'rb') as tmpf:
                                         resp, maybe_keys = await bot.api.async_client.upload(tmpf,content_type='image/jpeg')
                                     image_uri = resp.content_uri
                                 except BaseException as e:
-                                    logging.warning('failed to download avatar:'+str(e))
-                    msg += '<tr><td>'+paper['isin']+'</td><td>%.0fx' % paper['count']+paper['name']+'</td><td align=right>%.2f (%.2f)' % (0,0)+'</td><td align=right>%.2f' % 0+'</td><td><img src="'+str(image_uri)+'"></img></td></tr>\n'
+                                    image_uri = None
+                                    logging.warning('failed to upload img:'+str(e))
+                            msg += '<tr><td>'+paper['isin']+'</td><td>%.0fx' % paper['count']+paper['name']+'</td><td align=right>%.2f (%.2f)' % (0,0)+'</td><td align=right>%.2f' % 0+'</td><td><img src="'+str(image_uri)+'"></img></td></tr>\n'
                     msg += '</table>\n'
                     await bot.api.send_markdown_message(room.room_id, msg)
         elif (match.is_not_from_this_bot() and match.prefix())\

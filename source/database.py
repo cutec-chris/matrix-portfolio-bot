@@ -73,6 +73,24 @@ class Symbol(Base):
         )
         df.set_index("Datetime", inplace=True)
         return df
+    def GetDataHourly(self, start_date=None, end_date=None):
+        query = session.query(
+            sqlalchemy.func.strftime('%Y-%m-%d %H:00:00', MinuteBar.date).label('Datetime'),
+            sqlalchemy.func.min(MinuteBar.low).label('Low'),
+            sqlalchemy.func.max(MinuteBar.high).label('High'),
+            sqlalchemy.func.first_value(MinuteBar.open).over(order_by=MinuteBar.date).label('Open'),
+            sqlalchemy.func.last_value(MinuteBar.close).over(order_by=MinuteBar.date).label('Close'),
+            sqlalchemy.func.sum(MinuteBar.volume).label('Volume')
+        ).filter_by(symbol=self)
+        if start_date:
+            query = query.filter(MinuteBar.date >= start_date)
+        if end_date:
+            query = query.filter(MinuteBar.date <= end_date)
+        query = query.group_by('Datetime').order_by('Datetime')
+        df = pandas.read_sql(query.statement, query.session.bind)
+        df['Datetime'] = pandas.to_datetime(df['Datetime'])
+        df.set_index("Datetime", inplace=True)
+        return df
     def GetConvertedData(self,start_date=None, end_date=None, TargetCurrency=None):
         excs = session.query(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency,self.currency)).first()
         if excs:
@@ -150,26 +168,29 @@ class BotCerebro(backtrader.Cerebro):
         super().__init__()
     def saveplots(cerebro, numfigs=1, iplot=True, start=None, end=None,
                 width=160*4, height=90*4, dpi=100, tight=True, use=None, file_path = '', **kwargs):
-        from backtrader import plot
-        if cerebro.p.oldsync:
-            plotter = plot.Plot_OldSync(**kwargs)
-        else:
-            plotter = plot.Plot(**kwargs)
-        import matplotlib
-        matplotlib.use('AGG')
-        figs = []
-        for stratlist in cerebro.runstrats:
-            for si, strat in enumerate(stratlist):
-                rfig = plotter.plot(strat, figid=si * 100,
-                                    numfigs=numfigs, iplot=iplot,
-                                    start=start, end=end, use=use)
-                figs.append(rfig)
+        try:
+            from backtrader import plot
+            if cerebro.p.oldsync:
+                plotter = plot.Plot_OldSync(**kwargs)
+            else:
+                plotter = plot.Plot(**kwargs)
+            import matplotlib
+            matplotlib.use('AGG')
+            figs = []
+            for stratlist in cerebro.runstrats:
+                for si, strat in enumerate(stratlist):
+                    rfig = plotter.plot(strat, figid=si * 100,
+                                        numfigs=numfigs, iplot=iplot,
+                                        start=start, end=end, use=use)
+                    figs.append(rfig)
 
-        for fig in figs:
-            for f in fig:
-                f.set_size_inches(width / dpi, height / dpi)
-                f.savefig(file_path, dpi=dpi, bbox_inches='tight')
-        return figs
+            for fig in figs:
+                for f in fig:
+                    f.set_size_inches(width / dpi, height / dpi)
+                    f.savefig(file_path, dpi=dpi, bbox_inches='tight')
+            return figs
+        except BaseException as e:
+            return None
 Data = pathlib.Path('.') / 'data'
 Data.mkdir(parents=True,exist_ok=True)
 dbEngine=sqlalchemy.create_engine('sqlite:///'+str(Data / 'database.db')) 
