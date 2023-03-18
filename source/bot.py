@@ -483,6 +483,9 @@ async def bot_help(room, message):
             analyze:
                 command: analyze isin/ticker [strategy] [count] [date]
                 description: analyze an paper
+            overview:
+                command: oveview [depot]
+                description: show overview for all papers in depot
             change-setting:
                 command: change-setting depot/isin setting value
                     settings:
