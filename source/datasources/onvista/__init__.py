@@ -31,7 +31,6 @@ async def UpdateTicker(paper,market=None):
                 except BaseException as e:
                     logging.warning('failed writing to db:'+str(e))
                     database.session.rollback()
-            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=market).first()
             if sym:
                 date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
                 startdate = latest_date
@@ -42,6 +41,8 @@ async def UpdateTicker(paper,market=None):
                             await asyncio.sleep((next_update-datetime.datetime.utcnow()).total_seconds())
                         else: #when wait-time >90% return and wait for next cycle
                             return False
+                else:
+                    startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
                 if (not (sym.tradingstart and sym.tradingend))\
                 or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8))\
                 or sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time():

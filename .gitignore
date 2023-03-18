@@ -4,3 +4,4 @@ session.txt
 test.py
 data.json
 data/*
+source/datasources/onvista/debug/*
