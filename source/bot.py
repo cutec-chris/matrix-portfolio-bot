@@ -50,12 +50,12 @@ async def tell(room, message):
                         'count': 0,
                         'price': 0
                     }
-                    datafound = False
+                    datafound = False 
                     for datasource in datasources:
-                        res = await datasource['mod'].UpdateTicker(paper)
+                        res,_ = await datasource['mod'].UpdateTicker(paper)
                         if hasattr(depot,'datasource') and depot.datasource == datasource['name']:
                             if res: break
-                        if res: datafound = True
+                    if res: datafound = True
                     if not datafound:
                         await bot.api.send_text_message(room.room_id, 'no data avalible for symbol in (any) datasource, aborting...')
                         return
