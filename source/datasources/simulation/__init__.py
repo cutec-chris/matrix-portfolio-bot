@@ -1,4 +1,5 @@
-import logging,database
+import logging,database,datetime
+start_at = datetime.datetime(2023,2,1)
 async def UpdateTicker(paper,market=None):
     started = time.time()
     updatetime = 0.5
@@ -11,8 +12,9 @@ async def UpdateTicker(paper,market=None):
         if (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
             paper['ticker'] = sym.ticker
             paper['name'] = sym.name
-        return True,None
+        start_at += datetime.timedelta(minutes=15)
+        return True,start_at
     except BaseException as e:
         return False,None
 def GetUpdateFrequency():
-    return 1*60
+    return 10
