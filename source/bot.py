@@ -373,6 +373,7 @@ async def check_depot(depot,fast=False):
         async def checkdatasource(datasource):
             started = time.time()
             ShouldSave = False
+            #if hasattr(depot,'datasource') and depot.datasource != datasource['name']: return
             UpdateTime = datasource['mod'].GetUpdateFrequency() / 4
             logging.info(depot.name+' starting updates for '+datasource['name'])
             for paper in depot.papers:
@@ -396,12 +397,12 @@ async def check_depot(depot,fast=False):
                             updatedcurrencys.append(sym.currency)
                         #Process strategy
                         if 'ticker' in paper and sym:
-                            logging.info(str(depot.name)+': processing ticker '+sym.ticker)
                             if sym:
                                 if sym.currency and sym.currency != depot.currency:
                                     df = sym.GetConvertedData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
                                 else:
                                     df = sym.GetData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
+                                logging.info(str(depot.name)+': processing ticker '+sym.ticker+' till '+str(df.index[-1]))
                                 ShouldSave = ShouldSave or await ProcessStrategy(paper,depot,df) 
                     except BaseException as e:
                         logging.error(str(e), exc_info=True)
