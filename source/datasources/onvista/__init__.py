@@ -16,7 +16,7 @@ async def UpdateTicker(paper,market=None):
                     paper['name'] = res['shortname']
             else:
                 logging.warning('paper '+paper['isin']+' not found !')
-                return False
+                return False,None
         if 'ticker' in paper and paper['ticker']:
             startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
             if sym == None and res:
@@ -40,7 +40,7 @@ async def UpdateTicker(paper,market=None):
                         if (next_update-datetime.datetime.utcnow() < (datetime.timedelta(minutes=GetUpdateFrequency() / 4))):
                             await asyncio.sleep((next_update-datetime.datetime.utcnow()).total_seconds())
                         else: #when wait-time >90% return and wait for next cycle
-                            return False
+                            return False,None
                 else:
                     startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
                 if (not (sym.tradingstart and sym.tradingend))\
@@ -63,7 +63,7 @@ async def UpdateTicker(paper,market=None):
                                 i.type=str(sym.market).upper()[7:]
                                 instrument = await api.request_instrument(isin=paper['isin'],instrument=i)
                             except:
-                                return False
+                                return False,None
                         t_market = None
                         if market:
                             for m in instrument.notations:
@@ -112,7 +112,7 @@ async def UpdateTicker(paper,market=None):
                             startdate += datetime.timedelta(days=7)
     except BaseException as e:
         logging.error('onvista:'+'failed updating ticker %s: %s' % (str(paper['isin']),str(e)), exc_info=True)
-    return res
+    return res,None
 def GetUpdateFrequency():
     return 16*60
 async def SearchPaper(isin):

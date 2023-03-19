@@ -378,7 +378,8 @@ async def check_depot(depot,fast=False):
             for paper in depot.papers:
                 targetmarket = None
                 if hasattr(depot,'market'): targetmarket = depot.market
-                if await datasource['mod'].UpdateTicker(paper,targetmarket)\
+                UpdateOK,TillUpdated = await datasource['mod'].UpdateTicker(paper,targetmarket)
+                if UpdateOK\
                 and hasattr(depot,'datasource') and depot.datasource == datasource['name']:
                     try:
                         currencypaper = None
@@ -434,7 +435,7 @@ try:
                 }
             datasources.append(module)
         except BaseException as e:
-            logging.error('Failed to import datasource:'+str(e))
+            logging.error(folder.name+':Failed to import datasource:'+str(e))
     logging.info('loading strategys...')
     for folder in (pathlib.Path(__file__).parent / 'strategy').glob('*/*.py'):
         try:
