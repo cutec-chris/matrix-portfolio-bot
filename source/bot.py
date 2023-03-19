@@ -399,9 +399,9 @@ async def check_depot(depot,fast=False):
                             logging.info(str(depot.name)+': processing ticker '+sym.ticker)
                             if sym:
                                 if sym.currency and sym.currency != depot.currency:
-                                    df = sym.GetConvertedData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3),None,depot.currency)
+                                    df = sym.GetConvertedData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
                                 else:
-                                    df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
+                                    df = sym.GetData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
                                 ShouldSave = ShouldSave or await ProcessStrategy(paper,depot,df) 
                     except BaseException as e:
                         logging.error(str(e), exc_info=True)
