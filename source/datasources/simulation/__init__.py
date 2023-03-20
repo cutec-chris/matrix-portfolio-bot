@@ -1,5 +1,5 @@
 import logging,database,datetime,time
-start_at = datetime.datetime(2023,2,1,8,0)
+start_at = datetime.datetime(2023,2,2,8,0)
 async def UpdateTicker(paper,market=None):
     global start_at
     started = time.time()
@@ -19,4 +19,4 @@ async def UpdateTicker(paper,market=None):
     except BaseException as e:
         return False,None
 def GetUpdateFrequency():
-    return 10
+    return 1

@@ -92,6 +92,7 @@ async def UpdateTicker(paper,market=None):
                                     }
                                     for quote in quotes
                                 ]
+                                updatetime = 5
                                 # Erstellen des DataFrames aus der Liste von Dictionaries
                                 df = pandas.DataFrame(data)
                                 pdata = df.dropna()
@@ -112,9 +113,10 @@ async def UpdateTicker(paper,market=None):
                             startdate += datetime.timedelta(days=7)
     except BaseException as e:
         logging.error('onvista:'+'failed updating ticker %s: %s' % (str(paper['isin']),str(e)), exc_info=True)
+    await asyncio.sleep(updatetime-(time.time()-started)) #3 times per minute
     return res,None
 def GetUpdateFrequency():
-    return 16*60
+    return 31*60
 async def SearchPaper(isin):
     client = aiohttp.ClientSession()
     api = pyonvista.PyOnVista()
