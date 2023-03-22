@@ -1,5 +1,6 @@
+#dont load
 import logging,database,datetime,time
-start_at = datetime.datetime(2023,2,2,8,0)
+start_at = datetime.datetime(2023,2,1,13,45)
 async def UpdateTicker(paper,market=None):
     global start_at
     started = time.time()
