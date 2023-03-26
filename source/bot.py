@@ -225,6 +225,7 @@ async def tell(room, message):
                     msg += '<tr><td></td><td></td><td>Complete</td><td>%.2f' % ((sumactprice-sumprice)-(((sumactprice-sumprice)*(depot.taxCostPercent/100))+sellcosts))+'</td></tr>\n'
                     msg += '</table>\n'
                     await bot.api.send_markdown_message(room.room_id, msg)
+                    msg = ''
         elif (match.is_not_from_this_bot() and match.prefix())\
         and match.command("overview",case_sensitive=False):
             tdepot = None
@@ -279,6 +280,7 @@ async def tell(room, message):
                             msg += '<tr><td>'+paper['isin']+'</td><td>%.0fx' % paper['count']+paper['name']+'</td><td align=right>'+troi+'</td><td><img src="'+str(image_uri)+'"></img></td></tr>\n'
                     msg += '</table>\n'
                     await bot.api.send_markdown_message(room.room_id, msg)
+                    msg = ''
         elif (match.is_not_from_this_bot() and match.prefix())\
         and match.command("create-depot"):
             pf = None
