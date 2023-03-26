@@ -114,10 +114,11 @@ async def tell(room, message):
         and match.command("analyze",case_sensitive=False):
             depot = None
             strategy = 'sma'
-            days = 30
-            if len(match.args())>3: days = float(match.args()[3])
+            range = '30d'
+            if len(match.args())>3: range = match.args()[3]
             date = None
-            if len(match.args())>4: date = match.args()[4]
+            if len(match.args())>4: strategy = match.args()[4]
+            range = parse_human_readable_duration(range)
             for adepot in servers:
                 if adepot.room == room.room_id and (adepot.name == depot or depot == None):
                     depot = adepot
@@ -130,9 +131,9 @@ async def tell(room, message):
                 sym = database.session.query(database.Symbol).filter_by(isin=match.args()[1],marketplace=depot.market).first()
                 if sym:
                     if sym.currency and sym.currency != depot.currency:
-                        df = sym.GetConvertedData(datetime.datetime.utcnow()-datetime.timedelta(days=days),None,depot.currency)
+                        df = sym.GetConvertedData(datetime.datetime.utcnow()-range,None,depot.currency)
                     else:
-                        df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=days))
+                        df = sym.GetData(datetime.datetime.utcnow()-range)
                     vola = 0.0
                     for index, row in df.iterrows():
                         avola = ((row['High']-row['Low'])/row['Close'])*100
@@ -141,8 +142,10 @@ async def tell(room, message):
                             +'Open: %.2f Close: %.2f\n' % (float(df.iloc[0]['Open']),float(df.iloc[-1]['Close']))\
                             +'Change: %.2f\n' % (float(df.iloc[-1]['Close'])-float(df.iloc[0]['Close']))\
                             +'Last updated: %s\n' % (str(sym.GetActDate()))\
-                            +'Volatility: %.2f\n' % vola\
-                            +'ROI: %.2f\n' % ((float(df.iloc[-1]['Close']) - float(df.iloc[0]['Open'])) / float(df.iloc[0]['Open']) * 100)
+                            +'Volatility: %.2f\n' % vola
+                    roi = calculate_roi(df)
+                    for timeframe, value in roi.items():
+                        msg += f"ROI for {timeframe}: {value:.2f}%\n"
                     ast = None
                     for st in strategies:
                         if st['name'] == strategy:
@@ -226,13 +229,22 @@ async def tell(room, message):
         and match.command("overview",case_sensitive=False):
             tdepot = None
             msg = ''
+            range = '30d'
+            style = 'graphic'
             if len(match.args())>1:
-                tdepot = match.args()[1]
-            days = 30
+                range = match.args()[1]
+            if len(match.args())>2:
+                style = match.args()[2]
+            if len(match.args())>3:
+                tdepot = match.args()[3]
             for depot in servers:
                 if depot.room == room.room_id and (depot.name == tdepot or tdepot == None):
+                    try:
+                        range = parse_human_readable_duration(range)+datetime.timedelta(days=3)
+                    except BaseException as e:
+                        range = parse_human_readable_duration('33d')
                     msg = '<table style="text-align: right">\n'
-                    msg += '<tr><th>Paper</th><th>Name</th><th>Price</th><th>Change</th><th>Visual</th></tr>\n'
+                    msg += '<tr><th>Paper</th><th>Name</th><th>Change</th><th>Visual</th></tr>\n'
                     count = 0
                     for paper in depot.papers:
                         count += 1
@@ -240,30 +252,31 @@ async def tell(room, message):
                         if not 'name' in paper: paper['name'] = paper['ticker']
                         sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
                         if sym:
-                            #if sym.currency and sym.currency != depot.currency:
-                            #    df = sym.GetConvertedData(datetime.datetime.utcnow()-datetime.timedelta(days=days),None,depot.currency)
-                            #else:
-                            #    df = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=days))
-                            df = sym.GetDataHourly(datetime.datetime.utcnow()-datetime.timedelta(days=days))
+                            df = sym.GetDataHourly(datetime.datetime.utcnow()-range)
                             image_uri = None
-                            if not (df.empty):
-                                cerebro = database.BotCerebro(stdstats=False)
-                                cdata = backtrader.feeds.PandasData(dataname=df)
-                                #cdata.addfilter(backtrader.filters.HeikinAshi(cdata))
-                                cerebro.adddata(cdata)
-                                fpath = '/tmp/%s.jpeg' % paper['isin']
-                                def run_cerebro():
-                                    cerebro.run(stdstats=False)
-                                    cerebro.saveplots(style='line',file_path = fpath,width=32*4, height=16*4,dpi=50,volume=False,grid=False,valuetags=False,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=False)
-                                try:
-                                    await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
-                                    async with aiofiles.open(fpath, 'rb') as tmpf:
-                                        resp, maybe_keys = await bot.api.async_client.upload(tmpf,content_type='image/jpeg')
-                                    image_uri = resp.content_uri
-                                except BaseException as e:
-                                    image_uri = None
-                                    logging.warning('failed to upload img:'+str(e))
-                            msg += '<tr><td>'+paper['isin']+'</td><td>%.0fx' % paper['count']+paper['name']+'</td><td align=right>%.2f (%.2f)' % (0,0)+'</td><td align=right>%.2f' % 0+'</td><td><img src="'+str(image_uri)+'"></img></td></tr>\n'
+                            if style == 'graphic':
+                                if not (df.empty):
+                                    cerebro = database.BotCerebro(stdstats=False)
+                                    cdata = backtrader.feeds.PandasData(dataname=df)
+                                    #cdata.addfilter(backtrader.filters.HeikinAshi(cdata))
+                                    cerebro.adddata(cdata)
+                                    fpath = '/tmp/%s.jpeg' % paper['isin']
+                                    def run_cerebro():
+                                        cerebro.run(stdstats=False)
+                                        cerebro.saveplots(style='line',file_path = fpath,width=32*4, height=16*4,dpi=50,volume=False,grid=False,valuetags=False,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=False)
+                                    try:
+                                        await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
+                                        async with aiofiles.open(fpath, 'rb') as tmpf:
+                                            resp, maybe_keys = await bot.api.async_client.upload(tmpf,content_type='image/jpeg')
+                                        image_uri = resp.content_uri
+                                    except BaseException as e:
+                                        image_uri = None
+                                        logging.warning('failed to upload img:'+str(e))
+                            roi = calculate_roi(df)
+                            troi = ''
+                            for timeframe, value in roi.items():
+                                troi += f"ROI for {timeframe}: {value:.2f}%\n<br>"
+                            msg += '<tr><td>'+paper['isin']+'</td><td>%.0fx' % paper['count']+paper['name']+'</td><td align=right>'+troi+'</td><td><img src="'+str(image_uri)+'"></img></td></tr>\n'
                     msg += '</table>\n'
                     await bot.api.send_markdown_message(room.room_id, msg)
         elif (match.is_not_from_this_bot() and match.prefix())\
@@ -312,9 +325,7 @@ async def tell(room, message):
                 await bot.api.send_text_message(room.room_id, 'ok')
     except BaseException as e:
         logging.error(str(e), exc_info=True)
-        if not hasattr(depot,'lasterror') or depot.lasterror != str(e):
-            await bot.api.send_text_message(depot.room,str(depot.name)+': '+str(e))
-            depot.lasterror = str(e)
+        await bot.api.send_text_message(room,str(e))
 async def ProcessStrategy(paper,depot,data):
     cerebro = None
     strategy = 'sma'
@@ -486,8 +497,12 @@ async def bot_help(room, message):
                 command: analyze isin/ticker [strategy] [count] [date]
                 description: analyze an paper
             overview:
-                command: oveview [depot]
+                command: oveview style range [depot]
                 description: show overview for all papers in depot
+                style:
+                    graphic: show basic text analys and plot of timerange
+                    text: show basic text analys
+                range: 30d per default, y,d,w allowed
             change-setting:
                 command: change-setting depot/isin setting value
                     settings:
@@ -504,4 +519,32 @@ async def bot_help(room, message):
     or match.command("?") 
     or match.command("h")):
         await bot.api.send_text_message(room.room_id, bot_help_message)
+def parse_human_readable_duration(duration_str):
+    units = {'d': 'days', 'w': 'weeks', 'y': 'years'}
+    value = int(duration_str[:-1])
+    unit = duration_str[-1]
+
+    if unit not in units:
+        raise ValueError(f"Invalid time unit '{unit}', valid units are {', '.join(units.keys())}")
+
+    kwargs = {units[unit]: value}
+    return datetime.timedelta(**kwargs)
+def calculate_roi(df):
+    timeframes = [('1 hour', datetime.timedelta(hours=1)), 
+                  ('1 day', datetime.timedelta(days=1)), 
+                  ('1 month', datetime.timedelta(days=30)), 
+                  ('1 year', datetime.timedelta(days=365)),
+                  ('all', df.index.max()-df.index.min())]
+    roi = {}
+    for label, delta in timeframes:
+        last_time = df.index.max()
+        first_time = last_time - delta
+        if first_time < df.index.min():
+            continue
+        last_close_idx = df.index.get_loc(last_time, method='nearest')
+        first_close_idx = df.index.get_loc(first_time, method='nearest')
+        first_close = df.iloc[first_close_idx]['Close']
+        last_close = df.iloc[last_close_idx]['Close']
+        roi[label] = (last_close - first_close) / first_close * 100
+    return roi
 bot.run()
