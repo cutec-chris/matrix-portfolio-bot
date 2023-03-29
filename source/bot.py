@@ -247,8 +247,7 @@ async def tell(room, message):
                     msg = '<table style="text-align: right">\n'
                     msg += '<tr><th>Paper</th><th>Name</th><th>Change</th><th>Visual</th></tr>\n'
                     count = 0
-                    for paper in depot.papers:
-                        count += 1
+                    async def overview_process(paper, depot, database, range, style, bot):
                         if not 'ticker' in paper: paper['ticker'] = ''
                         if not 'name' in paper: paper['name'] = paper['ticker']
                         sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
@@ -274,10 +273,25 @@ async def tell(room, message):
                                         image_uri = None
                                         logging.warning('failed to upload img:'+str(e))
                             roi = calculate_roi(df)
+                            try: roi1h = roi['1 hour']
+                            except: roi1h = 0
                             troi = ''
                             for timeframe, value in roi.items():
                                 troi += f"ROI for {timeframe}: {value:.2f}%\n<br>"
-                            msg += '<tr><td>'+paper['isin']+'</td><td>%.0fx' % paper['count']+paper['name']+'</td><td align=right>'+troi+'</td><td><img src="'+str(image_uri)+'"></img></td></tr>\n'
+                            result = {
+                                "roi": roi1h,  # Berechneter ROI
+                                "msg_part": '<tr><td>' + paper['isin'] + '</td><td>%.0fx' % paper['count'] + paper['name'] + '</td><td align=right>' + troi + '</td><td><img src="' + str(image_uri) + '"></img></td></tr>\n'
+                            }
+                            return result
+                    tasks = []
+                    for paper in depot.papers:
+                        task = asyncio.create_task(overview_process(paper, depot, database, range, style, bot))
+                        tasks.append(task)
+                        count += 1
+                    results = await asyncio.gather(*tasks)
+                    sorted_results = sorted(results, key=lambda x: x['roi'], reverse=True)  # Nach ROI sortieren
+                    for result in sorted_results:
+                        msg += result['msg_part']                   
                     msg += '</table>\n'
                     await bot.api.send_markdown_message(room.room_id, msg)
                     msg = ''
