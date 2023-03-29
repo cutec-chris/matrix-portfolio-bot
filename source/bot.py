@@ -274,7 +274,7 @@ async def tell(room, message):
                                         image_uri = None
                                         logging.warning('failed to upload img:'+str(e))
                             roi = calculate_roi(df)
-                            def weighted_roi_sum(roi_list):
+                            def weighted_roi_sum(roi_dict):
                                 weights = {
                                     "1 hour": 0.5,
                                     "1 day": 1,
@@ -283,10 +283,9 @@ async def tell(room, message):
                                     "all": 0.1,
                                 }
                                 weighted_sum = 0
-                                for roi_dict in roi_list:
-                                    for key, value in roi_dict.items():
-                                        if key in weights:
-                                            weighted_sum += value * weights[key]
+                                for key, value in roi_dict.items():
+                                    if key in weights:
+                                        weighted_sum += value * weights[key]
                                 return weighted_sum
                             try: roi_x = weighted_roi_sum(roi)
                             except: roi_x = 0
