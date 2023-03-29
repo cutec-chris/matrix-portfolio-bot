@@ -290,7 +290,8 @@ async def tell(room, message):
                         tasks.append(task)
                         count += 1
                     results = await asyncio.gather(*tasks)
-                    sorted_results = sorted(results, key=lambda x: x['roi'], reverse=True)  # Nach ROI sortieren
+                    filtered_results = list(filter(None, results))  # Filtere `None` Werte aus der Liste
+                    sorted_results = sorted(filtered_results, key=lambda x: x['roi'], reverse=True)  # Nach ROI sortieren
                     for result in sorted_results:
                         msg += result['msg_part']                   
                     msg += '</table>\n'
