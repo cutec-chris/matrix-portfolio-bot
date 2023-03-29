@@ -274,13 +274,27 @@ async def tell(room, message):
                                         image_uri = None
                                         logging.warning('failed to upload img:'+str(e))
                             roi = calculate_roi(df)
-                            try: roi1h = roi['1 hour']
-                            except: roi1h = 0
+                            def weighted_roi_sum(roi_list):
+                                weights = {
+                                    "1 hour": 1,
+                                    "1 day": 1,
+                                    "1 month": 1,
+                                    "1 year": 0.5,
+                                    "all": 0.4,
+                                }
+                                weighted_sum = 0
+                                for roi_dict in roi_list:
+                                    for key, value in roi_dict.items():
+                                        if key in weights:
+                                            weighted_sum += value * weights[key]
+                                return weighted_sum
+                            try: roi_x = weighted_roi_sum(roi)
+                            except: roi_x = 0
                             troi = ''
                             for timeframe, value in roi.items():
                                 troi += f"ROI for {timeframe}: {value:.2f}%\n<br>"
                             result = {
-                                "roi": roi1h,  # Berechneter ROI
+                                "roi": roi_x,  # Berechneter ROI
                                 "msg_part": '<tr><td>' + paper['isin'] + '</td><td>%.0fx' % paper['count'] + paper['name'] + '</td><td align=right>' + troi + '</td><td><img src="' + str(image_uri) + '"></img></td></tr>\n'
                             }
                             return result
