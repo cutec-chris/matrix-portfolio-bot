@@ -1,5 +1,5 @@
 from init import *
-import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles
+import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles,random
 loop = None
 lastsend = None
 class Portfolio(Config):
@@ -400,10 +400,13 @@ async def check_depot(depot,fast=False):
         async def checkdatasource(datasource):
             started = time.time()
             ShouldSave = False
+            FailedTasks = 0
             #if hasattr(depot,'datasource') and depot.datasource != datasource['name']: return
-            UpdateTime = datasource['mod'].GetUpdateFrequency() / 4
+            UpdateTime = datasource['mod'].GetUpdateFrequency()
             logging.info(depot.name+' starting updates for '+datasource['name'])
-            for paper in depot.papers:
+            shuffled_papers = list(depot.papers)
+            random.shuffle(shuffled_papers)
+            for paper in shuffled_papers:
                 targetmarket = None
                 if hasattr(depot,'market'): targetmarket = depot.market
                 UpdateOK,TillUpdated = await datasource['mod'].UpdateTicker(paper,targetmarket)
@@ -433,6 +436,10 @@ async def check_depot(depot,fast=False):
                                 ShouldSave = ShouldSave or await ProcessStrategy(paper,depot,df) 
                     except BaseException as e:
                         logging.error(str(e), exc_info=True)
+                elif not UpdateOK:
+                    FailedTasks += 1
+                if FailedTasks > 3:
+                    break
             logging.info(depot.name+' finished updates for '+datasource['name'])
             #Wait minimal one cyclus for the datasource
             await asyncio.sleep(UpdateTime-(time.time()-started))
