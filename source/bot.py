@@ -262,11 +262,9 @@ async def tell(room, message):
                                     #cdata.addfilter(backtrader.filters.HeikinAshi(cdata))
                                     cerebro.adddata(cdata)
                                     fpath = '/tmp/%s.jpeg' % paper['isin']
-                                    def run_cerebro():
+                                    try:
                                         cerebro.run(stdstats=False)
                                         cerebro.saveplots(style='line',file_path = fpath,width=32*4, height=16*4,dpi=50,volume=False,grid=False,valuetags=False,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=False)
-                                    try:
-                                        await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
                                         async with aiofiles.open(fpath, 'rb') as tmpf:
                                             resp, maybe_keys = await bot.api.async_client.upload(tmpf,content_type='image/jpeg')
                                         image_uri = resp.content_uri
