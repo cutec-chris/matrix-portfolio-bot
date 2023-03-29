@@ -276,11 +276,11 @@ async def tell(room, message):
                             roi = calculate_roi(df)
                             def weighted_roi_sum(roi_list):
                                 weights = {
-                                    "1 hour": 1,
+                                    "1 hour": 0.5,
                                     "1 day": 1,
-                                    "1 month": 1,
-                                    "1 year": 0.5,
-                                    "all": 0.4,
+                                    "1 month": 0.7,
+                                    "1 year": 0.2,
+                                    "all": 0.1,
                                 }
                                 weighted_sum = 0
                                 for roi_dict in roi_list:
