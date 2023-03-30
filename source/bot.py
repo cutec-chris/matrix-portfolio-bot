@@ -183,8 +183,10 @@ async def tell(room, message):
                                         otyp = 'buy'
                                     else:
                                         otyp = 'sell'
-                                    amsg = 'Last order from %s: %s %.2f\n' % (str(backtrader.num2date(order.executed.dt)),otyp,order.size)
-                                
+                                    amsg = 'Last order from %s: %s %.2f' % (str(backtrader.num2date(order.executed.dt)),otyp,order.size)
+                                    if hasattr(order,'chance'):
+                                        amsg += ' chance %.1f till %s' % (order.chance,oder.chancetarget)
+                                    amsg += '\n'
                         if amsg: msg += amsg
                         await bot.api.send_markdown_message(room.room_id, msg)
                         await bot.api.send_image_message(room.room_id,'/tmp/plot.jpeg')
@@ -394,6 +396,9 @@ async def ProcessStrategy(paper,depot,data):
             if not 'lastreco' in paper: paper['lastreco'] = ''
             if size_sum > 0:
                 msg1 = 'strategy %s propose buying %d x %s %s (%s) at %s' % (strategy,round(size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
+                if hasattr(order,'chance'):
+                    msg1 += ' chance %.1f till %s' % (order.chance,oder.chancetarget)
+                amsg += '\n'
                 msg2 = 'buy %s %d' % (paper['isin'],round(size_sum))
                 if paper['count']>0: return False
             else:
