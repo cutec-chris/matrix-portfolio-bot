@@ -458,6 +458,7 @@ async def check_depot(depot,fast=False):
                                     df = sym.GetData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
                                 logging.info(str(depot.name)+': processing ticker '+sym.ticker+' till '+str(df.index[-1]))
                                 ShouldSave = ShouldSave or await ProcessStrategy(paper,depot,df) 
+                        FailedTasks = 0
                     except BaseException as e:
                         logging.error(str(e), exc_info=True)
                 elif not UpdateOK:
