@@ -400,7 +400,7 @@ async def ProcessStrategy(paper,depot,data):
                 msg1 = 'strategy %s propose buying %d x %s %s (%s) at %s' % (strategy,round(size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
                 if hasattr(order,'chance'):
                     msg1 += ' chance %.1f till %s' % (order.chance,oder.chancetarget)
-                amsg += '\n'
+                msg1 += '\n'
                 msg2 = 'buy %s %d' % (paper['isin'],round(size_sum))
                 if paper['count']>0: return False
             else:
