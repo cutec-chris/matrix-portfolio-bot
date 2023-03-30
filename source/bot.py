@@ -10,6 +10,7 @@ async def tell(room, message):
     try:
         global servers,lastsend
         logging.info(str(message))
+        await bot.api.async_client.set_presence('online','')
         await bot.api.async_client.room_typing(room,True, timeout=30000)
         if not message.body.startswith(prefix) and room.member_count==2:
             message.body = prefix+' '+message.body
@@ -358,6 +359,7 @@ async def tell(room, message):
         logging.error(str(e), exc_info=True)
         await bot.api.send_text_message(room,str(e))
     await bot.api.async_client.room_typing(room,False)
+    await bot.api.async_client.set_presence('unavailable','')
 async def ProcessStrategy(paper,depot,data):
     cerebro = None
     strategy = 'sma'
@@ -416,6 +418,7 @@ async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
         updatedcurrencys = []
+        check_status = []
         async def checkdatasource(datasource):
             started = time.time()
             ShouldSave = False
@@ -423,6 +426,8 @@ async def check_depot(depot,fast=False):
             #if hasattr(depot,'datasource') and depot.datasource != datasource['name']: return
             UpdateTime = datasource['mod'].GetUpdateFrequency()
             logging.info(depot.name+' starting updates for '+datasource['name'])
+            check_status.append(datasource['name'])
+            await bot.api.async_client.set_presence('online','updating '+" ".join(check_status))
             shuffled_papers = list(depot.papers)
             random.shuffle(shuffled_papers)
             for paper in shuffled_papers:
@@ -460,12 +465,15 @@ async def check_depot(depot,fast=False):
                 if FailedTasks > 3:
                     break
             logging.info(depot.name+' finished updates for '+datasource['name'])
+            check_status.remove(datasource['name'])
+            await bot.api.async_client.set_presence('online','updating '+" ".join(check_status))
             #Wait minimal one cyclus for the datasource
             await asyncio.sleep(UpdateTime-(time.time()-started))
             if ShouldSave: 
                 await save_servers()
         datasourcetasks = [asyncio.create_task(checkdatasource(datasource)) for datasource in datasources]
         await asyncio.wait(datasourcetasks)
+        await bot.api.async_client.set_presence('unavailable','')
 datasources = []
 strategies = []
 try:
