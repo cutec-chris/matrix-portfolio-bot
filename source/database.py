@@ -162,6 +162,13 @@ class AnalystRating(Base):
                             ondelete="CASCADE"),
                 nullable=False)
     symbol = sqlalchemy.orm.relationship('Symbol', backref='analyst_ratings')
+class EarningsCalendar(Base):
+    __tablename__ = 'earnings_calendar'
+    id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
+    symbol_id = sqlalchemy.Column(sqlalchemy.Integer, sqlalchemy.ForeignKey('symbol.id'), nullable=False)
+    release_date = sqlalchemy.Column(sqlalchemy.Date, nullable=False)
+    estimated_eps = sqlalchemy.Column(sqlalchemy.Float, nullable=True)
+    symbol = sqlalchemy.orm.relationship('Symbol', backref='earnings_calendar_entries')
 
 class BotCerebro(backtrader.Cerebro):
     def __init__(self):
