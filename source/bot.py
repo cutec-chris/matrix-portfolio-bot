@@ -10,7 +10,6 @@ async def tell(room, message):
     try:
         global servers,lastsend
         logging.info(str(message))
-        await bot.api.async_client.set_presence('online','')
         await bot.api.async_client.room_typing(room,True, timeout=30000)
         if not message.body.startswith(prefix) and room.member_count==2:
             message.body = prefix+' '+message.body
@@ -359,7 +358,6 @@ async def tell(room, message):
         logging.error(str(e), exc_info=True)
         await bot.api.send_text_message(room,str(e))
     await bot.api.async_client.room_typing(room,False)
-    await bot.api.async_client.set_presence('unavailable','')
 async def ProcessStrategy(paper,depot,data):
     cerebro = None
     strategy = 'sma'
