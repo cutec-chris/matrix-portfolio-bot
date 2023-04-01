@@ -431,38 +431,41 @@ async def check_depot(depot,fast=False):
             for paper in shuffled_papers:
                 targetmarket = None
                 if hasattr(depot,'market'): targetmarket = depot.market
-                UpdateOK,TillUpdated = await datasource['mod'].UpdateTicker(paper,targetmarket)
-                if UpdateOK\
-                and hasattr(depot,'datasource') and depot.datasource == datasource['name']:
-                    try:
-                        currencypaper = None
-                        sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=targetmarket).first()
-                        #Update also Currencys when currency is not depot cur
-                        if sym and sym.currency and sym.currency != depot.currency and not sym.currency in updatedcurrencys:
-                            currencypaper = {
-                                'isin': '%s%s=X' % (depot.currency,sym.currency),
-                                'ticker': '%s%s=X' % (depot.currency,sym.currency),
-                                'name': '%s/%s' % (depot.currency,sym.currency),
-                                '_updated': sym.GetActDate()
-                            }
-                            await datasource['mod'].UpdateTicker(currencypaper)
-                            updatedcurrencys.append(sym.currency)
-                        #Process strategy
-                        if 'ticker' in paper and sym:
-                            if sym:
-                                if sym.currency and sym.currency != depot.currency:
-                                    df = sym.GetConvertedData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
-                                else:
-                                    df = sym.GetData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
-                                logging.info(str(depot.name)+': processing ticker '+sym.ticker+' till '+str(df.index[-1]))
-                                ShouldSave = ShouldSave or await ProcessStrategy(paper,depot,df) 
-                        FailedTasks = 0
-                    except BaseException as e:
-                        logging.error(str(e), exc_info=True)
-                elif not UpdateOK:
-                    FailedTasks += 1
-                if FailedTasks > 3:
-                    break
+                if hasattr(datasource['mod'],'UpdateTicker'):
+                    UpdateOK,TillUpdated = await datasource['mod'].UpdateTicker(paper,targetmarket)
+                    if UpdateOK\
+                    and hasattr(depot,'datasource') and depot.datasource == datasource['name']:
+                        try:
+                            currencypaper = None
+                            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=targetmarket).first()
+                            #Update also Currencys when currency is not depot cur
+                            if sym and sym.currency and sym.currency != depot.currency and not sym.currency in updatedcurrencys:
+                                currencypaper = {
+                                    'isin': '%s%s=X' % (depot.currency,sym.currency),
+                                    'ticker': '%s%s=X' % (depot.currency,sym.currency),
+                                    'name': '%s/%s' % (depot.currency,sym.currency),
+                                    '_updated': sym.GetActDate()
+                                }
+                                await datasource['mod'].UpdateTicker(currencypaper)
+                                updatedcurrencys.append(sym.currency)
+                            #Process strategy
+                            if 'ticker' in paper and sym:
+                                if sym:
+                                    if sym.currency and sym.currency != depot.currency:
+                                        df = sym.GetConvertedData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
+                                    else:
+                                        df = sym.GetData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
+                                    logging.info(str(depot.name)+': processing ticker '+sym.ticker+' till '+str(df.index[-1]))
+                                    ShouldSave = ShouldSave or await ProcessStrategy(paper,depot,df) 
+                            FailedTasks = 0
+                        except BaseException as e:
+                            logging.error(str(e), exc_info=True)
+                    elif not UpdateOK:
+                        FailedTasks += 1
+                    if FailedTasks > 3:
+                        break
+                if hasattr(datasource['mod'],'UpdateEarningsCalendar'):
+                    UpdateOK,TillUpdated = await datasource['mod'].UpdateEarningsCalendar(paper,targetmarket)
             logging.info(depot.name+' finished updates for '+datasource['name'])
             check_status.remove(datasource['name'])
             await bot.api.async_client.set_presence('online','updating '+" ".join(check_status))

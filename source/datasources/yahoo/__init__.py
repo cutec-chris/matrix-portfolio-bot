@@ -96,7 +96,7 @@ async def UpdateTicker(paper,market=None):
     await asyncio.sleep(updatetime-(time.time()-started)) #3 times per minute
     return res,None
 def GetUpdateFrequency():
-    return 31*60
+    return 15*60
 async def SearchPaper(isin):
     url = 'https://query1.finance.yahoo.com/v1/finance/search'
     headers = {
