@@ -464,15 +464,19 @@ async def check_depot(depot,fast=False):
                         FailedTasks += 1
                     if FailedTasks > 3:
                         break
+                if hasattr(datasource['mod'],'UpdateAnalystRatings'):
+                    UpdateOK,TillUpdated = await datasource['mod'].UpdateAnalystRatings(paper,targetmarket)
+                    ShouldSave |= UpdateOK
                 if hasattr(datasource['mod'],'UpdateEarningsCalendar'):
                     UpdateOK,TillUpdated = await datasource['mod'].UpdateEarningsCalendar(paper,targetmarket)
+                    ShouldSave |= UpdateOK
             logging.info(depot.name+' finished updates for '+datasource['name'])
             check_status.remove(datasource['name'])
             await bot.api.async_client.set_presence('online','updating '+" ".join(check_status))
-            #Wait minimal one cyclus for the datasource
-            await asyncio.sleep(UpdateTime-(time.time()-started))
             if ShouldSave: 
                 await save_servers()
+            #Wait minimal one cyclus for the datasource
+            await asyncio.sleep(UpdateTime-(time.time()-started))
         datasourcetasks = [asyncio.create_task(checkdatasource(datasource)) for datasource in datasources]
         await asyncio.wait(datasourcetasks)
         await bot.api.async_client.set_presence('unavailable','')

@@ -149,13 +149,15 @@ class Rating(enum.Enum):
     stromg_sell = 'strong sell'
     sell = 'sell'
     buy = 'buy'
+    hold = 'hold'
     strong_buy = 'strong buy'
 class AnalystRating(Base):
     __tablename__ = 'analyst_rating'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
     date = sqlalchemy.Column(sqlalchemy.DateTime, nullable=False)
+    name = sqlalchemy.Column(sqlalchemy.String(200), nullable=True)
     target_price = sqlalchemy.Column(sqlalchemy.Float)
-    rating = sqlalchemy.Column(sqlalchemy.Enum(Rating))
+    rating = sqlalchemy.Column(sqlalchemy.String(200),nullable=True)
     symbol_id = sqlalchemy.Column(sqlalchemy.Integer,
                 sqlalchemy.ForeignKey('symbol.id',
                             onupdate="CASCADE",
