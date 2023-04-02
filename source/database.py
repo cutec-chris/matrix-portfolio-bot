@@ -140,12 +140,36 @@ class Symbol(Base):
         rating_count = {}
         for rating in self.analyst_ratings:
             if start_date <= rating.date <= end_date:
-                total_price_target += rating.target_price
-                count += 1
-                if rating.rating in rating_count:
-                    rating_count[rating.rating] += 1
-                else:
-                    rating_count[rating.rating] = 1
+                if rating.target_price:
+                    total_price_target += rating.target_price
+                    count += 1
+                    if rating.rating in rating_count:
+                        rating_count[rating.rating] += 1
+                    else:
+                        rating_count[rating.rating] = 1
+        if count == 0:
+            return None
+        average_target_price = total_price_target / count
+        rating_count_str = ", ".join(f"{k}: {v}" for k, v in rating_count.items())
+        return average_target_price, count, rating_count_str
+    def GetFairPrice(self, start_date=None, end_date=None):
+        if start_date is None:
+            start_date = datetime.datetime.now() - datetime.timedelta(days=30)
+        if end_date is None:
+            end_date = datetime.datetime.now()
+
+        total_price_target = 0
+        count = 0
+        rating_count = {}
+        for rating in self.analyst_ratings:
+            if start_date <= rating.date <= end_date:
+                if rating.fair_price:
+                    total_price_target += rating.fair_price
+                    count += 1
+                    if rating.rating in rating_count:
+                        rating_count[rating.rating] += 1
+                    else:
+                        rating_count[rating.rating] = 1
         if count == 0:
             return None
         average_target_price = total_price_target / count

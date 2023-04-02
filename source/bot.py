@@ -144,11 +144,13 @@ async def tell(room, message):
                             +'Change: %.2f\n' % (float(df.iloc[-1]['Close'])-float(df.iloc[0]['Close']))\
                             +'Last updated: %s\n' % (str(sym.GetActDate()))\
                             +'Volatility: %.2f\n' % vola
+                    if sym.GetTargetPrice():
+                        msg += "Target Price: %.2f from %d Analysts (%s)\n" % (sym.GetTargetPrice())
+                    if sym.GetFairPrice():
+                        msg += "Fair Price: %.2f from %d Analysts (%s)\n" % (sym.GetFairPrice())
                     roi = calculate_roi(df)
                     for timeframe, value in roi.items():
                         msg += f"ROI for {timeframe}: {value:.2f}%\n"
-                    if sym.GetTargetPrice():
-                        msg += "Target Price: %.2f from %d Analysts\n%s\n" % (sym.GetTargetPrice())
                     ast = None
                     for st in strategies:
                         if st['name'] == strategy:
