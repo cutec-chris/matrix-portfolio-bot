@@ -278,7 +278,7 @@ async def tell(room, message):
                                     except BaseException as e:
                                         image_uri = None
                                         logging.warning('failed to upload img:'+str(e))
-                            analys = ''
+                            analys = 'Price: %.2f<br>From: %s' % (sym.GetActPrice(depot.currency),str(sym.GetActDate()))+'<br>'
                             if sym.GetTargetPrice():
                                 ratings = sym.GetTargetPrice()
                                 analys_t = "Target Price: %.2f from %d<br>(%s)<br>Average: %.2f<br>" % ratings
@@ -318,7 +318,7 @@ async def tell(room, message):
                         count += 1
                     results = await asyncio.gather(*tasks)
                     filtered_results = list(filter(None, results))  # Filtere `None` Werte aus der Liste
-                    sorted_results = sorted(filtered_results, key=lambda x: (x['roi'], x['rating']), reverse=False)  # Nach ROI sortieren
+                    sorted_results = sorted(filtered_results, key=lambda x: (x['rating'], x['roi']), reverse=False)  # Nach ROI sortieren
                     for result in sorted_results:
                         msg += result['msg_part']                  
                     msg += '</table>\n'
@@ -617,21 +617,23 @@ def calculate_roi(df):
         last_close = df.iloc[last_close_idx]['Close']
         roi[label] = (last_close - first_close) / first_close * 100
     return roi
-def rating_to_color(rating_value, min_value=-2, max_value=2):
+def rating_to_color(rating, min_rating=-2, max_rating=2):
+    if rating < min_rating:
+        rating = min_rating
+    if rating > max_rating:
+        rating = max_rating
     def lerp(a, b, t):
         return a + (b - a) * t
-    normalized_value = (rating_value - min_value) / (max_value - min_value)
-    best_color = (0, 255, 0)  # Grün
-    mid_color = (0, 0, 0)  # Schwarz
-    worst_color = (255, 0, 0)  # Rot
-    if normalized_value < 0.5:
-        start_color, end_color = best_color, mid_color
-        normalized_value *= 2
+    def clamp(x, min_value, max_value):
+        return max(min_value, min(x, max_value))
+    rating_normalized = (rating - min_rating) / (max_rating - min_rating)
+    if rating_normalized < 0.5:
+        r = int(lerp(255, 0, rating_normalized * 2))
+        g = int(lerp(255, 255, rating_normalized * 2))
+        b = 0
     else:
-        start_color, end_color = mid_color, worst_color
-        normalized_value = (normalized_value - 0.5) * 2
-    color = tuple(int(lerp(a, b, normalized_value)) for a, b in zip(start_color, end_color))
-    color_code = '#{:02x}{:02x}{:02x}'.format(*color)
-    return color_code
-
+        r = 0
+        g = int(lerp(255, 0, (rating_normalized - 0.5) * 2))
+        b = int(lerp(0, 255, (rating_normalized - 0.5) * 2))
+    return f"#{r:02x}{g:02x}{b:02x}"
 bot.run()
