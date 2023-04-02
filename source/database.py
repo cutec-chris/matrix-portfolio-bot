@@ -137,13 +137,20 @@ class Symbol(Base):
 
         total_price_target = 0
         count = 0
+        rating_count = {}
         for rating in self.analyst_ratings:
             if start_date <= rating.date <= end_date:
                 total_price_target += rating.target_price
                 count += 1
+                if rating.rating in rating_count:
+                    rating_count[rating.rating] += 1
+                else:
+                    rating_count[rating.rating] = 1
         if count == 0:
             return None
-        return total_price_target / count,count
+        average_target_price = total_price_target / count
+        rating_count_str = ", ".join(f"{k}: {v}" for k, v in rating_count.items())
+        return average_target_price, count, rating_count_str
 class MinuteBar(Base):
     __tablename__ = 'minute_bar'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)

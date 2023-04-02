@@ -148,7 +148,7 @@ async def tell(room, message):
                     for timeframe, value in roi.items():
                         msg += f"ROI for {timeframe}: {value:.2f}%\n"
                     if sym.GetTargetPrice():
-                        msg += "Target Price: %.2f from %d Analysts\n" % (sym.GetTargetPrice())
+                        msg += "Target Price: %.2f from %d Analysts\n%s\n" % (sym.GetTargetPrice())
                     ast = None
                     for st in strategies:
                         if st['name'] == strategy:
