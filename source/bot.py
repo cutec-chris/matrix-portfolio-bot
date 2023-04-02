@@ -147,6 +147,8 @@ async def tell(room, message):
                     roi = calculate_roi(df)
                     for timeframe, value in roi.items():
                         msg += f"ROI for {timeframe}: {value:.2f}%\n"
+                    if sym.GetTargetPrice():
+                        msg += "Target Price: %.2f from %d Analysts\n" % (sym.GetTargetPrice())
                     ast = None
                     for st in strategies:
                         if st['name'] == strategy:
@@ -248,7 +250,7 @@ async def tell(room, message):
                     except BaseException as e:
                         range = parse_human_readable_duration('33d')
                     msg = '<table style="text-align: right">\n'
-                    msg += '<tr><th>Paper</th><th>Name</th><th>Change</th><th>Visual</th></tr>\n'
+                    msg += '<tr><th>Paper/Name</th><th>Analys</th><th>Change</th><th>Visual</th></tr>\n'
                     count = 0
                     async def overview_process(paper, depot, database, range, style, bot):
                         if not 'ticker' in paper: paper['ticker'] = ''
@@ -292,9 +294,10 @@ async def tell(room, message):
                             troi = ''
                             for timeframe, value in roi.items():
                                 troi += f"ROI for {timeframe}: {value:.2f}%\n<br>"
+                            analys = ''
                             result = {
                                 "roi": roi_x,  # Berechneter ROI
-                                "msg_part": '<tr><td>' + paper['isin'] + '</td><td>%.0fx' % paper['count'] + paper['name'] + '</td><td align=right>' + troi + '</td><td><img src="' + str(image_uri) + '"></img></td></tr>\n'
+                                "msg_part": '<tr><td>' + paper['isin'] + '\n%.0fx' % paper['count'] + paper['name'] +'</td><td>' + anayls + '</td><td align=right>' + troi + '</td><td><img src="' + str(image_uri) + '"></img></td></tr>\n'
                             }
                             return result
                     tasks = []
@@ -372,7 +375,8 @@ async def ProcessStrategy(paper,depot,data):
             cerebro.addsizer(backtrader.sizers.PercentSizer, percents=100)
             cerebro.addstrategy(st['mod'].Strategy)
             break
-    if cerebro and isinstance(data, pandas.DataFrame) and cerebro:
+    if cerebro and isinstance(data, pandas.DataFrame) and cerebro and not data.empty:
+        logging.info(str(depot.name)+': processing ticker '+paper['ticker']+' till '+str(data.index[-1]))
         try:
             def run_cerebro():
                 cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
@@ -455,7 +459,6 @@ async def check_depot(depot,fast=False):
                                         df = sym.GetConvertedData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
                                     else:
                                         df = sym.GetData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
-                                    logging.info(str(depot.name)+': processing ticker '+sym.ticker+' till '+str(df.index[-1]))
                                     ShouldSave = ShouldSave or await ProcessStrategy(paper,depot,df) 
                             FailedTasks = 0
                         except BaseException as e:

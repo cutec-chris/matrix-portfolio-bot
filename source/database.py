@@ -129,6 +129,21 @@ class Symbol(Base):
             return last_minute_bar.date
         else:
             return 0
+    def GetTargetPrice(self, start_date=None, end_date=None):
+        if start_date is None:
+            start_date = datetime.datetime.now() - datetime.timedelta(days=30)
+        if end_date is None:
+            end_date = datetime.datetime.now()
+
+        total_price_target = 0
+        count = 0
+        for rating in self.analyst_ratings:
+            if start_date <= rating.date <= end_date:
+                total_price_target += rating.target_price
+                count += 1
+        if count == 0:
+            return None
+        return total_price_target / count,count
 class MinuteBar(Base):
     __tablename__ = 'minute_bar'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
@@ -158,8 +173,8 @@ class AnalystRating(Base):
     name = sqlalchemy.Column(sqlalchemy.String(200), nullable=True)
     target_price = sqlalchemy.Column(sqlalchemy.Float)
     rating = sqlalchemy.Column(sqlalchemy.String(200),nullable=True)
-    symbol_id = sqlalchemy.Column(sqlalchemy.Integer,
-                sqlalchemy.ForeignKey('symbol.id',
+    symbol_isin = sqlalchemy.Column(sqlalchemy.String(50),
+                sqlalchemy.ForeignKey('symbol.isin',
                             onupdate="CASCADE",
                             ondelete="CASCADE"),
                 nullable=False)
@@ -167,10 +182,14 @@ class AnalystRating(Base):
 class EarningsCalendar(Base):
     __tablename__ = 'earnings_calendar'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
-    symbol_id = sqlalchemy.Column(sqlalchemy.Integer, sqlalchemy.ForeignKey('symbol.id'), nullable=False)
     release_date = sqlalchemy.Column(sqlalchemy.Date, nullable=False)
     name = sqlalchemy.Column(sqlalchemy.String(100), nullable=False)
     estimated_eps = sqlalchemy.Column(sqlalchemy.Float, nullable=True)
+    symbol_isin = sqlalchemy.Column(sqlalchemy.String(50),
+                sqlalchemy.ForeignKey('symbol.isin',
+                            onupdate="CASCADE",
+                            ondelete="CASCADE"),
+                nullable=False)
     symbol = sqlalchemy.orm.relationship('Symbol', backref='earnings_calendar_entries')
 
 class BotCerebro(backtrader.Cerebro):
