@@ -309,7 +309,7 @@ async def tell(room, message):
                                 troi += f'<font color="{rating_to_color(value,-10,10)}">{troi_t}</font>'
                             result = {
                                 "roi": roi_x,  # Berechneter ROI
-                                "rating": ratings[3],
+                                #"rating": ratings[3],
                                 "msg_part": '<tr><td>' + paper['isin'] + '<br>%.0fx' % paper['count'] + paper['name'] +'</td><td>' + analys + '</td><td align=right>' + troi + '</td><td><img src="' + str(image_uri) + '"></img></td></tr>\n'
                             }
                             return result
@@ -320,7 +320,7 @@ async def tell(room, message):
                         count += 1
                     results = await asyncio.gather(*tasks)
                     filtered_results = list(filter(None, results))  # Filtere `None` Werte aus der Liste
-                    sorted_results = sorted(filtered_results, key=lambda x: (x['rating'], x['roi']), reverse=False)  # Nach ROI sortieren
+                    sorted_results = sorted(filtered_results, key=lambda x: x['roi'], reverse=False)  # Nach ROI sortieren
                     for result in sorted_results:
                         msg += result['msg_part']                  
                     msg += '</table>\n'
