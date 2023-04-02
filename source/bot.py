@@ -277,6 +277,11 @@ async def tell(room, message):
                                     except BaseException as e:
                                         image_uri = None
                                         logging.warning('failed to upload img:'+str(e))
+                            analys = ''
+                            if sym.GetTargetPrice():
+                                analys += "Target Price: %.2f from %d<br>(%s)<br>" % (sym.GetTargetPrice())
+                            if sym.GetFairPrice():
+                                analys += "Fair Price: %.2f from %d<br>(%s)<br>" % (sym.GetFairPrice())
                             roi = calculate_roi(df)
                             def weighted_roi_sum(roi_dict):
                                 weights = {
@@ -296,10 +301,9 @@ async def tell(room, message):
                             troi = ''
                             for timeframe, value in roi.items():
                                 troi += f"ROI for {timeframe}: {value:.2f}%\n<br>"
-                            analys = ''
                             result = {
                                 "roi": roi_x,  # Berechneter ROI
-                                "msg_part": '<tr><td>' + paper['isin'] + '\n%.0fx' % paper['count'] + paper['name'] +'</td><td>' + anayls + '</td><td align=right>' + troi + '</td><td><img src="' + str(image_uri) + '"></img></td></tr>\n'
+                                "msg_part": '<tr><td>' + paper['isin'] + '<br>%.0fx' % paper['count'] + paper['name'] +'</td><td>' + analys + '</td><td align=right>' + troi + '</td><td><img src="' + str(image_uri) + '"></img></td></tr>\n'
                             }
                             return result
                     tasks = []
@@ -311,7 +315,7 @@ async def tell(room, message):
                     filtered_results = list(filter(None, results))  # Filtere `None` Werte aus der Liste
                     sorted_results = sorted(filtered_results, key=lambda x: x['roi'], reverse=False)  # Nach ROI sortieren
                     for result in sorted_results:
-                        msg += result['msg_part']                   
+                        msg += result['msg_part']                  
                     msg += '</table>\n'
                     await bot.api.send_markdown_message(room.room_id, msg)
                     msg = ''

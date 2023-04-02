@@ -1,4 +1,4 @@
-import sqlalchemy,sqlalchemy.orm,pathlib,enum,datetime,pandas,asyncio,backtrader
+import sqlalchemy,sqlalchemy.orm,pathlib,enum,datetime,pandas,asyncio,backtrader,logging
 Base = sqlalchemy.orm.declarative_base()
 class Depot(Base):
     __tablename__ = 'depot'
@@ -251,7 +251,7 @@ class BotCerebro(backtrader.Cerebro):
                     f.savefig(file_path, dpi=dpi, bbox_inches='tight')
             return figs
         except BaseException as e:
-            return None
+            logging.warning(str(e))
 Data = pathlib.Path('.') / 'data'
 Data.mkdir(parents=True,exist_ok=True)
 dbEngine=sqlalchemy.create_engine('sqlite:///'+str(Data / 'database.db')) 
