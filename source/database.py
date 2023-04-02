@@ -138,6 +138,8 @@ class Symbol(Base):
         total_price_target = 0
         count = 0
         rating_count = {}
+        total_rating = 0
+        rating_weight = {'strong_buy': 2, 'buy': 1, 'hold': 0, 'sell': -1, 'strong_sell': -2}
         for rating in self.analyst_ratings:
             if start_date <= rating.date <= end_date:
                 if rating.target_price:
@@ -147,11 +149,14 @@ class Symbol(Base):
                         rating_count[rating.rating] += 1
                     else:
                         rating_count[rating.rating] = 1
+                try:total_rating += rating_weight[rating.rating]
+                except: pass
         if count == 0:
             return None
         average_target_price = total_price_target / count
         rating_count_str = ", ".join(f"{k}: {v}" for k, v in rating_count.items())
-        return average_target_price, count, rating_count_str
+        average_rating = total_rating / count
+        return average_target_price, count, rating_count_str, average_rating
     def GetFairPrice(self, start_date=None, end_date=None):
         if start_date is None:
             start_date = datetime.datetime.now() - datetime.timedelta(days=30)

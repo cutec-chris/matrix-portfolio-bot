@@ -145,7 +145,8 @@ async def tell(room, message):
                             +'Last updated: %s\n' % (str(sym.GetActDate()))\
                             +'Volatility: %.2f\n' % vola
                     if sym.GetTargetPrice():
-                        msg += "Target Price: %.2f from %d Analysts (%s)\n" % (sym.GetTargetPrice())
+                        ratings = sym.GetTargetPrice()
+                        msg += "Target Price: %.2f from %d Analysts (%s)\nAverage: %.2f\n" % (ratings)
                     if sym.GetFairPrice():
                         msg += "Fair Price: %.2f from %d Analysts (%s)\n" % (sym.GetFairPrice())
                     roi = calculate_roi(df)
@@ -279,7 +280,9 @@ async def tell(room, message):
                                         logging.warning('failed to upload img:'+str(e))
                             analys = ''
                             if sym.GetTargetPrice():
-                                analys += "Target Price: %.2f from %d<br>(%s)<br>" % (sym.GetTargetPrice())
+                                ratings = sym.GetTargetPrice()
+                                analys += "Target Price: %.2f from %d<br>(%s)<br>Average: %.2f<br>" % ratings
+                            else: ratings = (0,0,'',0)
                             if sym.GetFairPrice():
                                 analys += "Fair Price: %.2f from %d<br>(%s)<br>" % (sym.GetFairPrice())
                             roi = calculate_roi(df)
@@ -303,6 +306,7 @@ async def tell(room, message):
                                 troi += f"ROI for {timeframe}: {value:.2f}%\n<br>"
                             result = {
                                 "roi": roi_x,  # Berechneter ROI
+                                "rating": ratings[3],
                                 "msg_part": '<tr><td>' + paper['isin'] + '<br>%.0fx' % paper['count'] + paper['name'] +'</td><td>' + analys + '</td><td align=right>' + troi + '</td><td><img src="' + str(image_uri) + '"></img></td></tr>\n'
                             }
                             return result
@@ -313,7 +317,7 @@ async def tell(room, message):
                         count += 1
                     results = await asyncio.gather(*tasks)
                     filtered_results = list(filter(None, results))  # Filtere `None` Werte aus der Liste
-                    sorted_results = sorted(filtered_results, key=lambda x: x['roi'], reverse=False)  # Nach ROI sortieren
+                    sorted_results = sorted(filtered_results, key=lambda x: (x['roi'], x['rating']), reverse=False)  # Nach ROI sortieren
                     for result in sorted_results:
                         msg += result['msg_part']                  
                     msg += '</table>\n'
