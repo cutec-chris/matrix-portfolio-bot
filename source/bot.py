@@ -11,6 +11,7 @@ async def tell(room, message):
         global servers,lastsend
         logging.info(str(message))
         await bot.api.async_client.room_typing(room,True, timeout=30000)
+        await asyncio.sleep(0.1)
         if not message.body.startswith(prefix) and room.member_count==2:
             message.body = prefix+' '+message.body
         match = botlib.MessageMatch(room, message, bot, prefix)
@@ -304,7 +305,8 @@ async def tell(room, message):
                             except: roi_x = 0
                             troi = ''
                             for timeframe, value in roi.items():
-                                troi += f"ROI for {timeframe}: {value:.2f}%\n<br>"
+                                troi_t = f"ROI for {timeframe}: {value:.2f}%\n<br>"
+                                troi += f'<font color="{rating_to_color(value,-10,10)}">{troi_t}</font>'
                             result = {
                                 "roi": roi_x,  # Berechneter ROI
                                 "rating": ratings[3],
@@ -618,22 +620,16 @@ def calculate_roi(df):
         roi[label] = (last_close - first_close) / first_close * 100
     return roi
 def rating_to_color(rating, min_rating=-2, max_rating=2):
-    if rating < min_rating:
-        rating = min_rating
-    if rating > max_rating:
-        rating = max_rating
-    def lerp(a, b, t):
-        return a + (b - a) * t
-    def clamp(x, min_value, max_value):
-        return max(min_value, min(x, max_value))
-    rating_normalized = (rating - min_rating) / (max_rating - min_rating)
-    if rating_normalized < 0.5:
-        r = int(lerp(255, 0, rating_normalized * 2))
-        g = int(lerp(255, 255, rating_normalized * 2))
+    middle = min_rating+max_rating
+    if rating > middle:
+        if rating>max_rating: rating = max_rating
+        r = 0
+        g = 82+round(((255-82)/max_rating)*rating)
         b = 0
     else:
-        r = 0
-        g = int(lerp(255, 0, (rating_normalized - 0.5) * 2))
-        b = int(lerp(0, 255, (rating_normalized - 0.5) * 2))
+        if rating<min_rating: rating = min_rating
+        r = 82+round(((255-82)/min_rating)*rating)
+        g = 0
+        b = 0
     return f"#{r:02x}{g:02x}{b:02x}"
 bot.run()
