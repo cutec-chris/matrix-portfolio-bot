@@ -172,6 +172,7 @@ class AnalystRating(Base):
     date = sqlalchemy.Column(sqlalchemy.DateTime, nullable=False)
     name = sqlalchemy.Column(sqlalchemy.String(200), nullable=True)
     target_price = sqlalchemy.Column(sqlalchemy.Float)
+    fair_price = sqlalchemy.Column(sqlalchemy.Float)
     rating = sqlalchemy.Column(sqlalchemy.String(200),nullable=True)
     symbol_isin = sqlalchemy.Column(sqlalchemy.String(50),
                 sqlalchemy.ForeignKey('symbol.isin',
