@@ -281,7 +281,8 @@ async def tell(room, message):
                             analys = ''
                             if sym.GetTargetPrice():
                                 ratings = sym.GetTargetPrice()
-                                analys += "Target Price: %.2f from %d<br>(%s)<br>Average: %.2f<br>" % ratings
+                                analys_t = "Target Price: %.2f from %d<br>(%s)<br>Average: %.2f<br>" % ratings
+                                analys += f'<font color="{rating_to_color(ratings[3])}">{analys_t}</font>'
                             else: ratings = (0,0,'',0)
                             if sym.GetFairPrice():
                                 analys += "Fair Price: %.2f from %d<br>(%s)<br>" % (sym.GetFairPrice())
@@ -616,4 +617,21 @@ def calculate_roi(df):
         last_close = df.iloc[last_close_idx]['Close']
         roi[label] = (last_close - first_close) / first_close * 100
     return roi
+def rating_to_color(rating_value, min_value=-2, max_value=2):
+    def lerp(a, b, t):
+        return a + (b - a) * t
+    normalized_value = (rating_value - min_value) / (max_value - min_value)
+    best_color = (0, 255, 0)  # Grün
+    mid_color = (0, 0, 0)  # Schwarz
+    worst_color = (255, 0, 0)  # Rot
+    if normalized_value < 0.5:
+        start_color, end_color = best_color, mid_color
+        normalized_value *= 2
+    else:
+        start_color, end_color = mid_color, worst_color
+        normalized_value = (normalized_value - 0.5) * 2
+    color = tuple(int(lerp(a, b, normalized_value)) for a, b in zip(start_color, end_color))
+    color_code = '#{:02x}{:02x}{:02x}'.format(*color)
+    return color_code
+
 bot.run()
