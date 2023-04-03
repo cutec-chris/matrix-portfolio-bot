@@ -116,11 +116,11 @@ async def tell(room, message):
         and match.command("analyze",case_sensitive=False):
             depot = None
             strategy = 'sma'
-            range = '30d'
-            if len(match.args())>3: range = match.args()[3]
+            trange = '30d'
+            if len(match.args())>3: trange = match.args()[3]
             date = None
             if len(match.args())>4: strategy = match.args()[4]
-            range = parse_human_readable_duration(range)
+            trange = parse_human_readable_duration(trange)
             for adepot in servers:
                 if adepot.room == room.room_id and (adepot.name == depot or depot == None):
                     depot = adepot
@@ -133,9 +133,9 @@ async def tell(room, message):
                 sym = database.session.query(database.Symbol).filter_by(isin=match.args()[1],marketplace=depot.market).first()
                 if sym:
                     if sym.currency and sym.currency != depot.currency:
-                        df = sym.GetConvertedData(datetime.datetime.utcnow()-range,None,depot.currency)
+                        df = sym.GetConvertedData(datetime.datetime.utcnow()-trange,None,depot.currency)
                     else:
-                        df = sym.GetData(datetime.datetime.utcnow()-range)
+                        df = sym.GetData(datetime.datetime.utcnow()-trange)
                     vola = 0.0
                     for index, row in df.iterrows():
                         avola = ((row['High']-row['Low'])/row['Close'])*100
@@ -239,10 +239,10 @@ async def tell(room, message):
         and match.command("overview",case_sensitive=False):
             tdepot = None
             msg = ''
-            range = '30d'
+            trange = '30d'
             style = 'graphic'
             if len(match.args())>1:
-                range = match.args()[1]
+                trange = match.args()[1]
             if len(match.args())>2:
                 style = match.args()[2]
             if len(match.args())>3:
@@ -250,35 +250,16 @@ async def tell(room, message):
             for depot in servers:
                 if depot.room == room.room_id and (depot.name == tdepot or tdepot == None):
                     try:
-                        range = parse_human_readable_duration(range)+datetime.timedelta(days=3)
+                        trange = parse_human_readable_duration(trange)+datetime.timedelta(days=3)
                     except BaseException as e:
-                        range = parse_human_readable_duration('33d')
-                    msg = '<table style="text-align: right">\n'
-                    msg += '<tr><th>Paper/Name</th><th>Analys</th><th>Change</th><th>Visual</th></tr>\n'
+                        trange = parse_human_readable_duration('33d')
                     count = 0
-                    async def overview_process(paper, depot, database, range, style, bot):
+                    async def overview_process(paper, depot, database, trange, style, bot):
                         if not 'ticker' in paper: paper['ticker'] = ''
                         if not 'name' in paper: paper['name'] = paper['ticker']
                         sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
                         if sym:
-                            df = sym.GetDataHourly(datetime.datetime.utcnow()-range)
-                            image_uri = None
-                            if style == 'graphic':
-                                if not (df.empty):
-                                    cerebro = database.BotCerebro(stdstats=False)
-                                    cdata = backtrader.feeds.PandasData(dataname=df)
-                                    #cdata.addfilter(backtrader.filters.HeikinAshi(cdata))
-                                    cerebro.adddata(cdata)
-                                    fpath = '/tmp/%s.jpeg' % paper['isin']
-                                    try:
-                                        cerebro.run(stdstats=False)
-                                        cerebro.saveplots(style='line',file_path = fpath,width=32*4, height=16*4,dpi=50,volume=False,grid=False,valuetags=False,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=False)
-                                        async with aiofiles.open(fpath, 'rb') as tmpf:
-                                            resp, maybe_keys = await bot.api.async_client.upload(tmpf,content_type='image/jpeg')
-                                        image_uri = resp.content_uri
-                                    except BaseException as e:
-                                        image_uri = None
-                                        logging.warning('failed to upload img:'+str(e))
+                            df = sym.GetDataHourly(datetime.datetime.utcnow()-trange)
                             analys = 'Price: %.2f<br>From: %s' % (sym.GetActPrice(depot.currency),str(sym.GetActDate()))+'<br>'
                             if sym.GetTargetPrice():
                                 ratings = sym.GetTargetPrice()
@@ -309,23 +290,61 @@ async def tell(room, message):
                                 troi += f'<font color="{rating_to_color(value,-10,10)}">{troi_t}</font>'
                             result = {
                                 "roi": roi_x,  # Berechneter ROI
-                                #"rating": ratings[3],
-                                "msg_part": '<tr><td>' + paper['isin'] + '<br>%.0fx' % paper['count'] + paper['name'] +'</td><td>' + analys + '</td><td align=right>' + troi + '</td><td><img src="' + str(image_uri) + '"></img></td></tr>\n'
+                                "rating": ratings[3],
+                                "data": df,
+                                "msg_part": '<tr><td>' + paper['isin'] + '<br>%.0fx' % paper['count'] + paper['name'] +'</td><td>' + analys + '</td><td align=right>' + troi + '</td><td><img src=""></img></td></tr>\n'
                             }
                             return result
+                    async def graphics_process(result):
+                        image_uri = None
+                        df = result['data']
+                        try:
+                            if style == 'graphic':
+                                if not (df.empty):
+                                    cerebro = database.BotCerebro(stdstats=False)
+                                    cdata = backtrader.feeds.PandasData(dataname=df)
+                                    cerebro.adddata(cdata)
+                                    fpath = '/tmp/%s.jpeg' % paper['isin']
+                                    try:
+                                        cerebro.run(stdstats=False)
+                                        cerebro.saveplots(style='line',file_path = fpath,width=32*4, height=16*4,dpi=50,volume=False,grid=False,valuetags=False,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=False)
+                                        async with aiofiles.open(fpath, 'rb') as tmpf:
+                                            resp, maybe_keys = await bot.api.async_client.upload(tmpf,content_type='image/jpeg')
+                                        image_uri = resp.content_uri
+                                    except BaseException as e:
+                                        image_uri = None
+                                        logging.warning('failed to upload img:'+str(e))
+                            result['msg_part'].replace('<img src=""></img>','<img src="' + str(image_uri) + '"></img>')
+                        except BaseException as e: logging.warning(str(e))
+                        return result
                     tasks = []
                     for paper in depot.papers:
-                        task = asyncio.create_task(overview_process(paper, depot, database, range, style, bot))
+                        task = asyncio.create_task(overview_process(paper, depot, database, trange, style, bot))
                         tasks.append(task)
                         count += 1
                     results = await asyncio.gather(*tasks)
                     filtered_results = list(filter(None, results))  # Filtere `None` Werte aus der Liste
                     sorted_results = sorted(filtered_results, key=lambda x: x['roi'], reverse=False)  # Nach ROI sortieren
-                    for result in sorted_results:
-                        msg += result['msg_part']                  
-                    msg += '</table>\n'
-                    await bot.api.send_markdown_message(room.room_id, msg)
-                    msg = ''
+                    def chunks(lst, n):
+                        for i in range(0, len(lst), n):
+                            yield lst[i:i + n]
+                    for chunk in chunks(sorted_results, 25):
+                        chunk_tasks = []
+                        for result in chunk:
+                            ctask = asyncio.create_task(graphics_process(result))
+                            chunk_tasks.append(ctask)
+                        chunk_results = await asyncio.gather(*chunk_tasks)
+                        msg = '<table style="text-align: right">\n'
+                        msg += '<tr><th>Paper/Name</th><th>Analys</th><th>Change</th><th>Visual</th></tr>\n'
+                        cidx = 0
+                        for result in chunk_results:
+                            cidx += 1
+                            if result:
+                                msg += result['msg_part']
+                            else:
+                                msg += chunk[cidx]['msg_part']
+                        msg += '</table>\n'
+                        await bot.api.send_markdown_message(room.room_id, msg)
         elif (match.is_not_from_this_bot() and match.prefix())\
         and match.command("create-depot"):
             pf = None
