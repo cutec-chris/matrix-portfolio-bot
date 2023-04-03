@@ -292,7 +292,7 @@ async def tell(room, message):
                                 "roi": roi_x,  # Berechneter ROI
                                 "rating": ratings[3],
                                 "data": df,
-                                "msg_part": '<tr><td>' + paper['isin'] + '<br>%.0fx' % paper['count'] + paper['name'] +'</td><td>' + analys + '</td><td align=right>' + troi + '</td><td><img src=""></img></td></tr>\n'
+                                "msg_part": '<tr><td>' + paper['isin'] + '<br>%.0fx' % paper['count'] + truncate_text(paper['name'],30) +'</td><td>' + analys + '</td><td align=right>' + troi + '</td><td><img src=""></img></td></tr>\n'
                             }
                             return result
                     async def graphics_process(result):
@@ -651,4 +651,12 @@ def rating_to_color(rating, min_rating=-2, max_rating=2):
         g = 0
         b = 0
     return f"#{r:02x}{g:02x}{b:02x}"
+def truncate_text(text, max_length):
+    if len(text) <= max_length:
+        return text
+    truncated = text[:max_length].rstrip()
+    last_space = truncated.rfind(' ')
+    if last_space != -1:
+        truncated = truncated[:last_space]
+    return truncated+'...'
 bot.run()
