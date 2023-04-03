@@ -314,7 +314,7 @@ async def tell(room, message):
                                     except BaseException as e:
                                         image_uri = None
                                         logging.warning('failed to upload img:'+str(e))
-                            result['msg_part'].replace('<img src=""></img>','<img src="' + str(image_uri) + '"></img>')
+                            result['msg_part'] = result['msg_part'].replace('<img src=""></img>','<img src="' + str(image_uri) + '"></img>')
                         except BaseException as e: logging.warning(str(e))
                         return result
                     tasks = []
