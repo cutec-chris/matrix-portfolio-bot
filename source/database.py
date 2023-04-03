@@ -1,5 +1,6 @@
-import sqlalchemy,sqlalchemy.orm,pathlib,enum,datetime,pandas,asyncio,backtrader,logging
-Base = sqlalchemy.orm.declarative_base()
+import sqlalchemy,pathlib,enum,datetime,pandas,asyncio,backtrader,logging
+from sqlalchemy.ext.declarative import declarative_base
+Base = declarative_base()
 class Depot(Base):
     __tablename__ = 'depot'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
