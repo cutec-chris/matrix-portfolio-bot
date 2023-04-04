@@ -289,6 +289,7 @@ async def tell(room, message):
                                 troi_t = f"ROI for {timeframe}: {value:.2f}%\n<br>"
                                 troi += f'<font color="{rating_to_color(value,-10,10)}">{troi_t}</font>'
                             result = {
+                                "paper": paper,
                                 "roi": roi_x,  # Berechneter ROI
                                 "rating": ratings[3],
                                 "data": df,
@@ -298,6 +299,7 @@ async def tell(room, message):
                     async def graphics_process(result):
                         image_uri = None
                         df = result['data']
+                        paper = result['paper']
                         try:
                             if style == 'graphic':
                                 if not (df.empty):
