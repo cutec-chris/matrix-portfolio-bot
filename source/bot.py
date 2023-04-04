@@ -625,15 +625,19 @@ def calculate_roi(df):
                   ('1 day', datetime.timedelta(days=1)), 
                   ('1 month', datetime.timedelta(days=30)), 
                   ('1 year', datetime.timedelta(days=365)),
-                  ('all', df.index.max()-df.index.min())]
+                  ('all', df.index.max() - df.index.min())]
     roi = {}
     for label, delta in timeframes:
         last_time = df.index.max()
         first_time = last_time - delta
-        if first_time < df.index.min():
+        if first_time < df.index.min() or first_time > df.index.max():
             continue
-        last_close_idx = df.index.get_loc(last_time, method='nearest')
-        first_close_idx = df.index.get_loc(first_time, method='nearest')
+        last_close_idx = df.index.searchsorted(last_time)
+        first_close_idx = df.index.searchsorted(first_time)
+        if last_close_idx >= len(df) or df.index[last_close_idx] > last_time:
+            last_close_idx -= 1
+        if first_close_idx >= len(df) or df.index[first_close_idx] > first_time:
+            first_close_idx -= 1
         first_close = df.iloc[first_close_idx]['Close']
         last_close = df.iloc[last_close_idx]['Close']
         roi[label] = (last_close - first_close) / first_close * 100
