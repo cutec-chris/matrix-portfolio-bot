@@ -140,7 +140,7 @@ class Symbol(Base):
         count = 0
         rating_count = {}
         total_rating = 0
-        rating_weight = {'strong_buy': 2, 'buy': 1, 'hold': 0, 'sell': -1, 'strong_sell': -2}
+        rating_weight = {'strong buy': 2, 'buy': 1, 'hold': 0, 'sell': -1, 'strong sell': -2}
         for rating in self.analyst_ratings:
             if start_date <= rating.date <= end_date:
                 if rating.target_price:
