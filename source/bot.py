@@ -260,11 +260,13 @@ async def tell(room, message):
                         sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
                         if sym:
                             df = sym.GetDataHourly(datetime.datetime.utcnow()-trange)
-                            analys = 'Price: %.2f<br>From: %s' % (sym.GetActPrice(depot.currency),str(sym.GetActDate()))+'<br>'
+                            aprice = sym.GetActPrice(depot.currency)
+                            analys = 'Price: %.2f<br>From: %s' % (aprice,str(sym.GetActDate()))+'<br>'
                             if sym.GetTargetPrice():
                                 ratings = sym.GetTargetPrice()
                                 analys_t = "Target Price: %.2f from %d<br>(%s)<br>Average: %.2f<br>" % ratings
                                 analys += f'<font color="{rating_to_color(ratings[3])}">{analys_t}</font>'
+                                analys += "Chance: %.2f %% in 1y<br>" % round(((ratings[0]-aprice)/aprice)*100,1)
                             else: ratings = (0,0,'',0)
                             if sym.GetFairPrice():
                                 analys += "Fair Price: %.2f from %d<br>(%s)<br>" % (sym.GetFairPrice())
