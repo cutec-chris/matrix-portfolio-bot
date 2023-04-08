@@ -262,11 +262,13 @@ async def tell(room, message):
                             df = sym.GetDataHourly(datetime.datetime.utcnow()-trange)
                             aprice = sym.GetActPrice(depot.currency)
                             analys = 'Price: %.2f<br>From: %s' % (aprice,str(sym.GetActDate()))+'<br>'
+                            chance_price=0
                             if sym.GetTargetPrice():
                                 ratings = sym.GetTargetPrice()
                                 analys_t = "Target Price: %.2f from %d<br>(%s)<br>Average: %.2f<br>" % ratings
                                 analys += f'<font color="{rating_to_color(ratings[3])}">{analys_t}</font>'
-                                analys += "Chance: %.2f %% in 1y<br>" % round(((ratings[0]-aprice)/aprice)*100,1)
+                                chance_price=((ratings[0]-aprice)/aprice)
+                                analys += "Chance: %.2f %% in 1y<br>" % round(chance_price*100,1)
                             else: ratings = (0,0,'',0)
                             if sym.GetFairPrice():
                                 analys += "Fair Price: %.2f from %d<br>(%s)<br>" % (sym.GetFairPrice())
@@ -284,7 +286,7 @@ async def tell(room, message):
                                     if key in weights:
                                         weighted_sum += value * weights[key]
                                 return weighted_sum
-                            try: roi_x = weighted_roi_sum(roi)
+                            try: roi_x = weighted_roi_sum(roi)/100
                             except: roi_x = 0
                             troi = ''
                             for timeframe, value in roi.items():
@@ -293,6 +295,8 @@ async def tell(room, message):
                             result = {
                                 "paper": paper,
                                 "roi": roi_x,  # Berechneter ROI
+                                "chance": chance_price,
+                                "sort": ((ratings[3]+chance_price+roi_x)/3),
                                 "rating": ratings[3],
                                 "data": df,
                                 "msg_part": '<tr><td>' + paper['isin'] + '<br>%.0fx' % paper['count'] + truncate_text(paper['name'],30) +'</td><td>' + analys + '</td><td align=right>' + troi + '</td><td><img src=""></img></td></tr>\n'
@@ -328,7 +332,7 @@ async def tell(room, message):
                         count += 1
                     results = await asyncio.gather(*tasks)
                     filtered_results = list(filter(None, results))  # Filtere `None` Werte aus der Liste
-                    sorted_results = sorted(filtered_results, key=lambda x: x['roi'], reverse=False)  # Nach ROI sortieren
+                    sorted_results = sorted(filtered_results, key=lambda x: x['sort'], reverse=False)  # Nach ROI sortieren
                     def chunks(lst, n):
                         for i in range(0, len(lst), n):
                             yield lst[i:i + n]
