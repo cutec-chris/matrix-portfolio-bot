@@ -10,8 +10,7 @@ async def tell(room, message):
     try:
         global servers,lastsend
         logging.info(str(message))
-        await bot.api.async_client.room_typing(room,True, timeout=30000)
-        await asyncio.sleep(0.1)
+        res = await bot.api.async_client.room_typing(room.room_id,True,timeout=30000)
         if not message.body.startswith(prefix) and room.member_count==2:
             message.body = prefix+' '+message.body
         match = botlib.MessageMatch(room, message, bot, prefix)
@@ -405,7 +404,7 @@ async def tell(room, message):
     except BaseException as e:
         logging.error(str(e), exc_info=True)
         await bot.api.send_text_message(room,str(e))
-    await bot.api.async_client.room_typing(room,False)
+    await bot.api.async_client.room_typing(room.room_id,False,0)
 async def ProcessStrategy(paper,depot,data):
     cerebro = None
     strategy = 'sma'
