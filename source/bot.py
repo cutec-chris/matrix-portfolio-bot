@@ -247,9 +247,9 @@ async def tell(room, message):
             trange = '30d'
             style = 'graphic'
             if len(match.args())>1:
-                trange = match.args()[1]
+                style = match.args()[1]
             if len(match.args())>2:
-                style = match.args()[2]
+                trange = match.args()[2]
             if len(match.args())>3:
                 tdepot = match.args()[3]
             for depot in servers:
