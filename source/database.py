@@ -92,6 +92,24 @@ class Symbol(Base):
         df['Datetime'] = pandas.to_datetime(df['Datetime'])
         df.set_index("Datetime", inplace=True)
         return df
+    def GetDataDaily(self, start_date=None, end_date=None):
+        query = session.query(
+            sqlalchemy.func.strftime('%Y-%m-%d', MinuteBar.date).label('Datetime'),
+            sqlalchemy.func.min(MinuteBar.low).label('Low'),
+            sqlalchemy.func.max(MinuteBar.high).label('High'),
+            sqlalchemy.func.first_value(MinuteBar.open).over(order_by=MinuteBar.date).label('Open'),
+            sqlalchemy.func.last_value(MinuteBar.close).over(order_by=MinuteBar.date).label('Close'),
+            sqlalchemy.func.sum(MinuteBar.volume).label('Volume')
+        ).filter_by(symbol=self)
+        if start_date:
+            query = query.filter(MinuteBar.date >= start_date)
+        if end_date:
+            query = query.filter(MinuteBar.date <= end_date)
+        query = query.group_by('Datetime').order_by('Datetime')
+        df = pandas.read_sql(query.statement, query.session.bind)
+        df['Datetime'] = pandas.to_datetime(df['Datetime'])
+        df.set_index("Datetime", inplace=True)
+        return df
     def GetConvertedData(self,start_date=None, end_date=None, TargetCurrency=None):
         excs = session.query(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency,self.currency)).first()
         if excs:
