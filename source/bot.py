@@ -18,6 +18,7 @@ async def tell(room, message):
         if (match.is_not_from_this_bot() and match.prefix())\
         and (match.command("buy",case_sensitive=False)\
         or match.command("sell",case_sensitive=False)\
+        or match.command("remove",case_sensitive=False)\
         or match.command("add",case_sensitive=False)):
             depot = None
             count = None
@@ -53,10 +54,12 @@ async def tell(room, message):
                         'price': 0
                     }
                     datafound = False 
+                    res = False
                     for datasource in datasources:
-                        res,_ = await datasource['mod'].UpdateTicker(paper)
-                        if hasattr(depot,'datasource') and depot.datasource == datasource['name']:
-                            if res: break
+                        if hasattr(datasource['mod'],'UpdateTicker'):
+                            res,_ = await datasource['mod'].UpdateTicker(paper)
+                            if hasattr(depot,'datasource') and depot.datasource == datasource['name']:
+                                if res: break
                     if res: datafound = True
                     if not datafound:
                         await bot.api.send_text_message(room.room_id, 'no data avalible for symbol in (any) datasource, aborting...')
@@ -108,6 +111,8 @@ async def tell(room, message):
                             database.session.add(db_position)
                             db_trade = database.Trade(position_id=db_position.id,shares=-count, price=price,datetime=datetime.datetime.now())
                             database.session.add(db_trade)
+                        elif match.command("remove"):
+                            depot.papers.remove(paper)
                         await save_servers()
                         database.session.commit()
                         await bot.api.send_text_message(room.room_id, 'ok')
