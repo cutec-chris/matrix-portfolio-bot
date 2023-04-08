@@ -460,6 +460,30 @@ async def ProcessStrategy(paper,depot,data):
                 paper['lastcheck'] = orderdate.strftime("%Y-%m-%d %H:%M:%S")
                 return True
     return False
+async def ProcessIndicator(paper,depot,data):
+    res = False
+    def heikin_ashi(data):
+        ha_data = pandas.DataFrame(index=data.index)
+        ha_data['HA_Open'] = (data['Open'] + data['Close']) / 2
+        ha_data['HA_High'] = data[['High', 'Open', 'Close']].max(axis=1)
+        ha_data['HA_Low'] = data[['Low', 'Open', 'Close']].min(axis=1)
+        ha_data['HA_Close'] = (data['Open'] + data['High'] + data['Low'] + data['Close']) / 4
+        return ha_data
+    data = heikin_ashi(data)
+    act_indicator = bool(data.iloc[-1]['HA_Close']>data.iloc[-1]['HA_Open'])
+    if not act_indicator: trend_symbol = '⌄'
+    else: trend_symbol = '⌃'
+    msg1 = 'trend changes to %s for %s %s (%s)' % (trend_symbol,paper['isin'],paper['name'],paper['ticker'])
+    if 'trend_up' in paper:
+        if act_indicator != paper['trend_up']:
+            if not act_indicator and paper['count']>0: #Downward Trend on an paper we have
+                await bot.api.send_text_message(depot.room,msg1)
+            elif act_indicator: #Trend changes to upwards
+                await bot.api.send_text_message(depot.room,msg1)
+            res = True
+    else: res = True
+    paper['trend_up'] = act_indicator
+    return res
 async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
@@ -503,7 +527,10 @@ async def check_depot(depot,fast=False):
                                         df = sym.GetConvertedData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
                                     else:
                                         df = sym.GetData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
-                                    ShouldSave = ShouldSave or await ProcessStrategy(paper,depot,df) 
+                                    ps = await ProcessStrategy(paper,depot,df)
+                                    ShouldSave = ShouldSave or ps
+                                    ps = await ProcessIndicator(paper,depot,df)
+                                    ShouldSave = ShouldSave or ps
                             FailedTasks = 0
                         except BaseException as e:
                             logging.error(str(e), exc_info=True)
@@ -519,6 +546,8 @@ async def check_depot(depot,fast=False):
                     ShouldSave |= UpdateOK
             logging.info(depot.name+' finished updates for '+datasource['name'])
             check_status.remove(datasource['name'])
+            if check_status == []:#when we only await UpdateTime we can set Status
+                await bot.api.async_client.set_presence('unavailable','')
             await bot.api.async_client.set_presence('online','updating '+" ".join(check_status))
             if ShouldSave: 
                 await save_servers()
@@ -526,7 +555,6 @@ async def check_depot(depot,fast=False):
             await asyncio.sleep(UpdateTime-(time.time()-started))
         datasourcetasks = [asyncio.create_task(checkdatasource(datasource)) for datasource in datasources]
         await asyncio.wait(datasourcetasks)
-        await bot.api.async_client.set_presence('unavailable','')
 datasources = []
 strategies = []
 try:
