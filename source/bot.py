@@ -10,14 +10,14 @@ async def tell(room, message):
     try:
         global servers,lastsend
         logging.info(str(message))
-        await bot.api.async_client.room_typing(room,True, timeout=30000)
-        await asyncio.sleep(0.1)
+        res = await bot.api.async_client.room_typing(room.room_id,True,timeout=30000)
         if not message.body.startswith(prefix) and room.member_count==2:
             message.body = prefix+' '+message.body
         match = botlib.MessageMatch(room, message, bot, prefix)
         if (match.is_not_from_this_bot() and match.prefix())\
         and (match.command("buy",case_sensitive=False)\
         or match.command("sell",case_sensitive=False)\
+        or match.command("remove",case_sensitive=False)\
         or match.command("add",case_sensitive=False)):
             depot = None
             count = None
@@ -53,10 +53,12 @@ async def tell(room, message):
                         'price': 0
                     }
                     datafound = False 
+                    res = False
                     for datasource in datasources:
-                        res,_ = await datasource['mod'].UpdateTicker(paper)
-                        if hasattr(depot,'datasource') and depot.datasource == datasource['name']:
-                            if res: break
+                        if hasattr(datasource['mod'],'UpdateTicker'):
+                            res,_ = await datasource['mod'].UpdateTicker(paper)
+                            if hasattr(depot,'datasource') and depot.datasource == datasource['name']:
+                                if res: break
                     if res: datafound = True
                     if not datafound:
                         await bot.api.send_text_message(room.room_id, 'no data avalible for symbol in (any) datasource, aborting...')
@@ -108,6 +110,8 @@ async def tell(room, message):
                             database.session.add(db_position)
                             db_trade = database.Trade(position_id=db_position.id,shares=-count, price=price,datetime=datetime.datetime.now())
                             database.session.add(db_trade)
+                        elif match.command("remove"):
+                            depot.papers.remove(paper)
                         await save_servers()
                         database.session.commit()
                         await bot.api.send_text_message(room.room_id, 'ok')
@@ -242,9 +246,9 @@ async def tell(room, message):
             trange = '30d'
             style = 'graphic'
             if len(match.args())>1:
-                trange = match.args()[1]
+                style = match.args()[1]
             if len(match.args())>2:
-                style = match.args()[2]
+                trange = match.args()[2]
             if len(match.args())>3:
                 tdepot = match.args()[3]
             for depot in servers:
@@ -260,11 +264,15 @@ async def tell(room, message):
                         sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
                         if sym:
                             df = sym.GetDataHourly(datetime.datetime.utcnow()-trange)
-                            analys = 'Price: %.2f<br>From: %s' % (sym.GetActPrice(depot.currency),str(sym.GetActDate()))+'<br>'
+                            aprice = sym.GetActPrice(depot.currency)
+                            analys = 'Price: %.2f<br>From: %s' % (aprice,str(sym.GetActDate()))+'<br>'
+                            chance_price=0
                             if sym.GetTargetPrice():
                                 ratings = sym.GetTargetPrice()
                                 analys_t = "Target Price: %.2f from %d<br>(%s)<br>Average: %.2f<br>" % ratings
                                 analys += f'<font color="{rating_to_color(ratings[3])}">{analys_t}</font>'
+                                chance_price=((ratings[0]-aprice)/aprice)
+                                analys += "Chance: %.2f %% in 1y<br>" % round(chance_price*100,1)
                             else: ratings = (0,0,'',0)
                             if sym.GetFairPrice():
                                 analys += "Fair Price: %.2f from %d<br>(%s)<br>" % (sym.GetFairPrice())
@@ -282,14 +290,17 @@ async def tell(room, message):
                                     if key in weights:
                                         weighted_sum += value * weights[key]
                                 return weighted_sum
-                            try: roi_x = weighted_roi_sum(roi)
+                            try: roi_x = weighted_roi_sum(roi)/100
                             except: roi_x = 0
                             troi = ''
                             for timeframe, value in roi.items():
                                 troi_t = f"ROI for {timeframe}: {value:.2f}%\n<br>"
                                 troi += f'<font color="{rating_to_color(value,-10,10)}">{troi_t}</font>'
                             result = {
+                                "paper": paper,
                                 "roi": roi_x,  # Berechneter ROI
+                                "chance": chance_price,
+                                "sort": ((ratings[3]+chance_price+roi_x)/3),
                                 "rating": ratings[3],
                                 "data": df,
                                 "msg_part": '<tr><td>' + paper['isin'] + '<br>%.0fx' % paper['count'] + truncate_text(paper['name'],30) +'</td><td>' + analys + '</td><td align=right>' + troi + '</td><td><img src=""></img></td></tr>\n'
@@ -298,6 +309,7 @@ async def tell(room, message):
                     async def graphics_process(result):
                         image_uri = None
                         df = result['data']
+                        paper = result['paper']
                         try:
                             if style == 'graphic':
                                 if not (df.empty):
@@ -324,7 +336,7 @@ async def tell(room, message):
                         count += 1
                     results = await asyncio.gather(*tasks)
                     filtered_results = list(filter(None, results))  # Filtere `None` Werte aus der Liste
-                    sorted_results = sorted(filtered_results, key=lambda x: x['roi'], reverse=False)  # Nach ROI sortieren
+                    sorted_results = sorted(filtered_results, key=lambda x: x['sort'], reverse=False)  # Nach ROI sortieren
                     def chunks(lst, n):
                         for i in range(0, len(lst), n):
                             yield lst[i:i + n]
@@ -392,7 +404,7 @@ async def tell(room, message):
     except BaseException as e:
         logging.error(str(e), exc_info=True)
         await bot.api.send_text_message(room,str(e))
-    await bot.api.async_client.room_typing(room,False)
+    await bot.api.async_client.room_typing(room.room_id,False,0)
 async def ProcessStrategy(paper,depot,data):
     cerebro = None
     strategy = 'sma'
@@ -448,6 +460,30 @@ async def ProcessStrategy(paper,depot,data):
                 paper['lastcheck'] = orderdate.strftime("%Y-%m-%d %H:%M:%S")
                 return True
     return False
+async def ProcessIndicator(paper,depot,data):
+    res = False
+    def heikin_ashi(data):
+        ha_data = pandas.DataFrame(index=data.index)
+        ha_data['HA_Open'] = (data['Open'] + data['Close']) / 2
+        ha_data['HA_High'] = data[['High', 'Open', 'Close']].max(axis=1)
+        ha_data['HA_Low'] = data[['Low', 'Open', 'Close']].min(axis=1)
+        ha_data['HA_Close'] = (data['Open'] + data['High'] + data['Low'] + data['Close']) / 4
+        return ha_data
+    data = heikin_ashi(data)
+    act_indicator = bool(data.iloc[-1]['HA_Close']>data.iloc[-1]['HA_Open'])
+    if not act_indicator: trend_symbol = '⌄'
+    else: trend_symbol = '⌃'
+    msg1 = 'trend changes to %s for %s %s (%s)' % (trend_symbol,paper['isin'],paper['name'],paper['ticker'])
+    if 'trend_up' in paper:
+        if act_indicator != paper['trend_up']:
+            if not act_indicator and paper['count']>0: #Downward Trend on an paper we have
+                await bot.api.send_text_message(depot.room,msg1)
+            elif act_indicator: #Trend changes to upwards
+                await bot.api.send_text_message(depot.room,msg1)
+            res = True
+    else: res = True
+    paper['trend_up'] = act_indicator
+    return res
 async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
@@ -491,7 +527,10 @@ async def check_depot(depot,fast=False):
                                         df = sym.GetConvertedData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
                                     else:
                                         df = sym.GetData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
-                                    ShouldSave = ShouldSave or await ProcessStrategy(paper,depot,df) 
+                                    ps = await ProcessStrategy(paper,depot,df)
+                                    ShouldSave = ShouldSave or ps
+                                    ps = await ProcessIndicator(paper,depot,df)
+                                    ShouldSave = ShouldSave or ps
                             FailedTasks = 0
                         except BaseException as e:
                             logging.error(str(e), exc_info=True)
@@ -507,6 +546,8 @@ async def check_depot(depot,fast=False):
                     ShouldSave |= UpdateOK
             logging.info(depot.name+' finished updates for '+datasource['name'])
             check_status.remove(datasource['name'])
+            if check_status == []:#when we only await UpdateTime we can set Status
+                await bot.api.async_client.set_presence('unavailable','')
             await bot.api.async_client.set_presence('online','updating '+" ".join(check_status))
             if ShouldSave: 
                 await save_servers()
@@ -514,7 +555,6 @@ async def check_depot(depot,fast=False):
             await asyncio.sleep(UpdateTime-(time.time()-started))
         datasourcetasks = [asyncio.create_task(checkdatasource(datasource)) for datasource in datasources]
         await asyncio.wait(datasourcetasks)
-        await bot.api.async_client.set_presence('unavailable','')
 datasources = []
 strategies = []
 try:
@@ -625,15 +665,19 @@ def calculate_roi(df):
                   ('1 day', datetime.timedelta(days=1)), 
                   ('1 month', datetime.timedelta(days=30)), 
                   ('1 year', datetime.timedelta(days=365)),
-                  ('all', df.index.max()-df.index.min())]
+                  ('all', df.index.max() - df.index.min())]
     roi = {}
     for label, delta in timeframes:
         last_time = df.index.max()
         first_time = last_time - delta
-        if first_time < df.index.min():
+        if first_time < df.index.min() or first_time > df.index.max():
             continue
-        last_close_idx = df.index.get_loc(last_time, method='nearest')
-        first_close_idx = df.index.get_loc(first_time, method='nearest')
+        last_close_idx = df.index.searchsorted(last_time)
+        first_close_idx = df.index.searchsorted(first_time)
+        if last_close_idx >= len(df) or df.index[last_close_idx] > last_time:
+            last_close_idx -= 1
+        if first_close_idx >= len(df) or df.index[first_close_idx] > first_time:
+            first_close_idx -= 1
         first_close = df.iloc[first_close_idx]['Close']
         last_close = df.iloc[last_close_idx]['Close']
         roi[label] = (last_close - first_close) / first_close * 100
