@@ -76,7 +76,7 @@ class Symbol(Base):
         if end_date:
             query = query.filter(MinuteBar.date <= end_date)
         query = query.order_by(MinuteBar.date)
-        if aggregator_func:
+        if timeframe != '15m':
             query = session.query(
                 aggregator_func.label('Datetime'),
                 sqlalchemy.func.min(MinuteBar.low).label('Low'),
@@ -119,9 +119,9 @@ class Symbol(Base):
         elif TargetCurrency == self.currency:
             data = self.GetData(start_date,end_date)
             return data
-        return self.GetData(0,0)
-    def GetDataHourly(self, start_date=None, end_date=None, TargetCurrency=None, timeframe='15m'):
-        return self.GetConvertedData(start_date,end_date, TargetCurrency, timeframe)
+        return data
+    def GetDataHourly(self, start_date=None, end_date=None, TargetCurrency=None):
+        return self.GetConvertedData(start_date,end_date, TargetCurrency, timeframe='1h')
     def GetActPrice(self,TargetCurrency=None):
         last_minute_bar = session.query(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()).first()
         if TargetCurrency:
