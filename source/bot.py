@@ -484,6 +484,31 @@ async def ProcessIndicator(paper,depot,data):
     else: res = True
     paper['trend_up'] = act_indicator
     return res
+async def ChangeDepotStatus(depot,newstatus):
+    global servers
+    await bot.api.async_client.set_presence('online',newstatus)
+    ntext = ''
+    i=0
+    for adepot in servers:
+        if adepot.room == depot.room:
+            sumactprice = 0
+            sumprice = 0
+            for paper in adepot.papers:
+                if paper['count'] > 0:
+                    sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
+                    if sym:
+                        actprice = sym.GetActPrice(depot.currency)
+                    else: 
+                        actprice = 0
+                    sumactprice += actprice*paper['count']
+                    sumprice += paper['price']
+                    change = (actprice*paper['count'])-paper['price']
+            ntext += '%s (%.2f)\n' % (adepot.name,sumactprice)
+            i+=1
+    room = bot.api.async_client.rooms.get(depot.room)
+    if ntext != room.topic:
+        res = await bot.api.async_client.room_put_state(depot.room,'m.room.topic',{'topic': ntext},'')
+        room.topic = ntext
 async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
@@ -497,7 +522,7 @@ async def check_depot(depot,fast=False):
             UpdateTime = datasource['mod'].GetUpdateFrequency()
             logging.info(depot.name+' starting updates for '+datasource['name'])
             check_status.append(datasource['name'])
-            await bot.api.async_client.set_presence('online','updating '+" ".join(check_status))
+            await ChangeDepotStatus(depot,'updating '+" ".join(check_status))
             shuffled_papers = list(depot.papers)
             random.shuffle(shuffled_papers)
             for paper in shuffled_papers:
@@ -548,7 +573,7 @@ async def check_depot(depot,fast=False):
             check_status.remove(datasource['name'])
             if check_status == []:#when we only await UpdateTime we can set Status
                 await bot.api.async_client.set_presence('unavailable','')
-            await bot.api.async_client.set_presence('online','updating '+" ".join(check_status))
+            await ChangeDepotStatus(depot,'updating '+" ".join(check_status))
             if ShouldSave: 
                 await save_servers()
             #Wait minimal one cyclus for the datasource
