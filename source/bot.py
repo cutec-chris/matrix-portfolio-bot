@@ -464,17 +464,17 @@ async def ProcessIndicator(paper,depot,data):
     res = False
     def heikin_ashi(data):
         ha_data = pandas.DataFrame(index=data.index)
-        ha_data = ha_data.resample('1H').agg({
-                                'Open':'first',
-                                'High':'max',
-                                'Low':'min',
-                                'Close':'last'})
         ha_data['HA_Open'] = (data['Open'] + data['Close']) / 2
         ha_data['HA_High'] = data[['High', 'Open', 'Close']].max(axis=1)
         ha_data['HA_Low'] = data[['Low', 'Open', 'Close']].min(axis=1)
         ha_data['HA_Close'] = (data['Open'] + data['High'] + data['Low'] + data['Close']) / 4
         return ha_data
-    data = heikin_ashi(data)
+    hdata = data.resample('1H').agg({
+                            'Open':'first',
+                            'High':'max',
+                            'Low':'min',
+                            'Close':'last'})
+    data = heikin_ashi(hdata)
     if   data.iloc[-1]['HA_Close']>data.iloc[-1]['HA_Open'] and data.iloc[-1]['HA_Low']==data.iloc[-1]['HA_Open']:
         act_indicator = True
     elif data.iloc[-1]['HA_Close']<data.iloc[-1]['HA_Open'] and data.iloc[-1]['HA_High']==data.iloc[-1]['HA_Close']:
@@ -496,7 +496,10 @@ async def ProcessIndicator(paper,depot,data):
     return res
 async def ChangeDepotStatus(depot,newstatus):
     global servers
-    await bot.api.async_client.set_presence('online',newstatus)
+    if newstatus!='':
+        await bot.api.async_client.set_presence('online',newstatus)
+    else:
+        await bot.api.async_client.set_presence('unavailable','')
     ntext = ''
     i=0
     for adepot in servers:
@@ -516,9 +519,9 @@ async def ChangeDepotStatus(depot,newstatus):
             ntext += '%s (%.2f)\n' % (adepot.name,sumactprice)
             i+=1
     room = bot.api.async_client.rooms.get(depot.room)
-    if ntext != room.topic:
-        res = await bot.api.async_client.room_put_state(depot.room,'m.room.topic',{'topic': ntext},'')
-        room.topic = ntext
+    #if ntext != room.topic:
+    #    res = await bot.api.async_client.room_put_state(depot.room,'m.room.topic',{'topic': ntext},'')
+    #    room.topic = ntext
 async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
@@ -582,8 +585,9 @@ async def check_depot(depot,fast=False):
             logging.info(depot.name+' finished updates for '+datasource['name'])
             check_status.remove(datasource['name'])
             if check_status == []:#when we only await UpdateTime we can set Status
-                await bot.api.async_client.set_presence('unavailable','')
-            await ChangeDepotStatus(depot,'updating '+" ".join(check_status))
+                await ChangeDepotStatus(depot,'')
+            else:
+                await ChangeDepotStatus(depot,'updating '+" ".join(check_status))
             if ShouldSave: 
                 await save_servers()
             #Wait minimal one cyclus for the datasource
