@@ -464,21 +464,31 @@ async def ProcessIndicator(paper,depot,data):
     res = False
     def heikin_ashi(data):
         ha_data = pandas.DataFrame(index=data.index)
+        ha_data = ha_data.resample('1H').agg({
+                                'Open':'first',
+                                'High':'max',
+                                'Low':'min',
+                                'Close':'last'})
         ha_data['HA_Open'] = (data['Open'] + data['Close']) / 2
         ha_data['HA_High'] = data[['High', 'Open', 'Close']].max(axis=1)
         ha_data['HA_Low'] = data[['Low', 'Open', 'Close']].min(axis=1)
         ha_data['HA_Close'] = (data['Open'] + data['High'] + data['Low'] + data['Close']) / 4
         return ha_data
     data = heikin_ashi(data)
-    act_indicator = bool(data.iloc[-1]['HA_Close']>data.iloc[-1]['HA_Open'])
+    if   data.iloc[-1]['HA_Close']>data.iloc[-1]['HA_Open'] and data.iloc[-1]['HA_Low']==data.iloc[-1]['HA_Open']:
+        act_indicator = True
+    elif data.iloc[-1]['HA_Close']<data.iloc[-1]['HA_Open'] and data.iloc[-1]['HA_High']==data.iloc[-1]['HA_Close']:
+        act_indicator = False
+    else:
+        act_indicator = None
     if not act_indicator: trend_symbol = '⌄'
     else: trend_symbol = '⌃'
     msg1 = 'trend changes to %s for %s %s (%s)' % (trend_symbol,paper['isin'],paper['name'],paper['ticker'])
     if 'trend_up' in paper:
         if act_indicator != paper['trend_up']:
-            if not act_indicator and paper['count']>0: #Downward Trend on an paper we have
+            if act_indicator==False and paper['count']>0: #Downward Trend on an paper we have
                 await bot.api.send_text_message(depot.room,msg1)
-            elif act_indicator: #Trend changes to upwards
+            elif act_indicator==True: #Trend changes to upwards
                 await bot.api.send_text_message(depot.room,msg1)
             res = True
     else: res = True
