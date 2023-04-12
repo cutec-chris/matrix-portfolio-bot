@@ -142,26 +142,33 @@ class Symbol(Base):
             return 0
     def GetTargetPrice(self, start_date=None, end_date=None):
         if start_date is None:
-            start_date = datetime.datetime.now() - datetime.timedelta(days=30)
+            start_date = datetime.datetime.now() - datetime.timedelta(days=90)
         if end_date is None:
             end_date = datetime.datetime.now()
-
         total_price_target = 0
         count = 0
         rating_count = {}
         total_rating = 0
         rating_weight = {'strong buy': 2, 'buy': 1, 'hold': 0, 'sell': -1, 'strong sell': -2}
+        seen_ratings = set()
         for rating in self.analyst_ratings:
             if start_date <= rating.date <= end_date:
-                if rating.target_price:
-                    total_price_target += rating.target_price
-                    count += 1
-                    if rating.rating in rating_count:
-                        rating_count[rating.rating] += 1
-                    else:
-                        rating_count[rating.rating] = 1
-                try:total_rating += rating_weight[rating.rating]
-                except: pass
+                rating_key = (rating.name, rating.rating)
+                if rating_key not in seen_ratings:
+                    seen_ratings.add(rating_key)
+                    if rating.target_price:
+                        rc = 1
+                        if rating.ratingcount: rc = rating.ratingcount
+                        total_price_target += rating.target_price*rc
+                        count += rc
+                        if rating.rating in rating_count:
+                            rating_count[rating.rating] += rc
+                        else:
+                            rating_count[rating.rating] = rc
+                    try:
+                        total_rating += rating_weight[rating.rating]*rc
+                    except KeyError:
+                        pass
         if count == 0:
             return None
         average_target_price = total_price_target / count
@@ -170,7 +177,7 @@ class Symbol(Base):
         return average_target_price, count, rating_count_str, average_rating
     def GetFairPrice(self, start_date=None, end_date=None):
         if start_date is None:
-            start_date = datetime.datetime.now() - datetime.timedelta(days=30)
+            start_date = datetime.datetime.now() - datetime.timedelta(days=90)
         if end_date is None:
             end_date = datetime.datetime.now()
 
