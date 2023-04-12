@@ -469,7 +469,7 @@ async def ProcessIndicator(paper,depot,data):
         ha_data['HA_Low'] = data[['Low', 'Open', 'Close']].min(axis=1)
         ha_data['HA_Close'] = (data['Open'] + data['High'] + data['Low'] + data['Close']) / 4
         return ha_data
-    hdata = data.resample('1H').agg({
+    hdata = data.resample('4H').agg({
                             'Open':'first',
                             'High':'max',
                             'Low':'min',
