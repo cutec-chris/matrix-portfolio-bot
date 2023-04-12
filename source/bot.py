@@ -475,9 +475,9 @@ async def ProcessIndicator(paper,depot,data):
                             'Low':'min',
                             'Close':'last'})
     data = heikin_ashi(hdata)
-    if   data.iloc[-1]['HA_Close']>data.iloc[-1]['HA_Open'] and data.iloc[-1]['HA_Low']==data.iloc[-1]['HA_Open']:
+    if   data.iloc[-2]['HA_Close']>data.iloc[-2]['HA_Open']:# and data.iloc[-2]['HA_Low']==data.iloc[-2]['HA_Open']:
         act_indicator = True
-    elif data.iloc[-1]['HA_Close']<data.iloc[-1]['HA_Open'] and data.iloc[-1]['HA_High']==data.iloc[-1]['HA_Close']:
+    elif data.iloc[-2]['HA_Close']<data.iloc[-2]['HA_Open']:# and data.iloc[-2]['HA_High']==data.iloc[-2]['HA_Close']:
         act_indicator = False
     else:
         act_indicator = None
