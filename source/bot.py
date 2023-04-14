@@ -567,8 +567,8 @@ async def check_depot(depot,fast=False):
                                         df = sym.GetData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
                                     ps = await ProcessStrategy(paper,depot,df)
                                     ShouldSave = ShouldSave or ps
-                                    ps = await ProcessIndicator(paper,depot,df)
-                                    ShouldSave = ShouldSave or ps
+                                    #ps = await ProcessIndicator(paper,depot,df)
+                                    #ShouldSave = ShouldSave or ps
                             FailedTasks = 0
                         except BaseException as e:
                             logging.error(str(e), exc_info=True)
