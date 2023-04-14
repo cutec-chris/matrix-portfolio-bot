@@ -25,7 +25,7 @@ async def tell(room, message):
                 count = float(match.args()[2])
             price = None
             if len(match.args())>4:
-                depot = float(match.args()[4])
+                depot = match.args()[4]
             if len(match.args())>3:
                 price = float(match.args()[3])
             for adepot in servers:
