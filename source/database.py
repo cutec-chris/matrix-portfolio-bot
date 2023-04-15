@@ -1,4 +1,4 @@
-import sqlalchemy,pathlib,enum,datetime,pandas,asyncio,backtrader,logging
+import sqlalchemy,pathlib,enum,datetime,pandas,asyncio,backtrader,logging,csv,io,re
 from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 class Depot(Base):
@@ -29,6 +29,107 @@ class Trade(Base):
     shares = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
     price = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
     position = sqlalchemy.orm.relationship("Position", backref="trades")
+    def ImportTrades(self,filename,onlydetect=False):
+        def parse_date(date_str: str) -> datetime:
+            DATE_FORMATS = ['%d/%m/%Y %H:%M', '%d.%m.%Y', '%d/%m/%Y']
+            for fmt in DATE_FORMATS:
+                try:
+                    return datetime.datetime.strptime(date_str, fmt)
+                except ValueError:
+                    pass
+            raise ValueError(f"Cannot parse date: {date_str}")
+        def parse_shares(text: str) -> float:
+            match = re.search(r"STK\s+(\d+)", text)
+            if match:
+                return float(match.group(1))
+            return None
+        def detect_delimiter(csv_data: str) -> str:
+            possible_delimiters = [',', ';', '\t']
+            delimiter_counts = {delim: 0 for delim in possible_delimiters}
+            for line in csv_data[:5]:
+                for delim in possible_delimiters:
+                    delimiter_counts[delim] += line.count(delim)
+            return max(delimiter_counts, key=delimiter_counts.get)
+        def find_ticker(text):
+            # Ein einfaches Muster, um den Ticker zu finden (angenommen, der Ticker besteht aus Großbuchstaben und Zahlen)
+            ticker_pattern = re.compile(r'\b[A-Z0-9]+\b')
+            match = ticker_pattern.search(text)
+            if match:
+                return match.group()
+            return None
+        def find_isin(text):
+            # Ein Muster, um die ISIN zu finden (angenommen, die ISIN besteht aus zwei Großbuchstaben gefolgt von 10 alphanumerischen Zeichen)
+            isin_pattern = re.compile(r'\b[A-Z]{2}[A-Z0-9]{10}\b')
+            match = isin_pattern.search(text)
+            if match:
+                return match.group()
+            return None
+        with open(filename,'r') as f:
+            csv_data = f.readlines()
+        delimiter = detect_delimiter(csv_data)
+        # Find the starting and ending line of the CSV data
+        reader = csv.reader(io.StringIO(''.join(csv_data).strip()), delimiter=delimiter)
+        header_ok = False
+        double_pos = ['start_datetime','end_datetime','start_price','end_price','position']
+        single_pos = ['end_datetime','end_price','position']
+        while not header_ok:
+            headers = next(reader)
+            # Mapping column indices to relevant fields
+            column_mapping = {
+                "end_datetime": None,
+                "end_price": None,
+                "position": None
+            }
+            # Identifying column indices for the relevant fields
+            for idx, header in enumerate(headers):
+                if header in ["Datum der Öffnung"]:
+                    column_mapping["start_datetime"] = idx
+                elif header in ["Datum der Schließung", "Datum"]:
+                    column_mapping["end_datetime"] = idx
+                elif header in ["Betrag (€)", "Betrag"]:
+                    column_mapping["amount"] = idx
+                elif header in ["Startpreis"]:
+                    column_mapping["start_price"] = idx
+                elif header in ["Endpreis", "Valuta"]:
+                    column_mapping["end_price"] = idx
+                elif header in ["Instrument", "Verwendungszweck"]:
+                    column_mapping["position"] = idx
+                elif header in ["Richtung"]:
+                    column_mapping["trade_type"] = idx
+                elif header in ["Tradenummer"]:
+                    column_mapping["trade_number"] = idx
+            double_pos_present = all(key in column_mapping and column_mapping[key] is not None for key in double_pos)
+            single_pos_present = all(key in column_mapping and column_mapping[key] is not None for key in single_pos)
+            if double_pos_present:
+                header_ok=True
+                single_pos_present=False
+                break
+            elif single_pos_present:
+                header_ok=True
+                double_pos_present=False
+                break
+        # Importing data
+        for row in reader:
+            
+            if not onlydetect:
+                if double_pos_present:
+                    trade = Trade(
+                        datetime=pdate,
+                        shares=shares,
+                        price=float(price_str),
+                        position_id=get_position_id(position_text, session)  # Assuming you have a function to get position_id
+                    )
+                    session.add(trade)
+                    session.commit()
+                elif single_pos_present:
+                    trade = Trade(
+                        datetime=pdate,
+                        shares=shares,
+                        price=float(price_str),
+                        position_id=get_position_id(position_text, session)  # Assuming you have a function to get position_id
+                    )
+                    session.add(trade)
+                    session.commit()
 class Market(enum.Enum):
     crypto = 'crypto'
     stock = 'stock'
@@ -48,7 +149,6 @@ class Symbol(Base):
     tradingstart = sqlalchemy.Column(sqlalchemy.DateTime)
     tradingend = sqlalchemy.Column(sqlalchemy.DateTime)
     currency = sqlalchemy.Column(sqlalchemy.String(5), nullable=False)
-
     def AppendData(self, df):
         res = 0
         for index, row in df.iterrows():
@@ -247,7 +347,6 @@ class EarningsCalendar(Base):
                             ondelete="CASCADE"),
                 nullable=False)
     symbol = sqlalchemy.orm.relationship('Symbol', backref='earnings_calendar_entries')
-
 class BotCerebro(backtrader.Cerebro):
     def __init__(self):
         super().__init__()
