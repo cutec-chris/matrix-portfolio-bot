@@ -10,10 +10,10 @@ async def tell(room, message):
     try:
         global servers,lastsend
         logging.info(str(message))
-        res = await bot.api.async_client.room_typing(room.room_id,True,timeout=30000)
         if not message.body.startswith(prefix) and room.member_count==2:
             message.body = prefix+' '+message.body
         match = botlib.MessageMatch(room, message, bot, prefix)
+        if (match.is_not_from_this_bot() and match.prefix()):res = await bot.api.async_client.room_typing(room.room_id,True,timeout=30000)
         if (match.is_not_from_this_bot() and match.prefix())\
         and (match.command("buy",case_sensitive=False)\
         or match.command("sell",case_sensitive=False)\
@@ -581,17 +581,17 @@ async def checkdatasource(depot,datasource):
         await save_servers()
     #Wait minimal one cyclus for the datasource
     await asyncio.sleep(UpdateTime-(time.time()-started))
-def run_asyncio_coroutine(coroutine):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    return loop.run_until_complete(coroutine)
+async def run_in_thread(coroutine):
+    loop = asyncio.get_running_loop()
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        # Passen Sie die Coroutine an, um sie als Funktion auszuführen
+        result = await loop.run_in_executor(executor, lambda: asyncio.run(coroutine))
+    return result
 async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            tasks = [executor.submit(run_asyncio_coroutine, checkdatasource(depot,datasource)) for datasource in datasources]
-            for task in tasks:
-                task.result()
+        tasks = [run_in_thread(checkdatasource(depot, datasource)) for datasource in datasources]
+        results = await asyncio.gather(*tasks)
 datasources = []
 strategies = []
 try:
