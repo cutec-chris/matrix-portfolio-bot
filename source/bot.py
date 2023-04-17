@@ -258,7 +258,7 @@ async def tell(room, message):
                     except BaseException as e:
                         trange = parse_human_readable_duration('33d')
                     count = 0
-                    async def overview_process(paper, depot, database, trange, style, bot):
+                    async def overview_process(paper, depot, trange, style, bot):
                         if not 'ticker' in paper: paper['ticker'] = ''
                         if not 'name' in paper: paper['name'] = paper['ticker']
                         sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
@@ -331,7 +331,7 @@ async def tell(room, message):
                         return result
                     tasks = []
                     for paper in depot.papers:
-                        task = asyncio.create_task(overview_process(paper, depot, database, trange, style, bot))
+                        task = asyncio.create_task(overview_process(paper, depot, trange, style, bot))
                         tasks.append(task)
                         count += 1
                     results = await asyncio.gather(*tasks)
