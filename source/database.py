@@ -1,4 +1,4 @@
-import sqlalchemy,pathlib,enum,datetime,pandas,asyncio,backtrader,logging,csv,io,re
+import sqlalchemy,pathlib,enum,datetime,pandas,asyncio,backtrader,logging,csv,io,re,threading
 from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 class Depot(Base):
@@ -381,4 +381,14 @@ dbEngine=sqlalchemy.create_engine('sqlite:///'+str(Data / 'database.db'))
 conn = dbEngine.connect()
 Base.metadata.create_all(dbEngine)
 SessionClass = sqlalchemy.orm.sessionmaker(bind=dbEngine)
-session = SessionClass()
+session_storage = threading.local()
+class ThreadSession:
+    def __call__(self):
+        if not hasattr(session_storage, 'session'):
+            session_storage.session = SessionClass()
+        return session_storage.session
+    def __getattr__(self, name):
+        if not hasattr(session_storage, 'session'):
+            session_storage.session = SessionClass()
+        return getattr(session_storage.session, name)
+session = ThreadSession()
