@@ -405,6 +405,12 @@ async def tell(room, message):
         logging.error(str(e), exc_info=True)
         await bot.api.send_text_message(room,str(e))
     await bot.api.async_client.room_typing(room.room_id,False,0)
+async def run_in_thread(coroutine):
+    loop = asyncio.get_running_loop()
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        # Passen Sie die Coroutine an, um sie als Funktion auszuführen
+        result = await loop.run_in_executor(executor, lambda: asyncio.run(coroutine))
+    return result
 async def ProcessStrategy(paper,depot,data):
     cerebro = None
     strategy = 'sma'
@@ -559,7 +565,7 @@ async def checkdatasource(depot,datasource):
                                 df = sym.GetConvertedData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
                             else:
                                 df = sym.GetData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
-                            ps = await ProcessStrategy(paper,depot,df)
+                            ps = await run_in_thread(ProcessStrategy(paper,depot,df))
                             ShouldSave = ShouldSave or ps
                             #ps = await ProcessIndicator(paper,depot,df)
                             #ShouldSave = ShouldSave or ps
@@ -581,16 +587,10 @@ async def checkdatasource(depot,datasource):
         await save_servers()
     #Wait minimal one cyclus for the datasource
     await asyncio.sleep(UpdateTime-(time.time()-started))
-async def run_in_thread(coroutine):
-    loop = asyncio.get_running_loop()
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        # Passen Sie die Coroutine an, um sie als Funktion auszuführen
-        result = await loop.run_in_executor(executor, lambda: asyncio.run(coroutine))
-    return result
 async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
-        tasks = [run_in_thread(checkdatasource(depot, datasource)) for datasource in datasources]
+        tasks = [checkdatasource(depot, datasource) for datasource in datasources]
         results = await asyncio.gather(*tasks)
 datasources = []
 strategies = []
@@ -740,4 +740,8 @@ def truncate_text(text, max_length):
     if last_space != -1:
         truncated = truncated[:last_space]
     return truncated+'...'
-bot.run()
+while True:
+    try:
+        bot.run()
+    except BaseException as e:
+        logging.error(str(e))
