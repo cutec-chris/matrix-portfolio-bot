@@ -1,5 +1,5 @@
 from init import *
-import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles,random,concurrent.futures
+import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles,random
 loop = None
 lastsend = None
 class Portfolio(Config):
@@ -405,12 +405,6 @@ async def tell(room, message):
         logging.error(str(e), exc_info=True)
         await bot.api.send_text_message(room,str(e))
     await bot.api.async_client.room_typing(room.room_id,False,0)
-async def run_in_thread(coroutine):
-    loop = asyncio.get_running_loop()
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        # Passen Sie die Coroutine an, um sie als Funktion auszuführen
-        result = await loop.run_in_executor(executor, lambda: asyncio.run(coroutine))
-    return result
 async def ProcessStrategy(paper,depot,data):
     cerebro = None
     strategy = 'sma'
@@ -528,70 +522,78 @@ async def ChangeDepotStatus(depot,newstatus):
     #if ntext != room.topic:
     #    res = await bot.api.async_client.room_put_state(depot.room,'m.room.topic',{'topic': ntext},'')
     #    room.topic = ntext
-async def checkdatasource(depot,datasource):
-    started = time.time()
-    ShouldSave = False
-    FailedTasks = 0
-    #if hasattr(depot,'datasource') and depot.datasource != datasource['name']: return
-    UpdateTime = datasource['mod'].GetUpdateFrequency()
-    logging.info(depot.name+' starting updates for '+datasource['name'])
-    shuffled_papers = list(depot.papers)
-    random.shuffle(shuffled_papers)
-    updatedcurrencys = []
-    for paper in shuffled_papers:
-        targetmarket = None
-        if hasattr(depot,'market'): targetmarket = depot.market
-        if hasattr(datasource['mod'],'UpdateTicker'):
-            UpdateOK,TillUpdated = await datasource['mod'].UpdateTicker(paper,targetmarket)
-            if UpdateOK\
-            and hasattr(depot,'datasource') and depot.datasource == datasource['name']:
-                try:
-                    currencypaper = None
-                    sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=targetmarket).first()
-                    #Update also Currencys when currency is not depot cur
-                    if sym and sym.currency and sym.currency != depot.currency and not sym.currency in updatedcurrencys:
-                        currencypaper = {
-                            'isin': '%s%s=X' % (depot.currency,sym.currency),
-                            'ticker': '%s%s=X' % (depot.currency,sym.currency),
-                            'name': '%s/%s' % (depot.currency,sym.currency),
-                            '_updated': sym.GetActDate()
-                        }
-                        await datasource['mod'].UpdateTicker(currencypaper)
-                        updatedcurrencys.append(sym.currency)
-                    #Process strategy
-                    if 'ticker' in paper and sym:
-                        if sym:
-                            if sym.currency and sym.currency != depot.currency:
-                                df = sym.GetConvertedData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
-                            else:
-                                df = sym.GetData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
-                            ps = await run_in_thread(ProcessStrategy(paper,depot,df))
-                            ShouldSave = ShouldSave or ps
-                            #ps = await ProcessIndicator(paper,depot,df)
-                            #ShouldSave = ShouldSave or ps
-                    FailedTasks = 0
-                except BaseException as e:
-                    logging.error(str(e), exc_info=True)
-            elif not UpdateOK:
-                FailedTasks += 1
-            if FailedTasks > 3:
-                break
-        if hasattr(datasource['mod'],'UpdateAnalystRatings'):
-            UpdateOK,TillUpdated = await datasource['mod'].UpdateAnalystRatings(paper,targetmarket)
-            ShouldSave |= UpdateOK
-        if hasattr(datasource['mod'],'UpdateEarningsCalendar'):
-            UpdateOK,TillUpdated = await datasource['mod'].UpdateEarningsCalendar(paper,targetmarket)
-            ShouldSave |= UpdateOK
-    logging.info(depot.name+' finished updates for '+datasource['name'])
-    if ShouldSave: 
-        await save_servers()
-    #Wait minimal one cyclus for the datasource
-    await asyncio.sleep(UpdateTime-(time.time()-started))
 async def check_depot(depot,fast=False):
     global lastsend,servers
     while True:
-        tasks = [checkdatasource(depot, datasource) for datasource in datasources]
-        results = await asyncio.gather(*tasks)
+        updatedcurrencys = []
+        check_status = []
+        async def checkdatasource(datasource):
+            started = time.time()
+            ShouldSave = False
+            FailedTasks = 0
+            #if hasattr(depot,'datasource') and depot.datasource != datasource['name']: return
+            UpdateTime = datasource['mod'].GetUpdateFrequency()
+            logging.info(depot.name+' starting updates for '+datasource['name'])
+            check_status.append(datasource['name'])
+            await ChangeDepotStatus(depot,'updating '+" ".join(check_status))
+            shuffled_papers = list(depot.papers)
+            random.shuffle(shuffled_papers)
+            for paper in shuffled_papers:
+                targetmarket = None
+                if hasattr(depot,'market'): targetmarket = depot.market
+                if hasattr(datasource['mod'],'UpdateTicker'):
+                    UpdateOK,TillUpdated = await datasource['mod'].UpdateTicker(paper,targetmarket)
+                    if UpdateOK\
+                    and hasattr(depot,'datasource') and depot.datasource == datasource['name']:
+                        try:
+                            currencypaper = None
+                            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=targetmarket).first()
+                            #Update also Currencys when currency is not depot cur
+                            if sym and sym.currency and sym.currency != depot.currency and not sym.currency in updatedcurrencys:
+                                currencypaper = {
+                                    'isin': '%s%s=X' % (depot.currency,sym.currency),
+                                    'ticker': '%s%s=X' % (depot.currency,sym.currency),
+                                    'name': '%s/%s' % (depot.currency,sym.currency),
+                                    '_updated': sym.GetActDate()
+                                }
+                                await datasource['mod'].UpdateTicker(currencypaper)
+                                updatedcurrencys.append(sym.currency)
+                            #Process strategy
+                            if 'ticker' in paper and sym:
+                                if sym:
+                                    if sym.currency and sym.currency != depot.currency:
+                                        df = sym.GetConvertedData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
+                                    else:
+                                        df = sym.GetData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
+                                    ps = await run_in_thread(ProcessStrategy(paper,depot,df))
+                                    ShouldSave = ShouldSave or ps
+                                    #ps = await ProcessIndicator(paper,depot,df)
+                                    #ShouldSave = ShouldSave or ps
+                            FailedTasks = 0
+                        except BaseException as e:
+                            logging.error(str(e), exc_info=True)
+                    elif not UpdateOK:
+                        FailedTasks += 1
+                    if FailedTasks > 3:
+                        break
+                if hasattr(datasource['mod'],'UpdateAnalystRatings'):
+                    UpdateOK,TillUpdated = await datasource['mod'].UpdateAnalystRatings(paper,targetmarket)
+                    ShouldSave |= UpdateOK
+                if hasattr(datasource['mod'],'UpdateEarningsCalendar'):
+                    UpdateOK,TillUpdated = await datasource['mod'].UpdateEarningsCalendar(paper,targetmarket)
+                    ShouldSave |= UpdateOK
+            logging.info(depot.name+' finished updates for '+datasource['name'])
+            check_status.remove(datasource['name'])
+            if check_status == []:#when we only await UpdateTime we can set Status
+                await ChangeDepotStatus(depot,'')
+            else:
+                await ChangeDepotStatus(depot,'updating '+" ".join(check_status))
+            if ShouldSave: 
+                await save_servers()
+            #Wait minimal one cyclus for the datasource
+            await asyncio.sleep(UpdateTime-(time.time()-started))
+        datasourcetasks = [asyncio.create_task(checkdatasource(datasource)) for datasource in datasources]
+        await asyncio.wait(datasourcetasks)
 datasources = []
 strategies = []
 try:

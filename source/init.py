@@ -1,4 +1,4 @@
-import simplematrixbotlib as botlib,yaml,json,logging,asyncio,nio,pathlib,os
+import simplematrixbotlib as botlib,yaml,json,logging,asyncio,nio,pathlib,os,concurrent.futures
 configpath = pathlib.Path(__file__).parent
 if not (configpath / 'config.yml').exists():
     configpath = configpath.parent
@@ -75,3 +75,9 @@ async def get_room_events(client, room, limit = 1):
     # as well.
     events = await fetch_room_events(client,start_token,bot.api.async_client.rooms[room],nio.MessageDirection.back,limit)
     return events
+async def run_in_thread(coroutine):
+    loop = asyncio.get_running_loop()
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        # Passen Sie die Coroutine an, um sie als Funktion auszuführen
+        result = await loop.run_in_executor(executor, lambda: asyncio.run(coroutine))
+    return result
