@@ -264,6 +264,7 @@ async def tell(room, message):
                         sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
                         if sym:
                             df = sym.GetDataHourly(datetime.datetime.utcnow()-trange)
+                            await asyncio.sleep(0.05)
                             aprice = sym.GetActPrice(depot.currency)
                             analys = 'Price: %.2f<br>From: %s' % (aprice,str(sym.GetActDate()))+'<br>'
                             chance_price=0
@@ -313,14 +314,21 @@ async def tell(room, message):
                         try:
                             if style == 'graphic':
                                 if not (df.empty):
-                                    cerebro = database.BotCerebro(stdstats=False)
-                                    cdata = backtrader.feeds.PandasData(dataname=df)
-                                    cerebro.adddata(cdata)
                                     fpath = '/tmp/%s.jpeg' % paper['isin']
+                                    async def process_cerebro(df,fpath):
+                                        cerebro = database.BotCerebro(stdstats=False)
+                                        cdata = backtrader.feeds.PandasData(dataname=df)
+                                        cerebro.adddata(cdata)
+                                        try:
+                                            cerebro.run(stdstats=False)
+                                            cerebro.saveplots(style='line',file_path = fpath,width=32*4, height=16*4,dpi=50,volume=False,grid=False,valuetags=False,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=False)
+                                        except BaseException as e:
+                                            return None
+                                            logging.warning('failed to process:'+str(e))
+                                        return fpath
+                                    image_uri = await run_in_thread(process_cerebro(df,fpath))
                                     try:
-                                        cerebro.run(stdstats=False)
-                                        cerebro.saveplots(style='line',file_path = fpath,width=32*4, height=16*4,dpi=50,volume=False,grid=False,valuetags=False,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=False)
-                                        async with aiofiles.open(fpath, 'rb') as tmpf:
+                                        async with aiofiles.open(image_uri, 'rb') as tmpf:
                                             resp, maybe_keys = await bot.api.async_client.upload(tmpf,content_type='image/jpeg')
                                         image_uri = resp.content_uri
                                     except BaseException as e:
