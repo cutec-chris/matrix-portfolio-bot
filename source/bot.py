@@ -433,7 +433,7 @@ async def ProcessStrategy(paper,depot,data):
             def run_cerebro():
                 cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
                 cerebro.run()
-            await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
+            await run_in_thread(run_cerebro())
         except BaseException as e:
             logging.error(str(e))
             return False
@@ -573,7 +573,7 @@ async def check_depot(depot,fast=False):
                                         df = sym.GetConvertedData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
                                     else:
                                         df = sym.GetData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
-                                    ps = await run_in_thread(ProcessStrategy(paper,depot,df))
+                                    ps = await ProcessStrategy(paper,depot,df)
                                     ShouldSave = ShouldSave or ps
                                     #ps = await ProcessIndicator(paper,depot,df)
                                     #ShouldSave = ShouldSave or ps
