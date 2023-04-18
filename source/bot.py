@@ -430,7 +430,7 @@ async def ProcessStrategy(paper,depot,data):
     if cerebro and isinstance(data, pandas.DataFrame) and cerebro and not data.empty:
         logging.info(str(depot.name)+': processing ticker '+paper['ticker']+' till '+str(data.index[-1]))
         try:
-            def run_cerebro():
+            async def run_cerebro():
                 cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
                 cerebro.run()
             await run_in_thread(run_cerebro())
