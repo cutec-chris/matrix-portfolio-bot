@@ -137,6 +137,7 @@ class Market(enum.Enum):
     fund = 'fund'
     forex = 'forex'
     futures = 'futures'
+    index = 'index'
 class Symbol(Base):
     __tablename__ = 'symbol'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
