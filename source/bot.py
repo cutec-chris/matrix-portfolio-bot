@@ -616,7 +616,7 @@ try:
             servers.append(Portfolio(server))
     logging.info('loading db...')
     connection = database.Connection()
-    logging.info('loading datasources...')
+    logging.info('loading (and starting) datasources...')
     for folder in (pathlib.Path(__file__).parent / 'datasources').glob('*'):
         try:
             spec = importlib.util.spec_from_file_location(folder.name, str(folder / '__init__.py'))
@@ -627,6 +627,9 @@ try:
                     'mod': mod_        
                 }
             datasources.append(module)
+            if hasattr(mod_,'StartUpdate'):
+                for server in servers:
+                    mod_.StartUpdate(server.papers,server.market,server.name)
         except BaseException as e:
             logging.error(folder.name+':Failed to import datasource:'+str(e))
     logging.info('loading strategys...')

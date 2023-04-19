@@ -18,7 +18,7 @@ async def UpdateTicker(paper,market=None,connection=database.Connection()):
     updatetime = 0.5
     res = False
     try:
-        sym = connection.FindSymbol(paper)
+        sym = connection.FindSymbol(paper,market)
         if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
             res = None
             if 'isin' in paper and paper['isin']:
@@ -49,7 +49,7 @@ async def UpdateTicker(paper,market=None,connection=database.Connection()):
                 except BaseException as e:
                     logging.warning('failed writing to db:'+str(e))
                     connection.session.rollback()
-            sym = connection.FindSymbol(paper)
+            sym = connection.FindSymbol(paper,market)
             if sym:
                 date_entry,latest_date = connection.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
                 startdate = latest_date
@@ -132,11 +132,12 @@ async def SearchPaper(isin):
                 return data['quotes'][0]
     return None
 class UpdateTickers(threading.Thread):
-    def __init__(self, papers, market) -> None:
-        super().__init__(name='Ticker-Update')
+    def __init__(self, papers, market,name, delay=0) -> None:
+        super().__init__(name='Ticker-Update yahoo-'+name)
         self.papers = papers
         self.market = market
-        self.WaitTime = 15*60
+        self.WaitTime = 1*60
+        self.Delay = delay
         self.start()
     def run(self):
         self.loop = asyncio.new_event_loop()
@@ -144,16 +145,23 @@ class UpdateTickers(threading.Thread):
         while True:
             started = time.time()
             try:
+                earliest = datetime.datetime.now()
                 for paper in self.papers:
-                    res,till = self.loop.run_until_complete(UpdateTicker(paper,self.market,self.connection))
+                    if not 'internal_updated' in paper or paper['internal_updated'] == None: 
+                        epaper = paper
+                        break
+                    if paper['internal_updated']<earliest:
+                        earliest = paper['internal_updated']
+                        epaper = paper
+                if not 'internal_updated' in paper or earliest < datetime.datetime.now()-datetime.timedelta(seconds=self.Delay):
+                    res,till = self.loop.run_until_complete(UpdateTicker(epaper,self.market,self.connection))
+                    epaper['internal_updated'] = till
             except BaseException as e:
                 logging.error(str(e))
-            if not res:
-                self.WaitTime += 60
-                logging.info('Waittime for next run: '+str(self.WaitTime)+' s')
-            time.sleep(self.WaitTime-(time.time()-started))
-def StartUpdate(papers,market):
-    return UpdateTickers(papers,market)
+            if self.WaitTime-(time.time()-started) > 0:
+                time.sleep(self.WaitTime-(time.time()-started))
+def StartUpdate(papers,market,name):
+    return UpdateTickers(papers,market,name)
 if __name__ == '__main__':
     logging.root.setLevel(logging.DEBUG)
     apaper = {

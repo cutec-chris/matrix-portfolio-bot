@@ -129,8 +129,8 @@ async def SearchPaper(isin):
             }
     return None
 class UpdateTickers(threading.Thread):
-    def __init__(self, papers, market, delay=0) -> None:
-        super().__init__(name='Ticker-Update')
+    def __init__(self, papers, market,name, delay=0) -> None:
+        super().__init__(name='Ticker-Update onvista-'+name)
         self.papers = papers
         self.market = market
         self.WaitTime = 1*60
@@ -157,8 +157,8 @@ class UpdateTickers(threading.Thread):
                 logging.error(str(e))
             if self.WaitTime-(time.time()-started) > 0:
                 time.sleep(self.WaitTime-(time.time()-started))
-def StartUpdate(papers,market):
-    return UpdateTickers(papers,market,60*60)
+def StartUpdate(papers,market,name):
+    return UpdateTickers(papers,market,name,60*60)
 if __name__ == '__main__':
     logging.root.setLevel(logging.DEBUG)
     apaper = {
