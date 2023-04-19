@@ -20,7 +20,11 @@ async def UpdateTicker(paper,market=None):
     try:
         sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
         if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
-            res = await SearchPaper(paper['isin'])
+            res = None
+            if 'isin' in paper and paper['isin']:
+                res = await SearchPaper(paper['isin'])
+            if not res and 'ticker' in paper and paper['ticker']:
+                res = await SearchPaper(paper['ticker'])
             if res:
                 paper['ticker'] = res['symbol']
                 if 'longname' in res:
@@ -34,7 +38,11 @@ async def UpdateTicker(paper,market=None):
             startdate = datetime.datetime.utcnow()-datetime.timedelta(days=365*3)
             if sym == None and res:
                 #initial download
-                sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=database.Market.stock,active=True)
+                markett = database.Market.stock
+                if res['quoteType'] == 'INDEX':
+                    markett = database.Market.index
+                    paper['isin'] = paper['ticker']
+                sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=markett,active=True)
                 try:
                     database.session.add(sym)
                     database.session.commit()
@@ -51,6 +59,8 @@ async def UpdateTicker(paper,market=None):
                         await asyncio.sleep((next_update-datetime.datetime.utcnow()).total_seconds())
                     else: #when wait-time >90% return and wait for next cycle
                         return False,None
+                if not startdate:
+                    startdate = datetime.datetime.utcnow()-datetime.timedelta(days=59)
                 try:
                     while startdate < datetime.datetime.utcnow():
                         from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
@@ -79,6 +89,8 @@ async def UpdateTicker(paper,market=None):
                                             pdata = pdata.dropna()
                                             try:
                                                 database.session.add(sym)
+                                                acnt = sym.AppendData(pdata)
+                                                res = res or acnt>0
                                                 database.session.commit()
                                                 if res: 
                                                     logging.info('yahoo:'+sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' ('+str(sym.tradingend)+')')
@@ -118,24 +130,26 @@ async def SearchPaper(isin):
     return None
 class UpdateTickers(threading.Thread):
     def __init__(self, papers, market) -> None:
-        super().__init__(name='Ticker-Update '+paper['isin'])
+        super().__init__(name='Ticker-Update')
         self.papers = papers
         self.market = market
-        self.WaitTime = 1*60
+        self.WaitTime = 15*60
         self.start()
-        self.loop = asyncio.new_event_loop()
     def run(self):
+        self.loop = asyncio.new_event_loop()
         while True:
+            started = time.time()
             try:
                 for paper in self.papers:
                     res,till = self.loop.run_until_complete(UpdateTicker(paper,self.market))
             except BaseException as e:
                 logging.error(str(e))
-            #if not res:
-            #    self.WaitTime += 60
-            time.sleep(self.WaitTime)
+            if not res:
+                self.WaitTime += 60
+                logging.info('Waittime for next run: '+str(self.WaitTime)+' s')
+            time.sleep(self.WaitTime-(time.time()-started))
 def StartUpdate(papers,market):
-    UpdateTickerThread(paper,market))
+    UpdateTickers(papers,market).join()
 if __name__ == '__main__':
     logging.root.setLevel(logging.DEBUG)
     apaper = {
@@ -145,5 +159,11 @@ if __name__ == '__main__':
         "ticker": "RWE.DE",
         "name": "RWE Aktiengesellschaft"
     }
-    StartUpdateTickers([apaper,'gettex')
-    Tickers[0].join()
+    apaper1 = {
+        "isin": None,
+        "count": 0,
+        "price": 0,
+        "ticker": "^TECDAX",
+        "name": "Tech DAX"
+    }
+    StartUpdate([apaper,apaper1],'gettex')
