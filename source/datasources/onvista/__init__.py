@@ -5,6 +5,7 @@ async def UpdateTicker(paper,market=None,connection=database.Connection()):
     started = time.time()
     updatetime = 0.5
     res = False
+    olddate = None
     try:
         sym = connection.FindSymbol(paper,market)
         if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
@@ -97,6 +98,7 @@ async def UpdateTicker(paper,market=None,connection=database.Connection()):
                                     connection.session.add(sym)
                                     connection.session.commit()
                                     if res: 
+                                        olddate = pdata['Datetime'].iloc[-1]
                                         logging.info('onvista:'+sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' from '+str(olddate)+' ('+str(sym.tradingend)+')')
                                     else:
                                         logging.info('onvista:'+sym.ticker+' no new data')
@@ -109,7 +111,7 @@ async def UpdateTicker(paper,market=None,connection=database.Connection()):
     except BaseException as e:
         logging.error('onvista:'+'failed updating ticker %s: %s' % (str(paper['isin']),str(e)), exc_info=True)
     await asyncio.sleep(updatetime-(time.time()-started)) #3 times per minute
-    return res,None
+    return res,olddate
 def GetUpdateFrequency():
     return 15*60
 async def SearchPaper(isin):
@@ -140,7 +142,7 @@ class UpdateTickers(threading.Thread):
         while True:
             started = time.time()
             try:
-                earliest = datetime.datetime.utcnow()
+                earliest = datetime.datetime.now()
                 for paper in self.papers:
                     if not 'internal_updated' in paper or paper['internal_updated'] == None: 
                         epaper = paper
@@ -148,12 +150,13 @@ class UpdateTickers(threading.Thread):
                     if paper['internal_updated']<earliest:
                         earliest = paper['internal_updated']
                         epaper = paper
-                if not earliest or earliest > datetime.datetime.utcnow()-datetime.timedelta(seconds=self.Delay):
+                if not 'internal_updated' in paper or earliest < datetime.datetime.now()-datetime.timedelta(seconds=self.Delay):
                     res,till = self.loop.run_until_complete(UpdateTicker(epaper,self.market,self.connection))
                     epaper['internal_updated'] = till
             except BaseException as e:
                 logging.error(str(e))
-            time.sleep(self.WaitTime-(time.time()-started))
+            if self.WaitTime-(time.time()-started) > 0:
+                time.sleep(self.WaitTime-(time.time()-started))
 def StartUpdate(papers,market):
     return UpdateTickers(papers,market,60*60)
 if __name__ == '__main__':
