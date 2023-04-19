@@ -147,13 +147,13 @@ async def tell(room, message):
                     msg = 'Analyse of %s (%s,%s) with %s\n' % (sym.name,sym.isin,sym.ticker,strategy)\
                             +'Open: %.2f Close: %.2f\n' % (float(df.iloc[0]['Open']),float(df.iloc[-1]['Close']))\
                             +'Change: %.2f\n' % (float(df.iloc[-1]['Close'])-float(df.iloc[0]['Close']))\
-                            +'Last updated: %s\n' % (str(sym.GetActDate()))\
+                            +'Last updated: %s\n' % (str(sym.GetActDate(connection.session)))\
                             +'Volatility: %.2f\n' % vola
                     if sym.GetTargetPrice(connection.session):
                         ratings = sym.GetTargetPrice(connection.session)
                         msg += "Target Price: %.2f from %d Analysts (%s)\nAverage: %.2f\n" % (ratings)
                     if sym.GetFairPrice(connection.session):
-                        msg += "Fair Price: %.2f from %d Analysts (%s)\n" % (sym.GetFairPrice())
+                        msg += "Fair Price: %.2f from %d Analysts (%s)\n" % (sym.GetFairPrice(connection.session))
                     roi = calculate_roi(df)
                     for timeframe, value in roi.items():
                         msg += f"ROI for {timeframe}: {value:.2f}%\n"

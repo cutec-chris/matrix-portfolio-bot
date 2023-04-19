@@ -232,7 +232,7 @@ class Symbol(Base):
         if TargetCurrency:
             excs = session.query(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency,self.currency)).first()
             if excs:
-                last_minute_bar.close = last_minute_bar.close / excs.GetActPrice()
+                last_minute_bar.close = last_minute_bar.close / excs.GetActPrice(session)
             elif self.currency and (TargetCurrency != self.currency):
                 return 0
         if last_minute_bar:
@@ -245,7 +245,7 @@ class Symbol(Base):
             return last_minute_bar.date
         else:
             return 0
-    def GetTargetPrice(self, start_date=None, end_date=None):
+    def GetTargetPrice(self,session, start_date=None, end_date=None):
         if start_date is None:
             start_date = datetime.datetime.now() - datetime.timedelta(days=90)
         if end_date is None:
@@ -280,7 +280,7 @@ class Symbol(Base):
         rating_count_str = ", ".join(f"{k}: {v}" for k, v in rating_count.items())
         average_rating = total_rating / count
         return average_target_price, count, rating_count_str, average_rating
-    def GetFairPrice(self, start_date=None, end_date=None):
+    def GetFairPrice(self, session, start_date=None, end_date=None):
         if start_date is None:
             start_date = datetime.datetime.now() - datetime.timedelta(days=90)
         if end_date is None:
