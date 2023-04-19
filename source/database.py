@@ -29,7 +29,7 @@ class Trade(Base):
     shares = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
     price = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
     position = sqlalchemy.orm.relationship("Position", backref="trades")
-    def ImportTrades(self,filename,onlydetect=False):
+    def ImportTrades(self,session,filename,onlydetect=False):
         def parse_date(date_str: str) -> datetime:
             DATE_FORMATS = ['%d/%m/%Y %H:%M', '%d.%m.%Y', '%d/%m/%Y']
             for fmt in DATE_FORMATS:
@@ -150,7 +150,7 @@ class Symbol(Base):
     tradingstart = sqlalchemy.Column(sqlalchemy.DateTime)
     tradingend = sqlalchemy.Column(sqlalchemy.DateTime)
     currency = sqlalchemy.Column(sqlalchemy.String(5), nullable=False)
-    def AppendData(self, df):
+    def AppendData(self, session, df):
         res = 0
         for index, row in df.iterrows():
             date = row["Datetime"]
@@ -162,7 +162,7 @@ class Symbol(Base):
             session.add(MinuteBar(date=date, open=row["Open"], high=row["High"], low=row["Low"], close=row["Close"], volume=row["Volume"], symbol=self))
             res += 1
         return res
-    def GetData(self, start_date=None, end_date=None, timeframe='15m'):
+    def GetData(self, session, start_date=None, end_date=None, timeframe='15m'):
         if timeframe == '15m':
             aggregator_func = None
         elif timeframe == '1h':
@@ -177,34 +177,38 @@ class Symbol(Base):
         if end_date:
             query = query.filter(MinuteBar.date <= end_date)
         query = query.order_by(MinuteBar.date)
-        if timeframe != '15m':
-            query = session.query(
-                aggregator_func.label('Datetime'),
-                sqlalchemy.func.min(MinuteBar.low).label('Low'),
-                sqlalchemy.func.max(MinuteBar.high).label('High'),
-                sqlalchemy.func.first_value(MinuteBar.open).over(order_by=MinuteBar.date).label('Open'),
-                sqlalchemy.func.last_value(MinuteBar.close).over(order_by=MinuteBar.date).label('Close'),
-                sqlalchemy.func.sum(MinuteBar.volume).label('Volume')
-            ).filter_by(symbol=self)
-            if start_date:
-                query = query.filter(MinuteBar.date >= start_date)
-            if end_date:
-                query = query.filter(MinuteBar.date <= end_date)
-            query = query.group_by('Datetime').order_by('Datetime')
-            df = pandas.read_sql(query.statement, query.session.bind)
-            df['Datetime'] = pandas.to_datetime(df['Datetime'])
-        else:
-            df = pandas.DataFrame(
-                [(row.date, row.open, row.high, row.low, row.close, row.volume) for row in query.all()],
-                columns=["Datetime", "Open", "High", "Low", "Close", "Volume"]
-            )
-        df.set_index("Datetime", inplace=True)
+        try:
+            if timeframe != '15m':
+                query = session.query(
+                    aggregator_func.label('Datetime'),
+                    sqlalchemy.func.min(MinuteBar.low).label('Low'),
+                    sqlalchemy.func.max(MinuteBar.high).label('High'),
+                    sqlalchemy.func.first_value(MinuteBar.open).over(order_by=MinuteBar.date).label('Open'),
+                    sqlalchemy.func.last_value(MinuteBar.close).over(order_by=MinuteBar.date).label('Close'),
+                    sqlalchemy.func.sum(MinuteBar.volume).label('Volume')
+                ).filter_by(symbol=self)
+                if start_date:
+                    query = query.filter(MinuteBar.date >= start_date)
+                if end_date:
+                    query = query.filter(MinuteBar.date <= end_date)
+                query = query.group_by('Datetime').order_by('Datetime')
+                df = pandas.read_sql(query.statement, query.session.bind)
+                df['Datetime'] = pandas.to_datetime(df['Datetime'])
+            else:
+                df = pandas.DataFrame(
+                    [(row.date, row.open, row.high, row.low, row.close, row.volume) for row in query.all()],
+                    columns=["Datetime", "Open", "High", "Low", "Close", "Volume"]
+                )
+            df.set_index("Datetime", inplace=True)
+        except BaseException as e:
+            logging.error(str(e),stack_info=True)
+            return df 
         return df
-    def GetConvertedData(self,start_date=None, end_date=None, TargetCurrency=None, timeframe='15m'):
+    def GetConvertedData(self,session, start_date=None, end_date=None, TargetCurrency=None, timeframe='15m'):
         excs = session.query(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency,self.currency)).first()
-        data = self.GetData(start_date,end_date, timeframe)
+        data = self.GetData(session,start_date,end_date, timeframe)
         if excs:
-            exc = excs.GetData(start_date, end_date,timeframe)
+            exc = excs.GetData(session, start_date, end_date,timeframe)
             if not exc.empty:
                 for index, row in data.iterrows():
                     # Den nächsten verfügbaren Wechselkurs suchen
@@ -218,12 +222,12 @@ class Symbol(Base):
                     row['Close'] = row['Close'] / exc_next['Close']
                 return data
         elif TargetCurrency == self.currency:
-            data = self.GetData(start_date,end_date)
+            data = self.GetData(session, start_date,end_date)
             return data
         return data
-    def GetDataHourly(self, start_date=None, end_date=None, TargetCurrency=None):
-        return self.GetConvertedData(start_date,end_date, TargetCurrency, timeframe='1h')
-    def GetActPrice(self,TargetCurrency=None):
+    def GetDataHourly(self,session, start_date=None, end_date=None, TargetCurrency=None):
+        return self.GetConvertedData(session,start_date,end_date, TargetCurrency, timeframe='1h')
+    def GetActPrice(self, session, TargetCurrency=None):
         last_minute_bar = session.query(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()).first()
         if TargetCurrency:
             excs = session.query(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency,self.currency)).first()
@@ -235,7 +239,7 @@ class Symbol(Base):
             return last_minute_bar.close
         else:
             return 0
-    def GetActDate(self):
+    def GetActDate(self, session):
         last_minute_bar = session.query(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()).first()
         if last_minute_bar:
             return last_minute_bar.date
@@ -376,20 +380,19 @@ class BotCerebro(backtrader.Cerebro):
             return figs
         except BaseException as e:
             logging.warning(str(e))
-Data = pathlib.Path('.') / 'data'
-Data.mkdir(parents=True,exist_ok=True)
-dbEngine=sqlalchemy.create_engine('sqlite:///'+str(Data / 'database.db')) 
-conn = dbEngine.connect()
-Base.metadata.create_all(dbEngine)
-SessionClass = sqlalchemy.orm.sessionmaker(bind=dbEngine)
-session_storage = threading.local()
-class ThreadSession:
-    def __call__(self):
-        if not hasattr(session_storage, 'session'):
-            session_storage.session = SessionClass()
-        return session_storage.session
-    def __getattr__(self, name):
-        if not hasattr(session_storage, 'session'):
-            session_storage.session = SessionClass()
-        return getattr(session_storage.session, name)
-session = ThreadSession()
+class Connection:
+    def __init__(self, Data=pathlib.Path('.') / 'data' / 'database.db'):
+        Data.parent.mkdir(parents=True,exist_ok=True)
+        self.dbEngine=sqlalchemy.create_engine('sqlite:///'+str(Data), poolclass=sqlalchemy.pool.StaticPool) 
+        session_factory = sqlalchemy.orm.sessionmaker(bind=self.dbEngine)
+        self.Session = sqlalchemy.orm.scoped_session(session_factory)
+        conn = self.dbEngine.connect()
+        Base.metadata.create_all(self.dbEngine)
+        self.session = self.Session()
+    def FindSymbol(self,paper,market=None):
+        if 'isin' in paper and paper['isin']:
+            sym = self.session.query(Symbol).filter_by(isin=paper['isin'],marketplace=market).first()
+        elif 'ticker' in paper and paper['ticker']:
+            sym = self.session.query(Symbol).filter_by(ticker=paper['ticker'],marketplace=market).first()
+        else: sym = None
+        return sym

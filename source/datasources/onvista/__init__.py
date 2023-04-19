@@ -6,7 +6,7 @@ async def UpdateTicker(paper,market=None):
     updatetime = 0.5
     res = False
     try:
-        sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=market).first()
+        sym = database.FindSymbol(paper,market)
         if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
             res = await SearchPaper(paper['isin'])
             if res:
@@ -126,13 +126,15 @@ async def SearchPaper(isin):
                 'type': instrument.type
             }
     return None
-class UpdateTickers(threading.Thread):
-    def __init__(self, papers, market) -> None:
-        super().__init__(name='Ticker-Update')
+class UpdateTickers():#(threading.Thread):
+    def __init__(self, papers, market, delay=0) -> None:
+        #super().__init__(name='Ticker-Update')
         self.papers = papers
         self.market = market
         self.WaitTime = 1*60
-        self.start()
+        self.Delay = delay
+        #self.start()
+        self.run()
     def run(self):
         self.loop = asyncio.new_event_loop()
         while True:
@@ -146,13 +148,14 @@ class UpdateTickers(threading.Thread):
                     if paper['internal_updated']<earliest:
                         earliest = paper['internal_updated']
                         epaper = paper
-                res,till = self.loop.run_until_complete(UpdateTicker(epaper,self.market))
-                epaper['internal_updated'] = till
+                if not earliest or earliest < datetime.datetime.utcnow()-datetime.timedelta(seconds=self.Delay):
+                    res,till = self.loop.run_until_complete(UpdateTicker(epaper,self.market))
+                    epaper['internal_updated'] = till
             except BaseException as e:
                 logging.error(str(e))
             time.sleep(self.WaitTime-(time.time()-started))
 def StartUpdate(papers,market):
-    UpdateTickers(papers,market).join()
+    UpdateTickers(papers,market,60*60).join()
 if __name__ == '__main__':
     logging.root.setLevel(logging.DEBUG)
     apaper = {

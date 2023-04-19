@@ -1,5 +1,5 @@
 from init import *
-import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles,random
+import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles,random,multiprocessing
 loop = None
 lastsend = None
 class Portfolio(Config):
@@ -38,9 +38,9 @@ async def tell(room, message):
                     if paper['isin'] == match.args()[1]:
                         found = True
                         if not price:
-                            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
+                            sym = connection.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
                             if sym: 
-                                price = sym.GetActPrice()
+                                price = sym.GetActPrice(connection.session)
                             else:
                                 price = 0
                         if not count:
@@ -68,20 +68,20 @@ async def tell(room, message):
                     count = paper['lastcount']
                 if paper['count'] > 0:
                     paper['lastcount'] = paper['count']
-                db_depot = database.session.query(database.Depot).filter_by(room=depot.room,name=depot.name).first()
+                db_depot = connection.session.query(database.Depot).filter_by(room=depot.room,name=depot.name).first()
                 if not db_depot:
                     db_depot = database.Depot(room=room.room_id, name=depot.name, taxCost=0, taxCostPercent=depot.taxCostPercent, tradingCost=depot.tradingCost, tradingCostPercent=depot.tradingCostPercent, currency=depot.currency, cash=0)
-                    database.session.add(db_depot)
-                sym = database.session.query(database.Symbol).filter_by(isin=match.args()[1],marketplace=depot.market).first()
-                db_position = database.session.query(database.Position).filter_by(isin=paper['isin'], depot_id=db_depot.id).first()
+                    connection.session.add(db_depot)
+                sym = connection.session.query(database.Symbol).filter_by(isin=match.args()[1],marketplace=depot.market).first()
+                db_position = connection.session.query(database.Position).filter_by(isin=paper['isin'], depot_id=db_depot.id).first()
                 if not db_position:
                     db_position = database.Position(depot_id=db_depot.id,
                                         isin=paper['isin'],
                                         shares=paper['count'],
                                         price=paper['price'],
                                         ticker='')
-                database.session.add(db_position)
-                database.session.commit()
+                connection.session.add(db_position)
+                connection.session.commit()
                 for paper in depot.papers:
                     if paper['isin'] == match.args()[1]:
                         oldprice = float(paper['price'])
@@ -97,9 +97,9 @@ async def tell(room, message):
                             paper['count'] = paper['count']+count
                             db_position.shares = paper['count']
                             db_position.price = paper['price']
-                            database.session.add(db_position)
+                            connection.session.add(db_position)
                             db_trade = database.Trade(position_id=db_position.id,shares=count, price=price,datetime=datetime.datetime.now())
-                            database.session.add(db_trade)
+                            connection.session.add(db_trade)
                         elif match.command("sell"):
                             if newprice>oldprice:
                                 newprice = oldprice
@@ -107,13 +107,13 @@ async def tell(room, message):
                             paper['count'] = paper['count']-count
                             db_position.shares = paper['count']
                             db_position.price = paper['price']
-                            database.session.add(db_position)
+                            connection.session.add(db_position)
                             db_trade = database.Trade(position_id=db_position.id,shares=-count, price=price,datetime=datetime.datetime.now())
-                            database.session.add(db_trade)
+                            connection.session.add(db_trade)
                         elif match.command("remove"):
                             depot.papers.remove(paper)
                         await save_servers()
-                        database.session.commit()
+                        connection.session.commit()
                         await bot.api.send_text_message(room.room_id, 'ok')
                         break
         elif (match.is_not_from_this_bot() and match.prefix())\
@@ -134,12 +134,12 @@ async def tell(room, message):
                 if len(match.args())>2: strategy = match.args()[2]
                 npaper = None
                 found = False
-                sym = database.session.query(database.Symbol).filter_by(isin=match.args()[1],marketplace=depot.market).first()
+                sym = connection.session.query(database.Symbol).filter_by(isin=match.args()[1],marketplace=depot.market).first()
                 if sym:
                     if sym.currency and sym.currency != depot.currency:
-                        df = sym.GetConvertedData(datetime.datetime.utcnow()-trange,None,depot.currency)
+                        df = sym.GetConvertedData(connection.session,datetime.datetime.utcnow()-trange,None,depot.currency)
                     else:
-                        df = sym.GetData(datetime.datetime.utcnow()-trange)
+                        df = sym.GetData(connection.session,datetime.datetime.utcnow()-trange)
                     vola = 0.0
                     for index, row in df.iterrows():
                         avola = ((row['High']-row['Low'])/row['Close'])*100
@@ -149,10 +149,10 @@ async def tell(room, message):
                             +'Change: %.2f\n' % (float(df.iloc[-1]['Close'])-float(df.iloc[0]['Close']))\
                             +'Last updated: %s\n' % (str(sym.GetActDate()))\
                             +'Volatility: %.2f\n' % vola
-                    if sym.GetTargetPrice():
-                        ratings = sym.GetTargetPrice()
+                    if sym.GetTargetPrice(connection.session):
+                        ratings = sym.GetTargetPrice(connection.session)
                         msg += "Target Price: %.2f from %d Analysts (%s)\nAverage: %.2f\n" % (ratings)
-                    if sym.GetFairPrice():
+                    if sym.GetFairPrice(connection.session):
                         msg += "Fair Price: %.2f from %d Analysts (%s)\n" % (sym.GetFairPrice())
                     roi = calculate_roi(df)
                     for timeframe, value in roi.items():
@@ -222,9 +222,9 @@ async def tell(room, message):
                         if paper['count'] > 0:
                             if not 'ticker' in paper: paper['ticker'] = ''
                             if not 'name' in paper: paper['name'] = paper['ticker']
-                            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
+                            sym = connection.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
                             if sym:
-                                actprice = sym.GetActPrice(depot.currency)
+                                actprice = sym.GetActPrice(connection.session,depot.currency)
                             else: 
                                 actprice = 0
                             sumactprice += actprice*paper['count']
@@ -261,22 +261,22 @@ async def tell(room, message):
                     async def overview_process(paper, depot, trange, style, bot):
                         if not 'ticker' in paper: paper['ticker'] = ''
                         if not 'name' in paper: paper['name'] = paper['ticker']
-                        sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
+                        sym = connection.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
                         if sym:
-                            df = sym.GetDataHourly(datetime.datetime.utcnow()-trange)
+                            df = sym.GetDataHourly(connection.session,datetime.datetime.utcnow()-trange)
                             await asyncio.sleep(0.05)
-                            aprice = sym.GetActPrice(depot.currency)
-                            analys = 'Price: %.2f<br>From: %s' % (aprice,str(sym.GetActDate()))+'<br>'
+                            aprice = sym.GetActPrice(connection.session,depot.currency)
+                            analys = 'Price: %.2f<br>From: %s' % (aprice,str(sym.GetActDate(connection.session)))+'<br>'
                             chance_price=0
-                            if sym.GetTargetPrice():
-                                ratings = sym.GetTargetPrice()
+                            if sym.GetTargetPrice(connection.session):
+                                ratings = sym.GetTargetPrice(connection.session)
                                 analys_t = "Target Price: %.2f from %d<br>(%s)<br>Average: %.2f<br>" % ratings
                                 analys += f'<font color="{rating_to_color(ratings[3])}">{analys_t}</font>'
                                 chance_price=((ratings[0]-aprice)/aprice)
                                 analys += "Chance: %.2f %% in 1y<br>" % round(chance_price*100,1)
                             else: ratings = (0,0,'',0)
-                            if sym.GetFairPrice():
-                                analys += "Fair Price: %.2f from %d<br>(%s)<br>" % (sym.GetFairPrice())
+                            if sym.GetFairPrice(connection.session):
+                                analys += "Fair Price: %.2f from %d<br>(%s)<br>" % (sym.GetFairPrice(connection.session))
                             roi = calculate_roi(df)
                             def weighted_roi_sum(roi_dict):
                                 weights = {
@@ -516,9 +516,9 @@ async def ChangeDepotStatus(depot,newstatus):
             sumprice = 0
             for paper in adepot.papers:
                 if paper['count'] > 0:
-                    sym = database.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
+                    sym = connection.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
                     if sym:
-                        actprice = sym.GetActPrice(depot.currency)
+                        actprice = sym.GetActPrice(connection.session,depot.currency)
                     else: 
                         actprice = 0
                     sumactprice += actprice*paper['count']
@@ -539,7 +539,6 @@ async def check_depot(depot,fast=False):
             started = time.time()
             ShouldSave = False
             FailedTasks = 0
-            #if hasattr(depot,'datasource') and depot.datasource != datasource['name']: return
             UpdateTime = datasource['mod'].GetUpdateFrequency()
             logging.info(depot.name+' starting updates for '+datasource['name'])
             check_status.append(datasource['name'])
@@ -562,7 +561,7 @@ async def check_depot(depot,fast=False):
                                     'isin': '%s%s=X' % (depot.currency,sym.currency),
                                     'ticker': '%s%s=X' % (depot.currency,sym.currency),
                                     'name': '%s/%s' % (depot.currency,sym.currency),
-                                    '_updated': sym.GetActDate()
+                                    '_updated': sym.GetActDate(connection.session)
                                 }
                                 await datasource['mod'].UpdateTicker(currencypaper)
                                 updatedcurrencys.append(sym.currency)
@@ -570,10 +569,10 @@ async def check_depot(depot,fast=False):
                             if 'ticker' in paper and sym:
                                 if sym:
                                     if sym.currency and sym.currency != depot.currency:
-                                        df = sym.GetConvertedData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
+                                        df = sym.GetConvertedData(connection.session,(TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
                                     else:
-                                        df = sym.GetData((TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
-                                    ps = await run_in_thread(ProcessStrategy(paper,depot,df))
+                                        df = sym.GetData(connection.session,(TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
+                                    ps = await ProcessStrategy(paper,depot,df)
                                     ShouldSave = ShouldSave or ps
                                     #ps = await ProcessIndicator(paper,depot,df)
                                     #ShouldSave = ShouldSave or ps
@@ -600,10 +599,12 @@ async def check_depot(depot,fast=False):
                 await save_servers()
             #Wait minimal one cyclus for the datasource
             await asyncio.sleep(UpdateTime-(time.time()-started))
-        datasourcetasks = [asyncio.create_task(checkdatasource(datasource)) for datasource in datasources]
-        await asyncio.wait(datasourcetasks)
+        #datasourcetasks = [asyncio.create_task(checkdatasource(datasource)) for datasource in datasources]
+        #await asyncio.wait(datasourcetasks)
+        await asyncio.sleep(1)
 datasources = []
 strategies = []
+connection = None
 try:
     logging.basicConfig(level=logging.INFO)
     logging.info('loading config...')
@@ -613,6 +614,8 @@ try:
             if not 'papers' in server:
                 server['papers'] = []
             servers.append(Portfolio(server))
+    logging.info('loading db...')
+    connection = database.Connection()
     logging.info('loading datasources...')
     for folder in (pathlib.Path(__file__).parent / 'datasources').glob('*'):
         try:
