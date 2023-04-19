@@ -133,7 +133,7 @@ class UpdateTickers(threading.Thread):
         super().__init__(name='Ticker-Update onvista-'+name)
         self.papers = papers
         self.market = market
-        self.WaitTime = 1*60
+        self.WaitTime = 15*60
         self.Delay = delay
         self.start()
     def run(self):
