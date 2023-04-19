@@ -2,7 +2,7 @@ import pathlib,sys;sys.path.append(str(pathlib.Path(__file__).parent.parent.pare
 import asyncio,aiohttp,csv,datetime,pytz,time,threading,concurrent.futures
 import requests,pandas,pathlib,database,sqlalchemy.sql.expression,asyncio,logging,io
 UserAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.109 Safari/537.36'
-async def UpdateTicker(paper,market=None):
+async def UpdateTicker(paper,market=None,connection=database.Connection()):
     def extract_trading_times(metadata):
         try:
             timezone = metadata['regular']['timezone']
@@ -18,7 +18,7 @@ async def UpdateTicker(paper,market=None):
     updatetime = 0.5
     res = False
     try:
-        sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+        sym = connection.FindSymbol(paper)
         if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
             res = None
             if 'isin' in paper and paper['isin']:
@@ -44,14 +44,14 @@ async def UpdateTicker(paper,market=None):
                     paper['isin'] = paper['ticker']
                 sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=markett,active=True)
                 try:
-                    database.session.add(sym)
-                    database.session.commit()
+                    connection.session.add(sym)
+                    connection.session.commit()
                 except BaseException as e:
                     logging.warning('failed writing to db:'+str(e))
-                    database.session.rollback()
-            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
+                    connection.session.rollback()
+            sym = connection.FindSymbol(paper)
             if sym:
-                date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
+                date_entry,latest_date = connection.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
                 startdate = latest_date
                 if latest_date:
                     next_update = latest_date+datetime.timedelta(seconds=GetUpdateFrequency())
@@ -91,10 +91,10 @@ async def UpdateTicker(paper,market=None):
                                                 # Entferne die letzte Zeile aus dem DataFrame
                                                 pdata = pdata.iloc[:-1]
                                             try:
-                                                database.session.add(sym)
-                                                acnt = sym.AppendData(pdata)
+                                                connection.session.add(sym)
+                                                acnt = sym.AppendData(connection.session,pdata)
                                                 res = res or acnt>0
-                                                database.session.commit()
+                                                connection.session.commit()
                                                 if res: 
                                                     logging.info('yahoo:'+sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' ('+str(sym.tradingend)+')')
                                                 else:
@@ -103,7 +103,7 @@ async def UpdateTicker(paper,market=None):
                                                 #res = True
                                             except BaseException as e:
                                                 logging.warning('failed writing to db:'+str(e))
-                                                database.session.rollback()
+                                                connection.session.rollback()
                         startdate += datetime.timedelta(days=59)
                 except BaseException as e:
                     logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
@@ -140,11 +140,12 @@ class UpdateTickers(threading.Thread):
         self.start()
     def run(self):
         self.loop = asyncio.new_event_loop()
+        self.connection = database.Connection()
         while True:
             started = time.time()
             try:
                 for paper in self.papers:
-                    res,till = self.loop.run_until_complete(UpdateTicker(paper,self.market))
+                    res,till = self.loop.run_until_complete(UpdateTicker(paper,self.market,self.connection))
             except BaseException as e:
                 logging.error(str(e))
             if not res:
@@ -152,7 +153,7 @@ class UpdateTickers(threading.Thread):
                 logging.info('Waittime for next run: '+str(self.WaitTime)+' s')
             time.sleep(self.WaitTime-(time.time()-started))
 def StartUpdate(papers,market):
-    UpdateTickers(papers,market).join()
+    return UpdateTickers(papers,market)
 if __name__ == '__main__':
     logging.root.setLevel(logging.DEBUG)
     apaper = {
@@ -169,4 +170,4 @@ if __name__ == '__main__':
         "ticker": "^TECDAX",
         "name": "Tech DAX"
     }
-    StartUpdate([apaper,apaper1],'gettex')
+    StartUpdate([apaper,apaper1],'gettex').join()
