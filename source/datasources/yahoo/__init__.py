@@ -87,6 +87,9 @@ async def UpdateTicker(paper,market=None):
                                             })
                                             pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
                                             pdata = pdata.dropna()
+                                            if pdata["Datetime"].iloc[-1].minute % 15 != 0:
+                                                # Entferne die letzte Zeile aus dem DataFrame
+                                                pdata = pdata.iloc[:-1]
                                             try:
                                                 database.session.add(sym)
                                                 acnt = sym.AppendData(pdata)
