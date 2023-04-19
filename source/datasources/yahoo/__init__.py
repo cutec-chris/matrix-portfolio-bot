@@ -17,6 +17,7 @@ async def UpdateTicker(paper,market=None,connection=database.Connection()):
     started = time.time()
     updatetime = 0.5
     res = False
+    olddate = None
     try:
         sym = connection.FindSymbol(paper,market)
         if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
@@ -91,12 +92,14 @@ async def UpdateTicker(paper,market=None,connection=database.Connection()):
                                                 # Entferne die letzte Zeile aus dem DataFrame
                                                 pdata = pdata.iloc[:-1]
                                             try:
+                                                olddate = sym.GetActDate(connection.session)
                                                 connection.session.add(sym)
                                                 acnt = sym.AppendData(connection.session,pdata)
                                                 res = res or acnt>0
                                                 connection.session.commit()
                                                 if res: 
                                                     logging.info('yahoo:'+sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' ('+str(sym.tradingend)+')')
+                                                    olddate = pdata['Datetime'].iloc[-1]
                                                 else:
                                                     logging.info('yahoo:'+sym.ticker+' no new data')
                                                 updatetime = 10
@@ -110,7 +113,7 @@ async def UpdateTicker(paper,market=None,connection=database.Connection()):
     except BaseException as e:
         logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
     await asyncio.sleep(updatetime-(time.time()-started)) #3 times per minute
-    return res,None
+    return res,olddate
 def GetUpdateFrequency():
     return 15*60
 async def SearchPaper(isin):
