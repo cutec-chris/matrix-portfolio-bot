@@ -1,4 +1,5 @@
-import asyncio,aiohttp,csv,datetime,pytz,time
+import pathlib,sys;sys.path.append(str(pathlib.Path(__file__).parent.parent.parent))
+import asyncio,aiohttp,csv,datetime,pytz,time,threading,concurrent.futures
 import requests,pandas,pathlib,database,sqlalchemy.sql.expression,asyncio,logging,io
 UserAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.109 Safari/537.36'
 async def UpdateTicker(paper,market=None):
@@ -84,7 +85,7 @@ async def UpdateTicker(paper,market=None):
                                                 else:
                                                     logging.info('yahoo:'+sym.ticker+' no new data')
                                                 updatetime = 10
-                                                res = True
+                                                #res = True
                                             except BaseException as e:
                                                 logging.warning('failed writing to db:'+str(e))
                                                 database.session.rollback()
@@ -115,3 +116,34 @@ async def SearchPaper(isin):
             if 'quotes' in data and len(data['quotes']) > 0:
                 return data['quotes'][0]
     return None
+class UpdateTickers(threading.Thread):
+    def __init__(self, papers, market) -> None:
+        super().__init__(name='Ticker-Update '+paper['isin'])
+        self.papers = papers
+        self.market = market
+        self.WaitTime = 1*60
+        self.start()
+        self.loop = asyncio.new_event_loop()
+    def run(self):
+        while True:
+            try:
+                for paper in self.papers:
+                    res,till = self.loop.run_until_complete(UpdateTicker(paper,self.market))
+            except BaseException as e:
+                logging.error(str(e))
+            #if not res:
+            #    self.WaitTime += 60
+            time.sleep(self.WaitTime)
+def StartUpdate(papers,market):
+    UpdateTickerThread(paper,market))
+if __name__ == '__main__':
+    logging.root.setLevel(logging.DEBUG)
+    apaper = {
+        "isin": "DE0007037129",
+        "count": 0,
+        "price": 0,
+        "ticker": "RWE.DE",
+        "name": "RWE Aktiengesellschaft"
+    }
+    StartUpdateTickers([apaper,'gettex')
+    Tickers[0].join()
