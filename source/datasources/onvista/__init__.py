@@ -1,5 +1,6 @@
+import pathlib,sys;sys.path.append(str(pathlib.Path(__file__).parent.parent.parent))
 import sys,pathlib;sys.path.append(str(pathlib.Path(__file__).parent / 'pyonvista' / 'src'))
-import pyonvista,asyncio,aiohttp,datetime,pytz,time,logging,database,pandas,json,aiofiles,datetime,sqlalchemy
+import pyonvista,asyncio,aiohttp,datetime,pytz,time,logging,database,pandas,json,aiofiles,datetime,sqlalchemy,threading
 async def UpdateTicker(paper,market=None):
     started = time.time()
     updatetime = 0.5
@@ -34,14 +35,7 @@ async def UpdateTicker(paper,market=None):
             if sym:
                 date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
                 startdate = latest_date
-                if latest_date:
-                    next_update = latest_date+datetime.timedelta(seconds=GetUpdateFrequency())
-                    if datetime.datetime.utcnow()<next_update:
-                        if (next_update-datetime.datetime.utcnow() < (datetime.timedelta(minutes=GetUpdateFrequency() / 4))):
-                            await asyncio.sleep((next_update-datetime.datetime.utcnow()).total_seconds())
-                        else: #when wait-time >90% return and wait for next cycle
-                            return False,None
-                else:
+                if not latest_date:
                     startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
                 if (not (sym.tradingstart and sym.tradingend))\
                 or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8))\
@@ -97,12 +91,13 @@ async def UpdateTicker(paper,market=None):
                                 df = pandas.DataFrame(data)
                                 pdata = df.dropna()
                                 try:
+                                    oldddate = sym.GetActDate()
                                     acnt = sym.AppendData(pdata)
                                     res = res or acnt>0
                                     database.session.add(sym)
                                     database.session.commit()
                                     if res: 
-                                        logging.info('onvista:'+sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' ('+str(sym.tradingend)+')')
+                                        logging.info('onvista:'+sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' from '+str(olddate)+' ('+str(sym.tradingend)+')')
                                     else:
                                         logging.info('onvista:'+sym.ticker+' no new data')
                                     updatetime = 10
@@ -131,3 +126,40 @@ async def SearchPaper(isin):
                 'type': instrument.type
             }
     return None
+class UpdateTickers(threading.Thread):
+    def __init__(self, papers, market) -> None:
+        super().__init__(name='Ticker-Update')
+        self.papers = papers
+        self.market = market
+        self.WaitTime = 1*60
+        self.start()
+    def run(self):
+        self.loop = asyncio.new_event_loop()
+        while True:
+            started = time.time()
+            try:
+                earliest = datetime.datetime.utcnow()
+                for paper in self.papers:
+                    if not 'internal_updated' in paper or paper['internal_updated'] == None: 
+                        epaper = paper
+                        break
+                    if paper['internal_updated']<earliest:
+                        earliest = paper['internal_updated']
+                        epaper = paper
+                res,till = self.loop.run_until_complete(UpdateTicker(epaper,self.market))
+                epaper['internal_updated'] = till
+            except BaseException as e:
+                logging.error(str(e))
+            time.sleep(self.WaitTime-(time.time()-started))
+def StartUpdate(papers,market):
+    UpdateTickers(papers,market).join()
+if __name__ == '__main__':
+    logging.root.setLevel(logging.DEBUG)
+    apaper = {
+        "isin": "DE0007037129",
+        "count": 0,
+        "price": 0,
+        "ticker": "RWE",
+        "name": "RWE Aktiengesellschaft"
+    }
+    StartUpdate([apaper],'gettex')
