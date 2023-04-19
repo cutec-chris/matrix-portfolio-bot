@@ -91,7 +91,7 @@ async def UpdateTicker(paper,market=None):
                                 df = pandas.DataFrame(data)
                                 pdata = df.dropna()
                                 try:
-                                    oldddate = sym.GetActDate()
+                                    olddate = sym.GetActDate()
                                     acnt = sym.AppendData(pdata)
                                     res = res or acnt>0
                                     database.session.add(sym)
