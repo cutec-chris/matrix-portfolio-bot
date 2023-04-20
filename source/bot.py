@@ -551,7 +551,7 @@ async def check_depot(depot,fast=False):
             if hasattr(depot,'market'): targetmarket = depot.market
             for sym in symbols:
                 for paper in shuffled_papers:
-                    if paper['isin'] == sym.isin:
+                    if paper['isin'] == sym.isin and sym.marketplace == targetmarket:
                         #Process strategy
                         if sym.currency and sym.currency != depot.currency:
                             df = sym.GetConvertedData(connection.session,(TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
@@ -561,6 +561,7 @@ async def check_depot(depot,fast=False):
                         ShouldSave = ShouldSave or ps
                         #ps = await ProcessIndicator(paper,depot,df)
                         #ShouldSave = ShouldSave or ps
+                        break
             if new_bars:
                 last_processed_minute_bar_id = max([minute_bar.max_id for minute_bar in new_bars])
             logging.info(depot.name+' finished updates '+str(datetime.datetime.now()))
