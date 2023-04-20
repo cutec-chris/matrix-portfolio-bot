@@ -541,6 +541,7 @@ async def check_depot(depot,fast=False):
         await ChangeDepotStatus(depot,'updating '+" ".join(check_status))
         next_minute = (next_minute + datetime.timedelta(minutes=1)).replace(second=0, microsecond=0)
         try:
+            """
             new_bars = connection.session.query(database.MinuteBar.symbol_id, database.sqlalchemy.func.max(database.MinuteBar.id).label("max_id")).filter(database.MinuteBar.id > last_processed_minute_bar_id).group_by(database.MinuteBar.symbol_id).all()
             symbols = [connection.session.query(database.Symbol).get(minute_bar.symbol_id) for minute_bar in new_bars]
             shuffled_papers = list(depot.papers)
@@ -551,7 +552,6 @@ async def check_depot(depot,fast=False):
                 for paper in shuffled_papers:
                     if paper['isin'] == sym.isin and sym.marketplace == targetmarket:
                         #Process strategy
-                        """
                         if sym.currency and sym.currency != depot.currency:
                             df = sym.GetConvertedData(connection.session,(TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
                         else:
@@ -559,13 +559,13 @@ async def check_depot(depot,fast=False):
                         await asyncio.sleep(0.1)
                         ps = await ProcessStrategy(paper,depot,df)
                         ShouldSave = ShouldSave or ps
-                        """
                         await asyncio.sleep(0.1)
                         #ps = await ProcessIndicator(paper,depot,df)
                         #ShouldSave = ShouldSave or ps
                         break
             if new_bars:
                 last_processed_minute_bar_id = max([minute_bar.max_id for minute_bar in new_bars])
+            """
             logging.info(depot.name+' finished updates '+str(datetime.datetime.now()))
         except BaseException as e:
             logging.error(depot.name+' '+str(e))
@@ -633,7 +633,7 @@ async def startup(room):
     for server in servers:
         if server.room == room:
             if not hasattr(server,'market'): setattr(server,'market',None)
-            #loop.create_task(check_depot(server))
+            loop.create_task(check_depot(server))
 @bot.listener.on_message_event
 async def bot_help(room, message):
     bot_help_message = f"""
