@@ -142,8 +142,8 @@ class UpdateTickers(threading.Thread):
     def run(self):
         self.loop = asyncio.new_event_loop()
         self.connection = database.Connection()
+        internal_updated = {}
         while True:
-            internal_updated = {}
             started = time.time()
             try:
                 earliest = datetime.datetime.now()
