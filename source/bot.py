@@ -634,6 +634,7 @@ except BaseException as e:
 @bot.listener.on_startup
 async def startup(room):
     global loop,servers
+    loop = asyncio.get_running_loop()
     for server in servers:
         if server.room == room:
             if not hasattr(server,'market'): setattr(server,'market',None)
