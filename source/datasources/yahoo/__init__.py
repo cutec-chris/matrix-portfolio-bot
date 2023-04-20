@@ -155,6 +155,7 @@ class UpdateTickers(threading.Thread):
             started = time.time()
             try:
                 earliest = datetime.datetime.now()
+                epaper = None
                 for paper in self.papers:
                     if internal_updated.get(paper['isin']) == None: 
                         epaper = paper
@@ -162,7 +163,7 @@ class UpdateTickers(threading.Thread):
                     if internal_updated.get(paper['isin'])<earliest:
                         earliest = internal_updated.get(paper['isin'])
                         epaper = paper
-                if not internal_updated.get(paper['isin']) or internal_updated.get(paper['isin']) < datetime.datetime.now()-datetime.timedelta(seconds=self.Delay):
+                if epaper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin']) < datetime.datetime.now()-datetime.timedelta(seconds=self.Delay)):
                     res,till = self.loop.run_until_complete(UpdateTicker(epaper,self.market,self.connection))
                     if not till: till = datetime.datetime.now()
                     internal_updated[paper['isin']] = till
