@@ -551,6 +551,7 @@ async def check_depot(depot,fast=False):
                 for paper in shuffled_papers:
                     if paper['isin'] == sym.isin and sym.marketplace == targetmarket:
                         #Process strategy
+                        """
                         if sym.currency and sym.currency != depot.currency:
                             df = sym.GetConvertedData(connection.session,(TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
                         else:
@@ -558,6 +559,7 @@ async def check_depot(depot,fast=False):
                         await asyncio.sleep(0.1)
                         ps = await ProcessStrategy(paper,depot,df)
                         ShouldSave = ShouldSave or ps
+                        """
                         await asyncio.sleep(0.1)
                         #ps = await ProcessIndicator(paper,depot,df)
                         #ShouldSave = ShouldSave or ps
@@ -604,7 +606,8 @@ try:
             datasources.append(module)
             if hasattr(mod_,'StartUpdate'):
                 for server in servers:
-                    mod_.StartUpdate(server.papers,server.market,server.name)
+                    #mod_.StartUpdate(server.papers,server.market,server.name)
+                    pass
         except BaseException as e:
             logging.error(folder.name+':Failed to import datasource:'+str(e))
     logging.info('loading strategys...')
