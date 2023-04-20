@@ -140,14 +140,14 @@ async def SearchPaper(isin):
                 return data['quotes'][0]
     return None
 class UpdateTickers:
-    def __init__(self, papers, market,name, delay=0) -> None:
+    def __init__(self, papers, market,name, delay=0,connection=None) -> None:
         self.papers = papers
         self.market = market
         self.WaitTime = 60/3
         self.Delay = delay
+        self.connection = connection
     async def run(self):
         internal_updated = {}
-        self.connection = database.Connection()
         while True:
             started = time.time()
             try:
@@ -168,8 +168,8 @@ class UpdateTickers:
                 logging.error(str(e))
             if self.WaitTime-(time.time()-started) > 0:
                 await asyncio.sleep(self.WaitTime-(time.time()-started))
-async def StartUpdate(papers,market,name):
-    await UpdateTickers(papers,market,name,60*60).run()
+async def StartUpdate(papers,market,name,connection):
+    await UpdateTickers(papers,market,name,0,connection).run()
 if __name__ == '__main__':
     logging.root.setLevel(logging.DEBUG)
     apaper = {

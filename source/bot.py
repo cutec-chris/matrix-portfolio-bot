@@ -638,7 +638,7 @@ async def startup(room):
             for datasource in datasources:
                 mod_ = datasource['mod']
                 if hasattr(mod_,'StartUpdate'):
-                    loop.create_task(mod_.StartUpdate(server.papers,server.market,server.name))
+                    loop.create_task(mod_.StartUpdate(server.papers,server.market,server.name,connection))
                     pass
 @bot.listener.on_message_event
 async def bot_help(room, message):
