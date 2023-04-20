@@ -139,18 +139,15 @@ async def SearchPaper(isin):
             if 'quotes' in data and len(data['quotes']) > 0:
                 return data['quotes'][0]
     return None
-class UpdateTickers(threading.Thread):
+class UpdateTickers:
     def __init__(self, papers, market,name, delay=0) -> None:
-        super().__init__(name='Ticker-Update yahoo-'+name)
         self.papers = papers
         self.market = market
         self.WaitTime = 60/3
         self.Delay = delay
-        self.start()
-    def run(self):
-        self.loop = asyncio.new_event_loop()
-        self.connection = database.Connection()
+    async def run(self):
         internal_updated = {}
+        self.connection = database.Connection()
         while True:
             started = time.time()
             try:
@@ -164,15 +161,15 @@ class UpdateTickers(threading.Thread):
                         earliest = internal_updated.get(paper['isin'])
                         epaper = paper
                 if epaper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin']) < datetime.datetime.now()-datetime.timedelta(seconds=self.Delay)):
-                    res,till = self.loop.run_until_complete(UpdateTicker(epaper,self.market,self.connection))
+                    res,till = await UpdateTicker(epaper,self.market,self.connection)
                     if not till: till = datetime.datetime.now()
                     internal_updated[paper['isin']] = till
             except BaseException as e:
                 logging.error(str(e))
             if self.WaitTime-(time.time()-started) > 0:
-                time.sleep(self.WaitTime-(time.time()-started))
-def StartUpdate(papers,market,name):
-    return UpdateTickers(papers,market,name)
+                await asyncio.sleep(self.WaitTime-(time.time()-started))
+async def StartUpdate(papers,market,name):
+    await UpdateTickers(papers,market,name,60*60).run()
 if __name__ == '__main__':
     logging.root.setLevel(logging.DEBUG)
     apaper = {

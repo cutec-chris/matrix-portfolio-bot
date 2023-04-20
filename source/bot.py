@@ -609,10 +609,6 @@ try:
                     'mod': mod_        
                 }
             datasources.append(module)
-            if hasattr(mod_,'StartUpdate'):
-                for server in servers:
-                    mod_.StartUpdate(server.papers,server.market,server.name)
-                    pass
         except BaseException as e:
             logging.error(folder.name+':Failed to import datasource:'+str(e))
     logging.info('loading strategys...')
@@ -639,6 +635,11 @@ async def startup(room):
         if server.room == room:
             if not hasattr(server,'market'): setattr(server,'market',None)
             loop.create_task(check_depot(server))
+            for datasource in datasources:
+                mod_ = datasource['mod']
+                if hasattr(mod_,'StartUpdate'):
+                    loop.create_task(mod_.StartUpdate(server.papers,server.market,server.name))
+                    pass
 @bot.listener.on_message_event
 async def bot_help(room, message):
     bot_help_message = f"""
