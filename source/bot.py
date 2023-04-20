@@ -326,7 +326,7 @@ async def tell(room, message):
                                             return None
                                             logging.warning('failed to process:'+str(e))
                                         return fpath
-                                    image_uri = await run_in_thread(process_cerebro(df,fpath))
+                                    image_uri = await process_cerebro(df,fpath)
                                     try:
                                         async with aiofiles.open(image_uri, 'rb') as tmpf:
                                             resp, maybe_keys = await bot.api.async_client.upload(tmpf,content_type='image/jpeg')
