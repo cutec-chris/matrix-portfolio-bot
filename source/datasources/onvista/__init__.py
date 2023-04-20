@@ -143,20 +143,21 @@ class UpdateTickers(threading.Thread):
         self.loop = asyncio.new_event_loop()
         self.connection = database.Connection()
         while True:
+            internal_updated = {}
             started = time.time()
             try:
                 earliest = datetime.datetime.now()
                 for paper in self.papers:
-                    if not 'internal_updated' in paper or paper['internal_updated'] == None: 
+                    if internal_updated.get(paper['isin']) == None: 
                         epaper = paper
                         break
-                    if paper['internal_updated']<earliest:
-                        earliest = paper['internal_updated']
+                    if internal_updated.get(paper['isin'])<earliest:
+                        earliest = internal_updated.get(paper['isin'])
                         epaper = paper
-                if not 'internal_updated' in paper or earliest < datetime.datetime.now()-datetime.timedelta(seconds=self.Delay):
+                if not internal_updated.get(paper['isin']) or internal_updated.get(paper['isin']) < datetime.datetime.now()-datetime.timedelta(seconds=self.Delay):
                     res,till = self.loop.run_until_complete(UpdateTicker(epaper,self.market,self.connection))
                     if not till: till = datetime.datetime.now()
-                    epaper['internal_updated'] = till
+                    internal_updated[paper['isin']] = till
             except BaseException as e:
                 logging.error(str(e))
             if self.WaitTime-(time.time()-started) > 0:
