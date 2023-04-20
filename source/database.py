@@ -1,6 +1,5 @@
-import sqlalchemy,pathlib,enum,datetime,pandas,asyncio,backtrader,logging,csv,io,re,threading
-from sqlalchemy.ext.declarative import declarative_base
-Base = declarative_base()
+import sqlalchemy,pathlib,enum,datetime,pandas,asyncio,backtrader,logging,csv,io,re,threading,sqlalchemy.orm
+Base = sqlalchemy.orm.declarative_base()
 class Depot(Base):
     __tablename__ = 'depot'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
@@ -383,7 +382,7 @@ class BotCerebro(backtrader.Cerebro):
 class Connection:
     def __init__(self, Data=pathlib.Path('.') / 'data' / 'database.db'):
         Data.parent.mkdir(parents=True,exist_ok=True)
-        self.dbEngine=sqlalchemy.create_engine('sqlite:///'+str(Data), poolclass=sqlalchemy.pool.StaticPool, connect_args={'timeout': 1}) 
+        self.dbEngine=sqlalchemy.create_async_engine('sqlite+aiosqlite:///'+str(Data), connect_args={'timeout': 1}) 
         session_factory = sqlalchemy.orm.sessionmaker(bind=self.dbEngine)
         self.Session = sqlalchemy.orm.scoped_session(session_factory)
         conn = self.dbEngine.connect()
