@@ -536,8 +536,10 @@ async def check_depot(depot,fast=False):
     check_status = []
     next_minute = datetime.datetime.now()
     while True:
-        logging.info(depot.name+' starting updates for '+depot.name)
+        logging.info(depot.name+' starting updates '+str(datetime.datetime.now()))
         check_status.append(depot.name)
+        TillUpdated = None
+        ShouldSave = False
         await ChangeDepotStatus(depot,'updating '+" ".join(check_status))
         next_minute = (next_minute + datetime.timedelta(minutes=1)).replace(second=0, microsecond=0)
         try:
@@ -560,8 +562,8 @@ async def check_depot(depot,fast=False):
                         #ps = await ProcessIndicator(paper,depot,df)
                         #ShouldSave = ShouldSave or ps
             if new_bars:
-                last_processed_minute_bar_id = max([minute_bar.max_id for minute_bar in new_minute_bars])
-            logging.info(depot.name+' finished updates for '+datasource['name'])
+                last_processed_minute_bar_id = max([minute_bar.max_id for minute_bar in new_bars])
+            logging.info(depot.name+' finished updates '+str(datetime.datetime.now()))
         except BaseException as e:
             logging.error(depot.name+' '+str(e))
         check_status.remove(depot.name)
@@ -571,7 +573,7 @@ async def check_depot(depot,fast=False):
             await ChangeDepotStatus(depot,'updating '+" ".join(check_status))
         if ShouldSave: 
             await save_servers()
-        wait_time = (next_minute - now).total_seconds()
+        wait_time = (next_minute - datetime.datetime.now()).total_seconds()
         if wait_time<0: wait_time = 0.05
         await asyncio.sleep(wait_time)
 datasources = []
