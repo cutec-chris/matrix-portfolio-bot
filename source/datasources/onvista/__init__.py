@@ -1,13 +1,13 @@
 import pathlib,sys;sys.path.append(str(pathlib.Path(__file__).parent.parent.parent))
 import sys,pathlib;sys.path.append(str(pathlib.Path(__file__).parent / 'pyonvista' / 'src'))
 import pyonvista,asyncio,aiohttp,datetime,pytz,time,logging,database,pandas,json,aiofiles,datetime,sqlalchemy,threading
-async def UpdateTicker(paper,market=None,connection=database.Connection()):
+async def UpdateTicker(paper,market=None):
     started = time.time()
     updatetime = 0.5
     res = False
     olddate = None
     try:
-        sym = connection.FindSymbol(paper,market)
+        sym = await database.FindSymbol(paper,market)
         if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
             res = await SearchPaper(paper['isin'])
             if res:
@@ -31,13 +31,15 @@ async def UpdateTicker(paper,market=None,connection=database.Connection()):
                     sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)
                     sym.tradingend = datetime.datetime.now().replace(hour=21,minute=0)
                 try:
-                    connection.session.add(sym)
-                    connection.session.commit()
+                    database.session.add(sym)
+                    database.session.commit()
                 except BaseException as e:
                     logging.warning('failed writing to db:'+str(e))
                     conection.session.rollback()
             if sym:
-                date_entry,latest_date = connection.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
+                async with database.new_session() as session, session.begin():
+                    query = session.query(database.MinuteBar, func.max(database.MinuteBar.date)).filter(database.MinuteBar.symbol == sym).first()
+                    date_entry,latest_date = query
                 startdate = latest_date
                 if not latest_date:
                     startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
@@ -95,8 +97,8 @@ async def UpdateTicker(paper,market=None,connection=database.Connection()):
                                 df = pandas.DataFrame(data)
                                 pdata = df.dropna()
                                 try:
-                                    olddate = sym.GetActDate(connection.session)
-                                    acnt = sym.AppendData(connection.session, pdata)
+                                    olddate = sym.GetActDate()
+                                    acnt = sym.AppendData(pdata)
                                     res = res or acnt>0
                                     connection.session.add(sym)
                                     connection.session.commit()
@@ -132,12 +134,11 @@ async def SearchPaper(isin):
             }
     return None
 class UpdateTickers:
-    def __init__(self, papers, market,name, delay=0,connection=None) -> None:
+    def __init__(self, papers, market,name, delay=0) -> None:
         self.papers = papers
         self.market = market
         self.WaitTime = 60/3
         self.Delay = delay
-        self.connection = connection
     async def run(self):
         internal_updated = {}
         while True:
@@ -153,15 +154,15 @@ class UpdateTickers:
                         earliest = internal_updated.get(paper['isin'])
                         epaper = paper
                 if epaper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin']) < datetime.datetime.now()-datetime.timedelta(seconds=self.Delay)):
-                    res,till = await UpdateTicker(epaper,self.market,self.connection)
+                    res,till = await UpdateTicker(epaper,self.market)
                     if not till: till = datetime.datetime.now()
                     internal_updated[paper['isin']] = till
             except BaseException as e:
                 logging.error(str(e))
             if self.WaitTime-(time.time()-started) > 0:
                 await asyncio.sleep(self.WaitTime-(time.time()-started))
-async def StartUpdate(papers,market,name,connection):
-    await UpdateTickers(papers,market,name,60*60,connection).run()
+async def StartUpdate(papers,market,name):
+    await UpdateTickers(papers,market,name,60*60).run()
 if __name__ == '__main__':
     logging.root.setLevel(logging.DEBUG)
     apaper = {
@@ -171,4 +172,4 @@ if __name__ == '__main__':
         "ticker": "RWE",
         "name": "RWE Aktiengesellschaft"
     }
-    StartUpdate([apaper],'gettex').join()
+    asyncio.run(StartUpdate([apaper],'gettex',''))
