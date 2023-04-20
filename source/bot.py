@@ -430,10 +430,8 @@ async def ProcessStrategy(paper,depot,data):
     if cerebro and isinstance(data, pandas.DataFrame) and cerebro and not data.empty:
         logging.info(str(depot.name)+': processing ticker '+paper['ticker']+' till '+str(data.index[-1]))
         try:
-            def run_cerebro():
-                cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
-                cerebro.run()
-            await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
+            cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
+            cerebro.run()
         except BaseException as e:
             logging.error(str(e))
             return False
@@ -557,8 +555,10 @@ async def check_depot(depot,fast=False):
                             df = sym.GetConvertedData(connection.session,(TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
                         else:
                             df = sym.GetData(connection.session,(TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
+                        await asyncio.sleep(0.1)
                         ps = await ProcessStrategy(paper,depot,df)
                         ShouldSave = ShouldSave or ps
+                        await asyncio.sleep(0.1)
                         #ps = await ProcessIndicator(paper,depot,df)
                         #ShouldSave = ShouldSave or ps
                         break
@@ -575,7 +575,7 @@ async def check_depot(depot,fast=False):
         if ShouldSave: 
             await save_servers()
         wait_time = (next_minute - datetime.datetime.now()).total_seconds()
-        if wait_time<0: wait_time = 0.05
+        if wait_time<0: wait_time = 1
         await asyncio.sleep(wait_time)
 datasources = []
 strategies = []
