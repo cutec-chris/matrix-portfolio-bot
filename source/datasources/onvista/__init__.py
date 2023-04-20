@@ -27,6 +27,9 @@ async def UpdateTicker(paper,market=None,connection=database.Connection()):
                 if market == 'gettex':
                     sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)
                     sym.tradingend = datetime.datetime.now().replace(hour=21,minute=0)
+                else:
+                    sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)
+                    sym.tradingend = datetime.datetime.now().replace(hour=21,minute=0)
                 try:
                     connection.session.add(sym)
                     connection.session.commit()
