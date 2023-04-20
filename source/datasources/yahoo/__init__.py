@@ -6,13 +6,16 @@ async def UpdateTicker(paper,market=None,connection=database.Connection()):
     def extract_trading_times(metadata):
         try:
             timezone = metadata['regular']['timezone']
+            if timezone == 'CEST': timezone = 'Europe/Berlin'
+            if timezone == 'EDT': timezone = 'America/New_York'
+            if timezone == 'CDT': timezone = 'America/Chicago'
             # Convert the timezone information to UTC
             utc = pytz.timezone('UTC')
             local_tz = pytz.timezone(timezone)
             start_time = datetime.datetime.fromtimestamp(metadata['pre']['start'], local_tz)
             end_time = datetime.datetime.fromtimestamp(metadata['post']['end'], local_tz)
             return start_time, end_time
-        except:
+        except BaseException as e:
             return None,None
     started = time.time()
     updatetime = 0.5
@@ -107,6 +110,8 @@ async def UpdateTicker(paper,market=None,connection=database.Connection()):
                                             except BaseException as e:
                                                 logging.warning('failed writing to db:'+str(e))
                                                 connection.session.rollback()
+                                        else:
+                                            logging.info('yahoo:'+sym.ticker+' no new data')
                         startdate += datetime.timedelta(days=59)
                 except BaseException as e:
                     logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
@@ -139,7 +144,7 @@ class UpdateTickers(threading.Thread):
         super().__init__(name='Ticker-Update yahoo-'+name)
         self.papers = papers
         self.market = market
-        self.WaitTime = 15*60
+        self.WaitTime = 60/3
         self.Delay = delay
         self.start()
     def run(self):
