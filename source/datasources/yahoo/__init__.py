@@ -169,7 +169,7 @@ class UpdateTickers:
             if self.WaitTime-(time.time()-started) > 0:
                 await asyncio.sleep(self.WaitTime-(time.time()-started))
 async def StartUpdate(papers,market,name,connection):
-    await UpdateTickers(papers,market,name,0,connection).run()
+    await UpdateTickers(papers,market,name,15*60,connection).run()
 if __name__ == '__main__':
     logging.root.setLevel(logging.DEBUG)
     apaper = {
