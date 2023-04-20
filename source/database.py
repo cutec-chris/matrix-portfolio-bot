@@ -383,7 +383,7 @@ class BotCerebro(backtrader.Cerebro):
 class Connection:
     def __init__(self, Data=pathlib.Path('.') / 'data' / 'database.db'):
         Data.parent.mkdir(parents=True,exist_ok=True)
-        self.dbEngine=sqlalchemy.create_engine('sqlite:///'+str(Data), poolclass=sqlalchemy.pool.StaticPool) 
+        self.dbEngine=sqlalchemy.create_engine('sqlite:///'+str(Data), poolclass=sqlalchemy.pool.StaticPool, connect_args={'timeout': 5}) 
         session_factory = sqlalchemy.orm.sessionmaker(bind=self.dbEngine)
         self.Session = sqlalchemy.orm.scoped_session(session_factory)
         conn = self.dbEngine.connect()
