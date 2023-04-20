@@ -633,7 +633,7 @@ async def startup(room):
     for server in servers:
         if server.room == room:
             if not hasattr(server,'market'): setattr(server,'market',None)
-            loop.create_task(check_depot(server))
+            #loop.create_task(check_depot(server))
 @bot.listener.on_message_event
 async def bot_help(room, message):
     bot_help_message = f"""
