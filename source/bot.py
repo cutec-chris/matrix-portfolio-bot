@@ -611,7 +611,7 @@ try:
             datasources.append(module)
             if hasattr(mod_,'StartUpdate'):
                 for server in servers:
-                    #mod_.StartUpdate(server.papers,server.market,server.name)
+                    mod_.StartUpdate(server.papers,server.market,server.name)
                     pass
         except BaseException as e:
             logging.error(folder.name+':Failed to import datasource:'+str(e))
