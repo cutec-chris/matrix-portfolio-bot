@@ -158,6 +158,7 @@ class UpdateTickers(threading.Thread):
                         epaper = paper
                 if not 'internal_updated' in paper or earliest < datetime.datetime.now()-datetime.timedelta(seconds=self.Delay):
                     res,till = self.loop.run_until_complete(UpdateTicker(epaper,self.market,self.connection))
+                    if not till: till = datetime.datetime.now()
                     epaper['internal_updated'] = till
             except BaseException as e:
                 logging.error(str(e))
