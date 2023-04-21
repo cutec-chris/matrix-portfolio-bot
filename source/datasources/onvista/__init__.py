@@ -6,107 +6,106 @@ async def UpdateTicker(paper,market=None):
     updatetime = 0.5
     res = False
     olddate = None
-    async with database.new_session() as session:
+    async with database.new_session() as session,session.begin():
         try:
-            async with session.begin():
-                sym = await database.FindSymbol(session,paper,market)
-                if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
-                    res = await SearchPaper(paper['isin'])
-                    if res:
-                        paper['ticker'] = res['symbol']
-                        if 'longname' in res:
-                            paper['name'] = res['longname']
-                        elif 'shortname' in res:
-                            paper['name'] = res['shortname']
+            sym = await database.FindSymbol(session,paper,market)
+            if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
+                res = await SearchPaper(paper['isin'])
+                if res:
+                    paper['ticker'] = res['symbol']
+                    if 'longname' in res:
+                        paper['name'] = res['longname']
+                    elif 'shortname' in res:
+                        paper['name'] = res['shortname']
+                else:
+                    logging.warning('paper '+paper['isin']+' not found !')
+                    return False,None
+            if 'ticker' in paper and paper['ticker']:
+                startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
+                if sym == None and res:
+                    #initial download
+                    sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=database.Market[res['type'].lower()],marketplace=market,active=True)
+                    if market == 'gettex':
+                        sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)
+                        sym.tradingend = datetime.datetime.now().replace(hour=21,minute=0)
                     else:
-                        logging.warning('paper '+paper['isin']+' not found !')
-                        return False,None
-                if 'ticker' in paper and paper['ticker']:
-                    startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
-                    if sym == None and res:
-                        #initial download
-                        sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=database.Market[res['type'].lower()],marketplace=market,active=True)
-                        if market == 'gettex':
-                            sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)
-                            sym.tradingend = datetime.datetime.now().replace(hour=21,minute=0)
-                        else:
-                            sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)
-                            sym.tradingend = datetime.datetime.now().replace(hour=21,minute=0)
+                        sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)
+                        sym.tradingend = datetime.datetime.now().replace(hour=21,minute=0)
+                        try:
+                            session.add(sym)
+                            await session.commit()
+                        except BaseException as e:
+                            logging.warning('failed writing to db:'+str(e))
+                if sym:
+                    result = await session.execute(sqlalchemy.select(database.MinuteBar, sqlalchemy.func.max(database.MinuteBar.date)).where(database.MinuteBar.symbol == sym))
+                    date_entry, latest_date = result.fetchone()
+                    startdate = latest_date
+                    if not latest_date:
+                        startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
+                    if (not (sym.tradingstart and sym.tradingend))\
+                    or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8))\
+                    or sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time():
+                        client = aiohttp.ClientSession()
+                        api = pyonvista.PyOnVista()
+                        await api.install_client(client)
+                        async with client:
+                            i = pyonvista.api.Instrument()
+                            i.type=str(sym.market).upper()[7:]
+                            i.isin = paper['isin']
+                            i.notations = []
                             try:
-                                session.add(sym)
-                                await session.commit()
-                            except BaseException as e:
-                                logging.warning('failed writing to db:'+str(e))
-                    if sym:
-                        result = await session.execute(sqlalchemy.select(database.MinuteBar, sqlalchemy.func.max(database.MinuteBar.date)).where(database.MinuteBar.symbol == sym))
-                        date_entry, latest_date = result.fetchone()
-                        startdate = latest_date
-                        if not latest_date:
-                            startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
-                        if (not (sym.tradingstart and sym.tradingend))\
-                        or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8))\
-                        or sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time():
-                            client = aiohttp.ClientSession()
-                            api = pyonvista.PyOnVista()
-                            await api.install_client(client)
-                            async with client:
-                                i = pyonvista.api.Instrument()
-                                i.type=str(sym.market).upper()[7:]
-                                i.isin = paper['isin']
-                                i.notations = []
+                                instrument = await api.request_instrument(isin=paper['isin'],instrument=i)
+                            except:
                                 try:
+                                    res = await SearchPaper(paper['isin'])
+                                    sym.market=database.Market[res['type'].lower()]
+                                    i.type=str(sym.market).upper()[7:]
                                     instrument = await api.request_instrument(isin=paper['isin'],instrument=i)
                                 except:
+                                    return False,None
+                            t_market = None
+                            if market:
+                                for m in instrument.notations:
+                                    if m.market.name == market:
+                                        t_market = m
+                                        break
+                            while startdate.date() <= datetime.datetime.utcnow().date():
+                                todate = startdate+datetime.timedelta(days=7)
+                                if todate>datetime.datetime.now():
+                                    todate = None
+                                quotes = await api.request_quotes(instrument,notation=t_market,start=startdate,end=todate)
+                                if len(quotes)>0:
+                                    data = [
+                                        {
+                                            'Datetime': quote.timestamp,
+                                            'Open': quote.open,
+                                            'High': quote.high,
+                                            'Low': quote.low,
+                                            'Close': quote.close,
+                                            'Volume': quote.volume,
+                                            'Pieces': quote.pieces,
+                                        }
+                                        for quote in quotes
+                                    ]
+                                    updatetime = 5
+                                    # Erstellen des DataFrames aus der Liste von Dictionaries
+                                    df = pandas.DataFrame(data)
+                                    pdata = df.dropna()
                                     try:
-                                        res = await SearchPaper(paper['isin'])
-                                        sym.market=database.Market[res['type'].lower()]
-                                        i.type=str(sym.market).upper()[7:]
-                                        instrument = await api.request_instrument(isin=paper['isin'],instrument=i)
-                                    except:
-                                        return False,None
-                                t_market = None
-                                if market:
-                                    for m in instrument.notations:
-                                        if m.market.name == market:
-                                            t_market = m
-                                            break
-                                while startdate.date() <= datetime.datetime.utcnow().date():
-                                    todate = startdate+datetime.timedelta(days=7)
-                                    if todate>datetime.datetime.now():
-                                        todate = None
-                                    quotes = await api.request_quotes(instrument,notation=t_market,start=startdate,end=todate)
-                                    if len(quotes)>0:
-                                        data = [
-                                            {
-                                                'Datetime': quote.timestamp,
-                                                'Open': quote.open,
-                                                'High': quote.high,
-                                                'Low': quote.low,
-                                                'Close': quote.close,
-                                                'Volume': quote.volume,
-                                                'Pieces': quote.pieces,
-                                            }
-                                            for quote in quotes
-                                        ]
-                                        updatetime = 5
-                                        # Erstellen des DataFrames aus der Liste von Dictionaries
-                                        df = pandas.DataFrame(data)
-                                        pdata = df.dropna()
-                                        try:
-                                            olddate = await sym.GetActDate(session)
-                                            acnt = await sym.AppendData(session,pdata)
-                                            res = res or acnt>0
-                                            session.add(sym)
-                                            await session.commit()
-                                            if res: 
-                                                olddate = pdata['Datetime'].iloc[-1]
-                                                logging.info('onvista:'+paper['ticker']+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' from '+str(olddate))
-                                            else:
-                                                logging.info('onvista:'+paper['ticker']+' no new data')
-                                            updatetime = 10
-                                        except BaseException as e:
-                                            logging.warning('failed writing to db:'+str(e))
-                                    startdate += datetime.timedelta(days=7)
+                                        olddate = await sym.GetActDate(session)
+                                        acnt = await sym.AppendData(session,pdata)
+                                        res = res or acnt>0
+                                        session.add(sym)
+                                        await session.commit()
+                                        if res: 
+                                            olddate = pdata['Datetime'].iloc[-1]
+                                            logging.info('onvista:'+paper['ticker']+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' from '+str(olddate))
+                                        else:
+                                            logging.info('onvista:'+paper['ticker']+' no new data')
+                                        updatetime = 10
+                                    except BaseException as e:
+                                        logging.warning('failed writing to db:'+str(e))
+                                startdate += datetime.timedelta(days=7)
         except BaseException as e:
             logging.error('onvista:'+'failed updating ticker %s: %s' % (str(paper['isin']),str(e)), exc_info=True)
         return res,olddate
