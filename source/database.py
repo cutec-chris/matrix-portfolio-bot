@@ -151,107 +151,99 @@ class Symbol(Base):
     tradingstart = sqlalchemy.Column(sqlalchemy.DateTime)
     tradingend = sqlalchemy.Column(sqlalchemy.DateTime)
     currency = sqlalchemy.Column(sqlalchemy.String(5), nullable=False)
-    async def AppendData(self, df):
-        async with new_session() as session:
-            res = 0
-            for index, row in df.iterrows():
-                date = row["Datetime"]
-                # Check if data for the date already exists
-                existing_data = await session.execute(sqlalchemy.select(MinuteBar).filter_by(symbol=self, date=date))
-                if existing_data.scalar():
-                    continue
-                # Add new data if it doesn't exist
-                session.add(MinuteBar(date=date, open=row["Open"], high=row["High"], low=row["Low"], close=row["Close"], volume=row["Volume"], symbol=self))
-                res += 1
-            await session.commit()
-            return res
-    async def GetData(self, start_date=None, end_date=None, timeframe='15m'):
-        async with new_session() as session, session.begin():
-            if timeframe == '15m':
-                aggregator_func = None
-            elif timeframe == '1h':
-                aggregator_func = sqlalchemy.func.strftime('%Y-%m-%d %H:00:00', MinuteBar.date)
-            elif timeframe == '1d':
-                aggregator_func = sqlalchemy.func.strftime('%Y-%m-%d', MinuteBar.date)
-            else:
-                raise ValueError(f'Unsupported timeframe: {timeframe}')
-            query = sqlalchemy.select(MinuteBar)
-            query = query.filter_by(symbol=self)
+    async def AppendData(self,session, df):
+        res = 0
+        for index, row in df.iterrows():
+            date = row["Datetime"]
+            # Check if data for the date already exists
+            existing_data = await session.execute(sqlalchemy.select(MinuteBar).filter_by(symbol=self, date=date))
+            if existing_data.scalar():
+                continue
+            # Add new data if it doesn't exist
+            session.add(MinuteBar(date=date, open=row["Open"], high=row["High"], low=row["Low"], close=row["Close"], volume=row["Volume"], symbol=self))
+            res += 1
+        return res
+    async def GetData(self,session, start_date=None, end_date=None, timeframe='15m'):
+        if timeframe == '15m':
+            aggregator_func = None
+        elif timeframe == '1h':
+            aggregator_func = sqlalchemy.func.strftime('%Y-%m-%d %H:00:00', MinuteBar.date)
+        elif timeframe == '1d':
+            aggregator_func = sqlalchemy.func.strftime('%Y-%m-%d', MinuteBar.date)
+        else:
+            raise ValueError(f'Unsupported timeframe: {timeframe}')
+        query = sqlalchemy.select(MinuteBar)
+        query = query.filter_by(symbol=self)
+        if start_date:
+            query = query.filter(MinuteBar.date >= start_date)
+        if end_date:
+            query = query.filter(MinuteBar.date <= end_date)
+        query = query.order_by(MinuteBar.date)
+        if timeframe != '15m':
+            query = sqlalchemy.select(
+                aggregator_func.label('Datetime'),
+                sqlalchemy.func.min(MinuteBar.low).label('Low'),
+                sqlalchemy.func.max(MinuteBar.high).label('High'),
+                sqlalchemy.func.first_value(MinuteBar.open).over(order_by=MinuteBar.date).label('Open'),
+                sqlalchemy.func.last_value(MinuteBar.close).over(order_by=MinuteBar.date).label('Close'),
+                sqlalchemy.func.sum(MinuteBar.volume).label('Volume')
+            ).filter_by(symbol=self)
             if start_date:
                 query = query.filter(MinuteBar.date >= start_date)
             if end_date:
                 query = query.filter(MinuteBar.date <= end_date)
-            query = query.order_by(MinuteBar.date)
-            if timeframe != '15m':
-                query = sqlalchemy.select(
-                    aggregator_func.label('Datetime'),
-                    sqlalchemy.func.min(MinuteBar.low).label('Low'),
-                    sqlalchemy.func.max(MinuteBar.high).label('High'),
-                    sqlalchemy.func.first_value(MinuteBar.open).over(order_by=MinuteBar.date).label('Open'),
-                    sqlalchemy.func.last_value(MinuteBar.close).over(order_by=MinuteBar.date).label('Close'),
-                    sqlalchemy.func.sum(MinuteBar.volume).label('Volume')
-                ).filter_by(symbol=self)
-                if start_date:
-                    query = query.filter(MinuteBar.date >= start_date)
-                if end_date:
-                    query = query.filter(MinuteBar.date <= end_date)
-                query = query.group_by('Datetime').order_by('Datetime')
-                result = await session.execute(query)
-                df = pandas.DataFrame(result.all(), columns=["Datetime", "Low", "High", "Open", "Close", "Volume"])
-                df['Datetime'] = pandas.to_datetime(df['Datetime'])
-            else:
-                result = await session.execute(query)
-                df = pandas.DataFrame(result.all(), columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
-            df.set_index("Datetime", inplace=True)
-            return df
-    async def GetConvertedData(self, start_date=None, end_date=None, TargetCurrency=None, timeframe='15m'):
-        async with new_session() as session, session.begin():
-            excs = await session.execute(
-                sqlalchemy.select(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency, self.currency)).limit(1)
-            )
-            excs = excs.scalar_one_or_none()
-            data = await self.GetData(start_date=start_date, end_date=end_date, timeframe=timeframe)
-            if excs:
-                exc = await excs.GetData(start_date=start_date, end_date=end_date, timeframe=timeframe)
-                if not exc.empty:
-                    async with session.begin():
-                        for index, row in data.iterrows():
-                            # Den nächsten verfügbaren Wechselkurs suchen
-                            if not exc.loc[exc.index >= index].empty:
-                                exc_next = exc.loc[exc.index >= index].iloc[0]
-                            else:
-                                exc_next = exc.iloc[0]
-                            # Umgerechnete Preise für diesen Zeitstempel berechnen
-                            row['Open'] = row['Open'] / exc_next['Close']
-                            row['High'] = row['High'] / exc_next['Close']
-                            row['Low'] = row['Low'] / exc_next['Close']
-                            row['Close'] = row['Close'] / exc_next['Close']
-            elif TargetCurrency == self.currency:
-                data = await self.GetData(session, start_date=start_date, end_date=end_date, timeframe=timeframe)
-            return data
+            query = query.group_by('Datetime').order_by('Datetime')
+            result = await session.execute(query)
+            df = pandas.DataFrame(result.all(), columns=["Datetime", "Low", "High", "Open", "Close", "Volume"])
+            df['Datetime'] = pandas.to_datetime(df['Datetime'])
+        else:
+            result = await session.execute(query)
+            df = pandas.DataFrame(result.all(), columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
+        df.set_index("Datetime", inplace=True)
+        return df
+    async def GetConvertedData(self,session, start_date=None, end_date=None, TargetCurrency=None, timeframe='15m'):
+        excs = await session.execute(sqlalchemy.select(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency, self.currency)).limit(1))
+        excs = excs.scalar_one_or_none()
+        data = await self.GetData(session,start_date=start_date, end_date=end_date, timeframe=timeframe)
+        if excs:
+            exc = await excs.GetData(session,start_date=start_date, end_date=end_date, timeframe=timeframe)
+            if not exc.empty:
+                async with session.begin():
+                    for index, row in data.iterrows():
+                        # Den nächsten verfügbaren Wechselkurs suchen
+                        if not exc.loc[exc.index >= index].empty:
+                            exc_next = exc.loc[exc.index >= index].iloc[0]
+                        else:
+                            exc_next = exc.iloc[0]
+                        # Umgerechnete Preise für diesen Zeitstempel berechnen
+                        row['Open'] = row['Open'] / exc_next['Close']
+                        row['High'] = row['High'] / exc_next['Close']
+                        row['Low'] = row['Low'] / exc_next['Close']
+                        row['Close'] = row['Close'] / exc_next['Close']
+        elif TargetCurrency == self.currency:
+            data = await self.GetData(session, start_date=start_date, end_date=end_date, timeframe=timeframe)
+        return data
     async def GetDataHourly(self,session, start_date=None, end_date=None, TargetCurrency=None):
         return self.GetConvertedData(start_date,end_date, TargetCurrency, timeframe='1h')
-    async def GetActPrice(self, TargetCurrency=None):
-        async with new_session() as session, session.begin():
-            last_minute_bar = (await session.execute(sqlalchemy.select(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()))).scalars().first()
-            if TargetCurrency:
-                excs = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency,self.currency)))).scalars().first()
-                if excs:
-                    last_minute_bar.close = last_minute_bar.close / (await excs.GetActPrice(TargetCurrency))
-                elif self.currency and (TargetCurrency != self.currency):
-                    return 0
-            if last_minute_bar:
-                return last_minute_bar.close
-            else:
+    async def GetActPrice(self,session, TargetCurrency=None):
+        last_minute_bar = (await session.execute(sqlalchemy.select(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()))).scalars().first()
+        if TargetCurrency:
+            excs = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency,self.currency)))).scalars().first()
+            if excs:
+                last_minute_bar.close = last_minute_bar.close / (await excs.GetActPrice(TargetCurrency))
+            elif self.currency and (TargetCurrency != self.currency):
                 return 0
-    async def GetActDate(self):
-        async with new_session() as session, session.begin():
-            last_minute_bar = (await session.execute(sqlalchemy.select(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()))).scalars().first()
-            if last_minute_bar:
-                return last_minute_bar.date
-            else:
-                return 0
-    async def GetTargetPrice(self, start_date=None, end_date=None):
+        if last_minute_bar:
+            return last_minute_bar.close
+        else:
+            return 0
+    async def GetActDate(self,session):
+        last_minute_bar = (await session.execute(sqlalchemy.select(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()))).scalars().first()
+        if last_minute_bar:
+            return last_minute_bar.date
+        else:
+            return 0
+    async def GetTargetPrice(self,session, start_date=None, end_date=None):
         if start_date is None:
             start_date = datetime.datetime.now() - datetime.timedelta(days=90)
         if end_date is None:
@@ -286,7 +278,7 @@ class Symbol(Base):
         rating_count_str = ", ".join(f"{k}: {v}" for k, v in rating_count.items())
         average_rating = total_rating / count
         return average_target_price, count, rating_count_str, average_rating
-    async def GetFairPrice(self, start_date=None, end_date=None):
+    async def GetFairPrice(self,session, start_date=None, end_date=None):
         if start_date is None:
             start_date = datetime.datetime.now() - datetime.timedelta(days=90)
         if end_date is None:
@@ -395,11 +387,10 @@ async def init_models():
 asyncio.run(init_models())
 def new_session():
     return sqlalchemy.orm.sessionmaker(bind=engine, class_=sqlalchemy.ext.asyncio.AsyncSession)()
-async def FindSymbol(paper,market=None):
-    async with new_session() as session, session.begin():
-        if 'isin' in paper and paper['isin']:
-            sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin'],marketplace=market).limit(1))).scalars().one()
-        elif 'ticker' in paper and paper['ticker']:
-            sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker=paper['ticker'],marketplace=market))).scalars().one()
-        else: sym = None
-        return sym
+async def FindSymbol(session,paper,market=None):
+    if 'isin' in paper and paper['isin']:
+        sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin'],marketplace=market).limit(1))).scalars().one()
+    elif 'ticker' in paper and paper['ticker']:
+        sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker=paper['ticker'],marketplace=market))).scalars().one()
+    else: sym = None
+    return sym
