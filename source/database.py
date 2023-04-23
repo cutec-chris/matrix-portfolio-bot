@@ -210,18 +210,17 @@ class Symbol(Base):
         if excs:
             exc = await excs.GetData(session,start_date=start_date, end_date=end_date, timeframe=timeframe)
             if not exc.empty:
-                async with session.begin():
-                    for index, row in data.iterrows():
-                        # Den nächsten verfügbaren Wechselkurs suchen
-                        if not exc.loc[exc.index >= index].empty:
-                            exc_next = exc.loc[exc.index >= index].iloc[0]
-                        else:
-                            exc_next = exc.iloc[0]
-                        # Umgerechnete Preise für diesen Zeitstempel berechnen
-                        row['Open'] = row['Open'] / exc_next['Close']
-                        row['High'] = row['High'] / exc_next['Close']
-                        row['Low'] = row['Low'] / exc_next['Close']
-                        row['Close'] = row['Close'] / exc_next['Close']
+                for index, row in data.iterrows():
+                    # Den nächsten verfügbaren Wechselkurs suchen
+                    if not exc.loc[exc.index >= index].empty:
+                        exc_next = exc.loc[exc.index >= index].iloc[0]
+                    else:
+                        exc_next = exc.iloc[0]
+                    # Umgerechnete Preise für diesen Zeitstempel berechnen
+                    row['Open'] = row['Open'] / exc_next['Close']
+                    row['High'] = row['High'] / exc_next['Close']
+                    row['Low'] = row['Low'] / exc_next['Close']
+                    row['Close'] = row['Close'] / exc_next['Close']
         elif TargetCurrency == self.currency:
             data = await self.GetData(session, start_date=start_date, end_date=end_date, timeframe=timeframe)
         return data

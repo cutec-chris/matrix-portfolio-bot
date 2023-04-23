@@ -1,6 +1,5 @@
 import pathlib,sys;sys.path.append(str(pathlib.Path(__file__).parent.parent.parent))
 import asyncio,aiohttp,csv,datetime,pytz,time,threading,concurrent.futures
-return
 import requests,pandas,pathlib,database,sqlalchemy.sql.expression,asyncio,logging,io
 UserAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.109 Safari/537.36'
 async def UpdateTicker(paper,market=None):
@@ -26,32 +25,31 @@ async def UpdateTicker(paper,market=None):
         try:
             sym = await database.FindSymbol(session,paper,market)
             if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
-                res = None
+                sres = None
                 if 'isin' in paper and paper['isin']:
-                    res = await SearchPaper(paper['isin'])
+                    sres = await SearchPaper(paper['isin'])
                 if not res and 'ticker' in paper and paper['ticker']:
-                    res = await SearchPaper(paper['ticker'])
-                if res:
-                    paper['ticker'] = res['symbol']
-                    if 'longname' in res:
-                        paper['name'] = res['longname']
-                    elif 'shortname' in res:
-                        paper['name'] = res['shortname']
+                    sres = await SearchPaper(paper['ticker'])
+                if sres:
+                    paper['ticker'] = sres['symbol']
+                    if 'longname' in sres:
+                        paper['name'] = sres['longname']
+                    elif 'shortname' in sres:
+                        paper['name'] = sres['shortname']
                 else:
                     logging.warning('paper '+paper['isin']+' not found !')
                     return False,None
             if 'ticker' in paper and paper['ticker']:
                 startdate = datetime.datetime.utcnow()-datetime.timedelta(days=365*3)
-                if sym == None and res:
+                if sym == None and sres:
                     #initial download
                     markett = database.Market.stock
-                    if res['quoteType'] == 'INDEX':
+                    if sres['quoteType'] == 'INDEX':
                         markett = database.Market.index
                         paper['isin'] = paper['ticker']
                     sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=markett,active=True)
                     try:
                         session.add(sym)
-                        await session.commit()
                     except BaseException as e:
                         logging.warning('failed writing to db:'+str(e))
                 if sym:
@@ -95,20 +93,19 @@ async def UpdateTicker(paper,market=None):
                                                     session.add(sym)
                                                     acnt = await sym.AppendData(session,pdata)
                                                     res = res or acnt>0
-                                                    await session.commit()
                                                     if res: 
                                                         logging.info('yahoo:'+paper['ticker']+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1]))
                                                         olddate = pdata['Datetime'].iloc[-1]
                                                     else:
                                                         logging.info('yahoo:'+paper['ticker']+' no new data')
                                                     updatetime = 10
-                                                    #res = True
                                                 except BaseException as e:
                                                     logging.warning('failed writing to db:'+str(e))
                                                     connection.session.rollback()
                                             else:
                                                 logging.info('yahoo:'+paper['ticker']+' no new data')
                             startdate += datetime.timedelta(days=59)
+                        await session.commit()
                     except BaseException as e:
                         logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
         except BaseException as e:

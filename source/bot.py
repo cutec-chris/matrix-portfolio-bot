@@ -1,5 +1,5 @@
 from init import *
-import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles,random,threading
+import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles,random,threading,backtests
 loop = None
 lastsend = None
 class Portfolio(Config):
@@ -57,8 +57,7 @@ async def tell(room, message):
                     for datasource in datasources:
                         if hasattr(datasource['mod'],'UpdateTicker'):
                             res,_ = await datasource['mod'].UpdateTicker(paper)
-                            if hasattr(depot,'datasource') and depot.datasource == datasource['name']:
-                                if res: break
+                            if res: break
                     if res: datafound = True
                     if not datafound:
                         await bot.api.send_text_message(room.room_id, 'no data avalible for symbol in (any) datasource, aborting...')
@@ -68,20 +67,35 @@ async def tell(room, message):
                     count = paper['lastcount']
                 if paper['count'] > 0:
                     paper['lastcount'] = paper['count']
-                db_depot = session.query(database.Depot).filter_by(room=depot.room,name=depot.name).first()
-                if not db_depot:
-                    db_depot = database.Depot(room=room.room_id, name=depot.name, taxCost=0, taxCostPercent=depot.taxCostPercent, tradingCost=depot.tradingCost, tradingCostPercent=depot.tradingCostPercent, currency=depot.currency, cash=0)
-                    session.add(db_depot)
-                sym = session.query(database.Symbol).filter_by(isin=match.args()[1],marketplace=depot.market).first()
-                db_position = session.query(database.Position).filter_by(isin=paper['isin'], depot_id=db_depot.id).first()
-                if not db_position:
-                    db_position = database.Position(depot_id=db_depot.id,
-                                        isin=paper['isin'],
-                                        shares=paper['count'],
-                                        price=paper['price'],
-                                        ticker='')
-                session.add(db_position)
-                session.commit()
+                async with database.new_session() as session,session.begin():
+                    db_depot = await session.scalars(sqlalchemy.select(database.Depot).filter_by(room=depot.room, name=depot.name))
+                    db_depot = db_depot.scalar_one_or_none()
+                    if not db_depot:
+                        db_depot = database.Depot(
+                            room=room.room_id,
+                            name=depot.name,
+                            taxCost=0,
+                            taxCostPercent=depot.taxCostPercent,
+                            tradingCost=depot.tradingCost,
+                            tradingCostPercent=depot.tradingCostPercent,
+                            currency=depot.currency,
+                            cash=0,
+                        )
+                        session.add(db_depot)
+                    sym = await session.execute(sqlalchemy.select(database.Symbol).filter_by(isin=match.args()[1], marketplace=depot.market))
+                    sym = sym.scalar_one_or_none()
+                    db_position = await session.execute(sqlalchemy.select(database.Position).filter_by(isin=paper["isin"], depot_id=db_depot.id))
+                    db_position = db_position.scalar_one_or_none()
+                    if not db_position:
+                        db_position = database.Position(
+                            depot_id=db_depot.id,
+                            isin=paper["isin"],
+                            shares=paper["count"],
+                            price=paper["price"],
+                            ticker="",
+                        )
+                    session.add(db_position)
+                    await session.commit()
                 for paper in depot.papers:
                     if paper['isin'] == match.args()[1]:
                         oldprice = float(paper['price'])
@@ -421,7 +435,7 @@ async def ProcessStrategy(paper,depot,data):
     elif hasattr(depot,'strategy'):
         strategy = depot.strategy
     for st in strategies:
-        if st['name'] == strategy:
+        if st['name'] in strategy:
             cerebro = database.BotCerebro()
             cerebro.broker.setcash(1000)
             cerebro.addsizer(backtrader.sizers.PercentSizer, percents=100)
@@ -431,7 +445,7 @@ async def ProcessStrategy(paper,depot,data):
         logging.info(str(depot.name)+': processing ticker '+paper['ticker']+' till '+str(data.index[-1]))
         try:
             cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
-            cerebro.run()
+            await backtests.run_backtest(cerebro)
         except BaseException as e:
             logging.error(str(e))
             return False
@@ -541,7 +555,7 @@ async def check_depot(depot,fast=False):
         await ChangeDepotStatus(depot,'updating '+" ".join(check_status))
         next_minute = (next_minute + datetime.timedelta(minutes=1)).replace(second=0, microsecond=0)
         try:
-            async with database.new_session() as session,session.begin():
+            async with database.new_session() as session:
                 query = sqlalchemy.select(database.MinuteBar.symbol_id, sqlalchemy.func.max(database.MinuteBar.id).label("max_id")).where(database.MinuteBar.id > last_processed_minute_bar_id).group_by(database.MinuteBar.symbol_id)
                 new_bars = await session.execute(query)
                 symbol_ids = [row[0] for row in new_bars]
