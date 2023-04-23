@@ -38,7 +38,7 @@ async def tell(room, message):
                     if paper['isin'] == match.args()[1]:
                         found = True
                         if not price:
-                            sym = connection.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
+                            sym = session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
                             if sym: 
                                 price = sym.GetActPrice(connection.session)
                             else:
@@ -68,20 +68,20 @@ async def tell(room, message):
                     count = paper['lastcount']
                 if paper['count'] > 0:
                     paper['lastcount'] = paper['count']
-                db_depot = connection.session.query(database.Depot).filter_by(room=depot.room,name=depot.name).first()
+                db_depot = session.query(database.Depot).filter_by(room=depot.room,name=depot.name).first()
                 if not db_depot:
                     db_depot = database.Depot(room=room.room_id, name=depot.name, taxCost=0, taxCostPercent=depot.taxCostPercent, tradingCost=depot.tradingCost, tradingCostPercent=depot.tradingCostPercent, currency=depot.currency, cash=0)
-                    connection.session.add(db_depot)
-                sym = connection.session.query(database.Symbol).filter_by(isin=match.args()[1],marketplace=depot.market).first()
-                db_position = connection.session.query(database.Position).filter_by(isin=paper['isin'], depot_id=db_depot.id).first()
+                    session.add(db_depot)
+                sym = session.query(database.Symbol).filter_by(isin=match.args()[1],marketplace=depot.market).first()
+                db_position = session.query(database.Position).filter_by(isin=paper['isin'], depot_id=db_depot.id).first()
                 if not db_position:
                     db_position = database.Position(depot_id=db_depot.id,
                                         isin=paper['isin'],
                                         shares=paper['count'],
                                         price=paper['price'],
                                         ticker='')
-                connection.session.add(db_position)
-                connection.session.commit()
+                session.add(db_position)
+                session.commit()
                 for paper in depot.papers:
                     if paper['isin'] == match.args()[1]:
                         oldprice = float(paper['price'])
@@ -97,9 +97,9 @@ async def tell(room, message):
                             paper['count'] = paper['count']+count
                             db_position.shares = paper['count']
                             db_position.price = paper['price']
-                            connection.session.add(db_position)
+                            session.add(db_position)
                             db_trade = database.Trade(position_id=db_position.id,shares=count, price=price,datetime=datetime.datetime.now())
-                            connection.session.add(db_trade)
+                            session.add(db_trade)
                         elif match.command("sell"):
                             if newprice>oldprice:
                                 newprice = oldprice
@@ -107,13 +107,13 @@ async def tell(room, message):
                             paper['count'] = paper['count']-count
                             db_position.shares = paper['count']
                             db_position.price = paper['price']
-                            connection.session.add(db_position)
+                            session.add(db_position)
                             db_trade = database.Trade(position_id=db_position.id,shares=-count, price=price,datetime=datetime.datetime.now())
-                            connection.session.add(db_trade)
+                            session.add(db_trade)
                         elif match.command("remove"):
                             depot.papers.remove(paper)
                         await save_servers()
-                        connection.session.commit()
+                        session.commit()
                         await bot.api.send_text_message(room.room_id, 'ok')
                         break
         elif (match.is_not_from_this_bot() and match.prefix())\
@@ -134,7 +134,7 @@ async def tell(room, message):
                 if len(match.args())>2: strategy = match.args()[2]
                 npaper = None
                 found = False
-                sym = connection.session.query(database.Symbol).filter_by(isin=match.args()[1],marketplace=depot.market).first()
+                sym = session.query(database.Symbol).filter_by(isin=match.args()[1],marketplace=depot.market).first()
                 if sym:
                     if sym.currency and sym.currency != depot.currency:
                         df = sym.GetConvertedData(connection.session,datetime.datetime.utcnow()-trange,None,depot.currency)
@@ -222,7 +222,7 @@ async def tell(room, message):
                         if paper['count'] > 0:
                             if not 'ticker' in paper: paper['ticker'] = ''
                             if not 'name' in paper: paper['name'] = paper['ticker']
-                            sym = connection.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
+                            sym = session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
                             if sym:
                                 actprice = sym.GetActPrice(connection.session,depot.currency)
                             else: 
@@ -261,7 +261,7 @@ async def tell(room, message):
                     async def overview_process(paper, depot, trange, style, bot):
                         if not 'ticker' in paper: paper['ticker'] = ''
                         if not 'name' in paper: paper['name'] = paper['ticker']
-                        sym = connection.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
+                        sym = session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
                         if sym:
                             df = sym.GetDataHourly(connection.session,datetime.datetime.utcnow()-trange)
                             await asyncio.sleep(0.05)
@@ -514,7 +514,7 @@ async def ChangeDepotStatus(depot,newstatus):
             sumprice = 0
             for paper in adepot.papers:
                 if paper['count'] > 0:
-                    sym = connection.session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
+                    sym = session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
                     if sym:
                         actprice = sym.GetActPrice(connection.session,depot.currency)
                     else: 
@@ -541,29 +541,35 @@ async def check_depot(depot,fast=False):
         await ChangeDepotStatus(depot,'updating '+" ".join(check_status))
         next_minute = (next_minute + datetime.timedelta(minutes=1)).replace(second=0, microsecond=0)
         try:
-            new_bars = connection.session.query(database.MinuteBar.symbol_id, database.sqlalchemy.func.max(database.MinuteBar.id).label("max_id")).filter(database.MinuteBar.id > last_processed_minute_bar_id).group_by(database.MinuteBar.symbol_id).all()
-            symbols = [connection.session.query(database.Symbol).get(minute_bar.symbol_id) for minute_bar in new_bars]
-            shuffled_papers = list(depot.papers)
-            random.shuffle(shuffled_papers)
-            targetmarket = None
-            if hasattr(depot,'market'): targetmarket = depot.market
-            for sym in symbols:
-                for paper in shuffled_papers:
-                    if paper['isin'] == sym.isin and sym.marketplace == targetmarket:
-                        #Process strategy
-                        if sym.currency and sym.currency != depot.currency:
-                            df = sym.GetConvertedData(connection.session,(TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
-                        else:
-                            df = sym.GetData(connection.session,(TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
-                        await asyncio.sleep(0.1)
-                        ps = await ProcessStrategy(paper,depot,df)
-                        ShouldSave = ShouldSave or ps
-                        await asyncio.sleep(0.1)
-                        #ps = await ProcessIndicator(paper,depot,df)
-                        #ShouldSave = ShouldSave or ps
-                        break
-            if new_bars:
-                last_processed_minute_bar_id = max([minute_bar.max_id for minute_bar in new_bars])
+            async with database.new_session() as session,session.begin():
+                query = sqlalchemy.select(database.MinuteBar.symbol_id, sqlalchemy.func.max(database.MinuteBar.id).label("max_id")).where(database.MinuteBar.id > last_processed_minute_bar_id).group_by(database.MinuteBar.symbol_id)
+                new_bars = await session.execute(query)
+                symbol_ids = [row[0] for row in new_bars]
+                symbols_query = sqlalchemy.select(database.Symbol).where(database.Symbol.id.in_(symbol_ids))
+                symbols = await session.execute(symbols_query)
+                symbols = symbols.scalars().all()
+
+                shuffled_papers = list(depot.papers)
+                random.shuffle(shuffled_papers)
+                targetmarket = None
+                if hasattr(depot,'market'): targetmarket = depot.market
+                for sym in symbols:
+                    for paper in shuffled_papers:
+                        if paper['isin'] == sym.isin and sym.marketplace == targetmarket:
+                            #Process strategy
+                            if sym.currency and sym.currency != depot.currency:
+                                df = await sym.GetConvertedData(session,(TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
+                            else:
+                                df = await sym.GetData(session,(TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
+                            await asyncio.sleep(0.1)
+                            ps = await ProcessStrategy(paper,depot,df)
+                            ShouldSave = ShouldSave or ps
+                            await asyncio.sleep(0.1)
+                            #ps = await ProcessIndicator(paper,depot,df)
+                            #ShouldSave = ShouldSave or ps
+                            break
+                if new_bars:
+                    last_processed_minute_bar_id = max([minute_bar.max_id for minute_bar in new_bars])
             logging.info(depot.name+' finished updates '+str(datetime.datetime.now()))
         except BaseException as e:
             logging.error(depot.name+' '+str(e))
@@ -596,8 +602,6 @@ try:
             if not 'papers' in server:
                 server['papers'] = []
             servers.append(Portfolio(server))
-    logging.info('loading db...')
-    connection = database.Connection()
     logging.info('loading (and starting) datasources...')
     for folder in (pathlib.Path(__file__).parent / 'datasources').glob('*'):
         try:
@@ -638,7 +642,7 @@ async def startup(room):
             for datasource in datasources:
                 mod_ = datasource['mod']
                 if hasattr(mod_,'StartUpdate'):
-                    loop.create_task(mod_.StartUpdate(server.papers,server.market,server.name,connection))
+                    loop.create_task(mod_.StartUpdate(server.papers,server.market,server.name))
                     pass
 @bot.listener.on_message_event
 async def bot_help(room, message):

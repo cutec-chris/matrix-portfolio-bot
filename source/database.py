@@ -193,12 +193,14 @@ class Symbol(Base):
             if end_date:
                 query = query.filter(MinuteBar.date <= end_date)
             query = query.group_by('Datetime').order_by('Datetime')
-            result = await session.execute(query)
-            df = pandas.DataFrame(result.all(), columns=["Datetime", "Low", "High", "Open", "Close", "Volume"])
+            result = await session.scalars(query)
+            rows = [(row.date, row.open, row.high, row.low, row.close, row.volume) for row in result.fetchall()]
+            df = pandas.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
             df['Datetime'] = pandas.to_datetime(df['Datetime'])
         else:
-            result = await session.execute(query)
-            df = pandas.DataFrame(result.all(), columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
+            result = await session.scalars(query)
+            rows = [(row.date, row.open, row.high, row.low, row.close, row.volume) for row in result.fetchall()]
+            df = pandas.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
         df.set_index("Datetime", inplace=True)
         return df
     async def GetConvertedData(self,session, start_date=None, end_date=None, TargetCurrency=None, timeframe='15m'):
@@ -382,15 +384,19 @@ Data.parent.mkdir(parents=True,exist_ok=True)
 engine=sqlalchemy.ext.asyncio.create_async_engine('sqlite+aiosqlite:///'+str(Data), connect_args={'timeout': 1}) 
 async def init_models():
     async with engine.begin() as conn:
-        #await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
 asyncio.run(init_models())
 def new_session():
-    return sqlalchemy.orm.sessionmaker(bind=engine, class_=sqlalchemy.ext.asyncio.AsyncSession)()
+    return sqlalchemy.orm.sessionmaker(bind=engine, class_=sqlalchemy.ext.asyncio.AsyncSession, expire_on_commit=False)()
+    #return sqlalchemy.ext.asyncio.async_sessionmaker(bind=engine,expire_on_commit=False)
 async def FindSymbol(session,paper,market=None):
     if 'isin' in paper and paper['isin']:
-        sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin'],marketplace=market).limit(1))).scalars().one()
+        sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin'],marketplace=market).limit(1))).scalars().one_or_none()
+        if not sym and market==None:
+            sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin']))).scalars().one_or_none()
     elif 'ticker' in paper and paper['ticker']:
-        sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker=paper['ticker'],marketplace=market))).scalars().one()
+        sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker=paper['ticker'],marketplace=market))).scalars().one_or_none()
+        if not sym and market==None:
+            sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker=paper['ticker']))).scalars().one_or_none()
     else: sym = None
     return sym

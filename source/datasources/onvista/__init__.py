@@ -6,36 +6,33 @@ async def UpdateTicker(paper,market=None):
     updatetime = 0.5
     res = False
     olddate = None
-    async with database.new_session() as session,session.begin():
+    async with database.new_session() as session:
         try:
             sym = await database.FindSymbol(session,paper,market)
             if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
-                res = await SearchPaper(paper['isin'])
-                if res:
-                    paper['ticker'] = res['symbol']
-                    if 'longname' in res:
-                        paper['name'] = res['longname']
-                    elif 'shortname' in res:
-                        paper['name'] = res['shortname']
+                resp = await SearchPaper(paper['isin'])
+                if resp:
+                    paper['ticker'] = resp['symbol']
+                    if 'longname' in resp:
+                        paper['name'] = resp['longname']
+                    elif 'shortname' in resp:
+                        paper['name'] = resp['shortname']
                 else:
                     logging.warning('paper '+paper['isin']+' not found !')
                     return False,None
             if 'ticker' in paper and paper['ticker']:
                 startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
-                if sym == None and res:
+                if sym == None and resp:
                     #initial download
-                    sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=database.Market[res['type'].lower()],marketplace=market,active=True)
+                    sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=database.Market[resp['type'].lower()],marketplace=market,active=True)
+                    sym.currency = 'EUR'
                     if market == 'gettex':
                         sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)
                         sym.tradingend = datetime.datetime.now().replace(hour=21,minute=0)
                     else:
                         sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)
                         sym.tradingend = datetime.datetime.now().replace(hour=21,minute=0)
-                        try:
-                            session.add(sym)
-                            await session.commit()
-                        except BaseException as e:
-                            logging.warning('failed writing to db:'+str(e))
+                        session.add(sym)
                 if sym:
                     result = await session.execute(sqlalchemy.select(database.MinuteBar, sqlalchemy.func.max(database.MinuteBar.date)).where(database.MinuteBar.symbol == sym))
                     date_entry, latest_date = result.fetchone()
@@ -96,7 +93,6 @@ async def UpdateTicker(paper,market=None):
                                         acnt = await sym.AppendData(session,pdata)
                                         res = res or acnt>0
                                         session.add(sym)
-                                        await session.commit()
                                         if res: 
                                             olddate = pdata['Datetime'].iloc[-1]
                                             logging.info('onvista:'+paper['ticker']+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' from '+str(olddate))
@@ -106,6 +102,7 @@ async def UpdateTicker(paper,market=None):
                                     except BaseException as e:
                                         logging.warning('failed writing to db:'+str(e))
                                 startdate += datetime.timedelta(days=7)
+            await session.commit()
         except BaseException as e:
             logging.error('onvista:'+'failed updating ticker %s: %s' % (str(paper['isin']),str(e)), exc_info=True)
         return res,olddate
