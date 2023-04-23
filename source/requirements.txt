@@ -3,3 +3,4 @@ pyyaml
 git+https://github.com/WISEPLAT/backtrader.git
 pandas_ta
 sqlalchemy[asyncio]
+aiosqlite
