@@ -105,7 +105,7 @@ async def UpdateTicker(paper,market=None):
                                             else:
                                                 logging.info('yahoo:'+paper['ticker']+' no new data')
                             startdate += datetime.timedelta(days=59)
-                        await session.commit()
+                        if res: await session.commit()
                     except BaseException as e:
                         logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
         except BaseException as e:

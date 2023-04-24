@@ -102,7 +102,7 @@ async def UpdateTicker(paper,market=None):
                                     except BaseException as e:
                                         logging.warning('failed writing to db:'+str(e))
                                 startdate += datetime.timedelta(days=7)
-            await session.commit()
+            if res: await session.commit()
         except BaseException as e:
             logging.error('onvista:'+'failed updating ticker %s: %s' % (str(paper['isin']),str(e)), exc_info=True)
         return res,olddate
