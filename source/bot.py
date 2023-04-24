@@ -1,5 +1,5 @@
 from init import *
-import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles,random,threading,backtests
+import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles,random,backtests
 loop = None
 lastsend = None
 class Portfolio(Config):
@@ -603,12 +603,7 @@ connection = None
 try:
     logging.basicConfig(level=logging.INFO)
     logging.info('starting event loop...')
-    def start_loop(loop):
-        asyncio.set_event_loop(loop)
-        loop.run_forever()
     loop = asyncio.new_event_loop()
-    t = threading.Thread(target=start_loop, args=(loop,))
-    t.start()
     logging.info('loading config...')
     with open('data.json', 'r') as f:
         nservers = json.load(f)
