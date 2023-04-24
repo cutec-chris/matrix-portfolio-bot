@@ -225,7 +225,7 @@ class Symbol(Base):
             data = await self.GetData(session, start_date=start_date, end_date=end_date, timeframe=timeframe)
         return data
     async def GetDataHourly(self,session, start_date=None, end_date=None, TargetCurrency=None):
-        return self.GetConvertedData(start_date,end_date, TargetCurrency, timeframe='1h')
+        return self.GetConvertedData(session,start_date,end_date, TargetCurrency, timeframe='1h')
     async def GetActPrice(self,session, TargetCurrency=None):
         last_minute_bar = (await session.execute(sqlalchemy.select(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()))).scalars().first()
         if TargetCurrency:
