@@ -34,18 +34,19 @@ async def tell(room, message):
             if not depot is str:
                 npaper = None
                 found = False
-                for paper in depot.papers:
-                    if paper['isin'] == match.args()[1]:
-                        found = True
-                        if not price:
-                            sym = session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
-                            if sym: 
-                                price = sym.GetActPrice(connection.session)
-                            else:
-                                price = 0
-                        if not count:
-                            count = paper['count']
-                        break
+                async with database.new_session() as session:
+                    for paper in depot.papers:
+                        if paper['isin'] == match.args()[1]:
+                            found = True
+                            if not price:
+                                sym = await database.FindSymbol(session,paper)
+                                if sym: 
+                                    price = await sym.GetActPrice(session)
+                                else:
+                                    price = 0
+                            if not count:
+                                count = paper['count']
+                            break
                 if not found:
                     paper ={
                         'isin': match.args()[1],
@@ -68,7 +69,7 @@ async def tell(room, message):
                 if paper['count'] > 0:
                     paper['lastcount'] = paper['count']
                 async with database.new_session() as session,session.begin():
-                    db_depot = await session.scalars(sqlalchemy.select(database.Depot).filter_by(room=depot.room, name=depot.name))
+                    db_depot = await session.execute(sqlalchemy.select(database.Depot).filter_by(room=depot.room, name=depot.name))
                     db_depot = db_depot.scalar_one_or_none()
                     if not db_depot:
                         db_depot = database.Depot(
