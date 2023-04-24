@@ -522,7 +522,7 @@ async def ChangeDepotStatus(depot,newstatus):
         await bot.api.async_client.set_presence('unavailable','')
     ntext = ''
     i=0
-    async with database.new_session() as session,session.begin():
+    async with database.new_session() as session:
         for adepot in servers:
             if adepot.room == depot.room:
                 sumactprice = 0
