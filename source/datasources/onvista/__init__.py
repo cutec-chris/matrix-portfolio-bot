@@ -95,9 +95,9 @@ async def UpdateTicker(paper,market=None):
                                         session.add(sym)
                                         if res: 
                                             olddate = pdata['Datetime'].iloc[-1]
-                                            logging.info('onvista:'+paper['ticker']+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' from '+str(olddate))
+                                            logging.info('onvista:'+sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' from '+str(olddate))
                                         else:
-                                            logging.info('onvista:'+paper['ticker']+' no new data')
+                                            logging.info('onvista:'+sym.ticker+' no new data')
                                         updatetime = 10
                                     except BaseException as e:
                                         logging.warning('failed writing to db:'+str(e))

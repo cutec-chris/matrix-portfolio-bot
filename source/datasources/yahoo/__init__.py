@@ -94,10 +94,10 @@ async def UpdateTicker(paper,market=None):
                                                     acnt = await sym.AppendData(session,pdata)
                                                     res = res or acnt>0
                                                     if res: 
-                                                        logging.info('yahoo:'+paper['ticker']+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1]))
+                                                        logging.info('yahoo:'+sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1]))
                                                         olddate = pdata['Datetime'].iloc[-1]
                                                     else:
-                                                        logging.info('yahoo:'+paper['ticker']+' no new data')
+                                                        logging.info('yahoo:'+sym.ticker+' no new data')
                                                     updatetime = 10
                                                 except BaseException as e:
                                                     logging.warning('failed writing to db:'+str(e))
