@@ -69,8 +69,8 @@ async def tell(room, message):
                 if paper['count'] > 0:
                     paper['lastcount'] = paper['count']
                 async with database.new_session() as session,session.begin():
-                    db_depot = await session.execute(sqlalchemy.select(database.Depot).filter_by(room=depot.room, name=depot.name))
-                    db_depot = db_depot.scalar_one_or_none()
+                    db_depot = await session.scalars(sqlalchemy.select(database.Depot).filter_by(room=depot.room, name=depot.name))
+                    db_depot = db_depot.first()
                     if not db_depot:
                         db_depot = database.Depot(
                             room=room.room_id,
@@ -83,10 +83,10 @@ async def tell(room, message):
                             cash=0,
                         )
                         session.add(db_depot)
-                    sym = await session.execute(sqlalchemy.select(database.Symbol).filter_by(isin=match.args()[1], marketplace=depot.market))
-                    sym = sym.scalar_one_or_none()
-                    db_position = await session.execute(sqlalchemy.select(database.Position).filter_by(isin=paper["isin"], depot_id=db_depot.id))
-                    db_position = db_position.scalar_one_or_none()
+                    sym = await session.scalars(sqlalchemy.select(database.Symbol).filter_by(isin=match.args()[1], marketplace=depot.market))
+                    sym = sym.first()
+                    db_position = await session.scalars(sqlalchemy.select(database.Position).filter_by(isin=paper["isin"], depot_id=db_depot.id))
+                    db_position = db_position.first()
                     if not db_position:
                         db_position = database.Position(
                             depot_id=db_depot.id,
@@ -126,7 +126,6 @@ async def tell(room, message):
                                 session.add(db_trade)
                             elif match.command("remove"):
                                 depot.papers.remove(paper)
-                            await session.commit()
                             await save_servers()
                             await bot.api.send_text_message(room.room_id, 'ok')
                             await session.commit()

@@ -231,7 +231,7 @@ class Symbol(Base):
         if TargetCurrency:
             excs = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency,self.currency)))).scalars().first()
             if excs:
-                last_minute_bar.close = last_minute_bar.close / (await excs.GetActPrice(TargetCurrency))
+                last_minute_bar.close = last_minute_bar.close / (await excs.GetActPrice(session,TargetCurrency))
             elif self.currency and (TargetCurrency != self.currency):
                 return 0
         if last_minute_bar:
