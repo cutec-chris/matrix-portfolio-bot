@@ -145,7 +145,10 @@ class UpdateTickers:
                 if epaper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin']) < datetime.datetime.now()-datetime.timedelta(seconds=self.Delay)):
                     res,till = await UpdateTicker(epaper,self.market)
                     if not till: till = datetime.datetime.now()
-                    internal_updated[paper['isin']] = till
+                    if res: 
+                        internal_updated[paper['isin']] = till
+                    else:
+                        internal_updated[paper['isin']] = datetime.datetime.now()
             except BaseException as e:
                 logging.error(str(e))
             if self.WaitTime-(time.time()-started) > 0:

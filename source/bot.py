@@ -96,41 +96,41 @@ async def tell(room, message):
                             ticker="",
                         )
                     session.add(db_position)
-                    await session.commit()
-                for paper in depot.papers:
-                    if paper['isin'] == match.args()[1]:
-                        oldprice = float(paper['price'])
-                        if not count:
-                            count = 0
-                        if not price:
-                            price = oldprice
-                        newprice = price*count
-                        if 'ticker' in paper:
-                            db_position.ticker = paper['ticker']
-                        if match.command("buy"):
-                            paper['price'] = oldprice+newprice
-                            paper['count'] = paper['count']+count
-                            db_position.shares = paper['count']
-                            db_position.price = paper['price']
-                            session.add(db_position)
-                            db_trade = database.Trade(position_id=db_position.id,shares=count, price=price,datetime=datetime.datetime.now())
-                            session.add(db_trade)
-                        elif match.command("sell"):
-                            if newprice>oldprice:
-                                newprice = oldprice
-                            paper['price'] = oldprice-newprice
-                            paper['count'] = paper['count']-count
-                            db_position.shares = paper['count']
-                            db_position.price = paper['price']
-                            session.add(db_position)
-                            db_trade = database.Trade(position_id=db_position.id,shares=-count, price=price,datetime=datetime.datetime.now())
-                            session.add(db_trade)
-                        elif match.command("remove"):
-                            depot.papers.remove(paper)
-                        await save_servers()
-                        session.commit()
-                        await bot.api.send_text_message(room.room_id, 'ok')
-                        break
+                    for paper in depot.papers:
+                        if paper['isin'] == match.args()[1] or paper['ticker'] == match.args()[1]:
+                            oldprice = float(paper['price'])
+                            if not count:
+                                count = 0
+                            if not price:
+                                price = oldprice
+                            newprice = price*count
+                            if 'ticker' in paper:
+                                db_position.ticker = paper['ticker']
+                            if match.command("buy"):
+                                paper['price'] = oldprice+newprice
+                                paper['count'] = paper['count']+count
+                                db_position.shares = paper['count']
+                                db_position.price = paper['price']
+                                session.add(db_position)
+                                db_trade = database.Trade(position_id=db_position.id,shares=count, price=price,datetime=datetime.datetime.now())
+                                session.add(db_trade)
+                            elif match.command("sell"):
+                                if newprice>oldprice:
+                                    newprice = oldprice
+                                paper['price'] = oldprice-newprice
+                                paper['count'] = paper['count']-count
+                                db_position.shares = paper['count']
+                                db_position.price = paper['price']
+                                session.add(db_position)
+                                db_trade = database.Trade(position_id=db_position.id,shares=-count, price=price,datetime=datetime.datetime.now())
+                                session.add(db_trade)
+                            elif match.command("remove"):
+                                depot.papers.remove(paper)
+                            await session.commit()
+                            await save_servers()
+                            await bot.api.send_text_message(room.room_id, 'ok')
+                            await session.commit()
+                            break
         elif (match.is_not_from_this_bot() and match.prefix())\
         and match.command("analyze",case_sensitive=False):
             depot = None
@@ -149,76 +149,73 @@ async def tell(room, message):
                 if len(match.args())>2: strategy = match.args()[2]
                 npaper = None
                 found = False
-                sym = session.query(database.Symbol).filter_by(isin=match.args()[1],marketplace=depot.market).first()
-                if sym:
-                    if sym.currency and sym.currency != depot.currency:
-                        df = sym.GetConvertedData(connection.session,datetime.datetime.utcnow()-trange,None,depot.currency)
+                async with database.new_session() as session:
+                    sym = await database.FindSymbol(session,{'isin':match.args()[1]},market=depot.market)
+                    if sym:
+                        if sym.currency and sym.currency != depot.currency:
+                            df = await sym.GetConvertedData(session,datetime.datetime.utcnow()-trange,None,depot.currency)
+                        else:
+                            df = await sym.GetData(session,datetime.datetime.utcnow()-trange)
+                        vola = 0.0
+                        for index, row in df.iterrows():
+                            avola = ((row['High']-row['Low'])/row['Close'])*100
+                            if avola > vola: vola = avola
+                        msg = 'Analyse of %s (%s,%s) with %s\n' % (sym.name,sym.isin,sym.ticker,strategy)\
+                                +'Open: %.2f Close: %.2f\n' % (float(df.iloc[0]['Open']),float(df.iloc[-1]['Close']))\
+                                +'Change: %.2f\n' % (float(df.iloc[-1]['Close'])-float(df.iloc[0]['Close']))\
+                                +'Last updated: %s\n' % (str(sym.GetActDate(connection.session)))\
+                                +'Volatility: %.2f\n' % vola
+                        if await sym.GetTargetPrice(session):
+                            ratings = await sym.GetTargetPrice(session)
+                            msg += "Target Price: %.2f from %d Analysts (%s)\nAverage: %.2f\n" % (ratings)
+                        if await sym.GetFairPrice(session):
+                            msg += "Fair Price: %.2f from %d Analysts (%s)\n" % (await sym.GetFairPrice(session))
+                        roi = calculate_roi(df)
+                        for timeframe, value in roi.items():
+                            msg += f"ROI for {timeframe}: {value:.2f}%\n"
+                        ast = None
+                        for st in strategies:
+                            if st['name'] == strategy:
+                                ast = st
+                                break
+                        if ast:
+                            cerebro = database.BotCerebro(stdstats=False)
+                            cerebro.addstrategy(ast['mod'].Strategy)
+                            cerebro.broker.setcash(1000)
+                            cerebro.addobserver(
+                                backtrader.observers.BuySell,
+                                barplot=True,
+                                bardist=0.001)  # buy / sell arrows
+                            #cerebro.addobserver(backtrader.observers.DrawDown)
+                            #cerebro.addobserver(backtrader.observers.DataTrades)
+                            cerebro.addobserver(backtrader.observers.Broker)
+                            cerebro.addobserver(backtrader.observers.Trades)
+                            initial_capital = cerebro.broker.getvalue()
+                            cerebro.addsizer(backtrader.sizers.PercentSizer, percents=100)
+                            await backtests.run_backtest(cerebro)
+                            msg += 'Statistic ROI: %.2f\n' % (((cerebro.broker.getvalue() - initial_capital) / initial_capital)*100)
+                            checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
+                            amsg = None
+                            for order in cerebro._broker.orders:
+                                if order.status == 4:
+                                    if order.executed.dt: orderdate = backtrader.num2date(order.executed.dt)
+                                    if orderdate > checkfrom:
+                                        size_sum = order.size
+                                        if order.isbuy():
+                                            otyp = 'buy'
+                                        else:
+                                            otyp = 'sell'
+                                        amsg = 'Last order from %s: %s %.2f' % (str(backtrader.num2date(order.executed.dt)),otyp,order.size)
+                                        if hasattr(order,'chance'):
+                                            amsg += ' chance %.1f till %s' % (order.chance,oder.chancetarget)
+                                        amsg += '\n'
+                            if amsg: msg += amsg
+                            await bot.api.send_markdown_message(room.room_id, msg)
+                            await bot.api.send_image_message(room.room_id,'/tmp/plot.jpeg')
+                        else:
+                            await bot.api.send_markdown_message(room.room_id, msg)
                     else:
-                        df = sym.GetData(connection.session,datetime.datetime.utcnow()-trange)
-                    vola = 0.0
-                    for index, row in df.iterrows():
-                        avola = ((row['High']-row['Low'])/row['Close'])*100
-                        if avola > vola: vola = avola
-                    msg = 'Analyse of %s (%s,%s) with %s\n' % (sym.name,sym.isin,sym.ticker,strategy)\
-                            +'Open: %.2f Close: %.2f\n' % (float(df.iloc[0]['Open']),float(df.iloc[-1]['Close']))\
-                            +'Change: %.2f\n' % (float(df.iloc[-1]['Close'])-float(df.iloc[0]['Close']))\
-                            +'Last updated: %s\n' % (str(sym.GetActDate(connection.session)))\
-                            +'Volatility: %.2f\n' % vola
-                    if sym.GetTargetPrice(connection.session):
-                        ratings = sym.GetTargetPrice(connection.session)
-                        msg += "Target Price: %.2f from %d Analysts (%s)\nAverage: %.2f\n" % (ratings)
-                    if sym.GetFairPrice(connection.session):
-                        msg += "Fair Price: %.2f from %d Analysts (%s)\n" % (sym.GetFairPrice(connection.session))
-                    roi = calculate_roi(df)
-                    for timeframe, value in roi.items():
-                        msg += f"ROI for {timeframe}: {value:.2f}%\n"
-                    ast = None
-                    for st in strategies:
-                        if st['name'] == strategy:
-                            ast = st
-                            break
-                    if ast:
-                        cerebro = database.BotCerebro(stdstats=False)
-                        cerebro.addstrategy(ast['mod'].Strategy)
-                        cerebro.broker.setcash(1000)
-                        cerebro.addobserver(
-                            backtrader.observers.BuySell,
-                            barplot=True,
-                            bardist=0.001)  # buy / sell arrows
-                        #cerebro.addobserver(backtrader.observers.DrawDown)
-                        #cerebro.addobserver(backtrader.observers.DataTrades)
-                        cerebro.addobserver(backtrader.observers.Broker)
-                        cerebro.addobserver(backtrader.observers.Trades)
-                        initial_capital = cerebro.broker.getvalue()
-                        cerebro.addsizer(backtrader.sizers.PercentSizer, percents=100)
-                        def run_cerebro():
-                            cerebro.adddata(backtrader.feeds.PandasData(dataname=df))
-                            cerebro.run()
-                            cerebro.saveplots(file_path = '/tmp/plot.jpeg')
-                        await asyncio.get_event_loop().run_in_executor(None, run_cerebro)
-                        msg += 'Statistic ROI: %.2f\n' % (((cerebro.broker.getvalue() - initial_capital) / initial_capital)*100)
-                        checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
-                        amsg = None
-                        for order in cerebro._broker.orders:
-                            if order.status == 4:
-                                if order.executed.dt: orderdate = backtrader.num2date(order.executed.dt)
-                                if orderdate > checkfrom:
-                                    size_sum = order.size
-                                    if order.isbuy():
-                                        otyp = 'buy'
-                                    else:
-                                        otyp = 'sell'
-                                    amsg = 'Last order from %s: %s %.2f' % (str(backtrader.num2date(order.executed.dt)),otyp,order.size)
-                                    if hasattr(order,'chance'):
-                                        amsg += ' chance %.1f till %s' % (order.chance,oder.chancetarget)
-                                    amsg += '\n'
-                        if amsg: msg += amsg
-                        await bot.api.send_markdown_message(room.room_id, msg)
-                        await bot.api.send_image_message(room.room_id,'/tmp/plot.jpeg')
-                    else:
-                        await bot.api.send_markdown_message(room.room_id, msg)
-                else:
-                    await bot.api.send_markdown_message(room.room_id, 'no data for symbol found')
+                        await bot.api.send_markdown_message(room.room_id, 'no symbol found')
         elif (match.is_not_from_this_bot() and match.prefix())\
         and match.command("show",case_sensitive=False):
             tdepot = None
@@ -233,20 +230,21 @@ async def tell(room, message):
                     sumprice = 0
                     sumactprice = 0
                     sellcosts = 0
-                    for paper in depot.papers:
-                        if paper['count'] > 0:
-                            if not 'ticker' in paper: paper['ticker'] = ''
-                            if not 'name' in paper: paper['name'] = paper['ticker']
-                            sym = session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
-                            if sym:
-                                actprice = sym.GetActPrice(connection.session,depot.currency)
-                            else: 
-                                actprice = 0
-                            sumactprice += actprice*paper['count']
-                            sumprice += paper['price']
-                            change = (actprice*paper['count'])-paper['price']
-                            sellcosts += ((sumactprice-sumprice)*(depot.tradingCostPercent/100))+depot.tradingCost
-                            msg += '<tr><td>'+paper['isin']+'</td><td>%.0fx' % paper['count']+paper['name']+'</td><td align=right>%.2f (%.2f)' % ((actprice*paper['count']),actprice)+'</td><td align=right>%.2f' % change+'</td></tr>\n'
+                    async with database.new_session() as session:
+                        for paper in depot.papers:
+                            if paper['count'] > 0:
+                                if not 'ticker' in paper: paper['ticker'] = ''
+                                if not 'name' in paper: paper['name'] = paper['ticker']
+                                sym = await database.FindSymbol(session,paper,depot.market)
+                                if sym:
+                                    actprice = await sym.GetActPrice(session,depot.currency)
+                                else: 
+                                    actprice = 0
+                                sumactprice += actprice*paper['count']
+                                sumprice += paper['price']
+                                change = (actprice*paper['count'])-paper['price']
+                                sellcosts += ((sumactprice-sumprice)*(depot.tradingCostPercent/100))+depot.tradingCost
+                                msg += '<tr><td>'+paper['isin']+'</td><td>%.0fx' % paper['count']+paper['name']+'</td><td align=right>%.2f (%.2f)' % ((actprice*paper['count']),actprice)+'</td><td align=right>%.2f' % change+'</td></tr>\n'
                     msg += '<tr><td></td><td></td><td align=right>%.2f' % sumactprice+'</td><td align=right>%.2f' % (sumactprice-sumprice)+'</td></tr>\n'
                     msg += '<tr><td></td><td></td><td>Taxes</td><td align=right>%.2f' % -((sumactprice-sumprice)*(depot.taxCostPercent/100))+'</td></tr>\n'
                     msg += '<tr><td></td><td></td><td>Sell-Costs</td><td align=right>%.2f' % -(sellcosts)+'</td></tr>\n'
@@ -273,25 +271,25 @@ async def tell(room, message):
                     except BaseException as e:
                         trange = parse_human_readable_duration('33d')
                     count = 0
-                    async def overview_process(paper, depot, trange, style, bot):
+                    async def overview_process(session,paper, depot, trange, style, bot):
                         if not 'ticker' in paper: paper['ticker'] = ''
                         if not 'name' in paper: paper['name'] = paper['ticker']
-                        sym = session.query(database.Symbol).filter_by(isin=paper['isin'],marketplace=depot.market).first()
+                        sym = await database.FindSymbol(session,paper,depot.market)
                         if sym:
-                            df = sym.GetDataHourly(connection.session,datetime.datetime.utcnow()-trange)
+                            df = await sym.GetDataHourly(session,datetime.datetime.utcnow()-trange)
                             await asyncio.sleep(0.05)
-                            aprice = sym.GetActPrice(connection.session,depot.currency)
-                            analys = 'Price: %.2f<br>From: %s' % (aprice,str(sym.GetActDate(connection.session)))+'<br>'
+                            aprice = await sym.GetActPrice(session,depot.currency)
+                            analys = 'Price: %.2f<br>From: %s' % (aprice,str(await sym.GetActDate(connection.session)))+'<br>'
                             chance_price=0
-                            if sym.GetTargetPrice(connection.session):
-                                ratings = sym.GetTargetPrice(connection.session)
+                            if await sym.GetTargetPrice(session):
+                                ratings = await sym.GetTargetPrice(session)
                                 analys_t = "Target Price: %.2f from %d<br>(%s)<br>Average: %.2f<br>" % ratings
                                 analys += f'<font color="{rating_to_color(ratings[3])}">{analys_t}</font>'
                                 chance_price=((ratings[0]-aprice)/aprice)
                                 analys += "Chance: %.2f %% in 1y<br>" % round(chance_price*100,1)
                             else: ratings = (0,0,'',0)
-                            if sym.GetFairPrice(connection.session):
-                                analys += "Fair Price: %.2f from %d<br>(%s)<br>" % (sym.GetFairPrice(connection.session))
+                            if await sym.GetFairPrice(connection.session):
+                                analys += "Fair Price: %.2f from %d<br>(%s)<br>" % (await sym.GetFairPrice(connection.session))
                             roi = calculate_roi(df)
                             def weighted_roi_sum(roi_dict):
                                 weights = {
@@ -335,11 +333,12 @@ async def tell(room, message):
                                         cdata = backtrader.feeds.PandasData(dataname=df)
                                         cerebro.adddata(cdata)
                                         try:
-                                            cerebro.run(stdstats=False)
+                                            await backtests.run_backtest(cerebro)
+                                            #cerebro.run(stdstats=False)
                                             cerebro.saveplots(style='line',file_path = fpath,width=32*4, height=16*4,dpi=50,volume=False,grid=False,valuetags=False,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=False)
                                         except BaseException as e:
-                                            return None
                                             logging.warning('failed to process:'+str(e))
+                                            return None
                                         return fpath
                                     image_uri = await process_cerebro(df,fpath)
                                     try:
@@ -353,13 +352,14 @@ async def tell(room, message):
                         except BaseException as e: logging.warning(str(e))
                         return result
                     tasks = []
-                    for paper in depot.papers:
-                        task = asyncio.create_task(overview_process(paper, depot, trange, style, bot))
-                        tasks.append(task)
-                        count += 1
-                    results = await asyncio.gather(*tasks)
-                    filtered_results = list(filter(None, results))  # Filtere `None` Werte aus der Liste
-                    sorted_results = sorted(filtered_results, key=lambda x: x['sort'], reverse=False)  # Nach ROI sortieren
+                    async with database.new_session() as session:
+                        for paper in depot.papers:
+                            task = asyncio.create_task(overview_process(session,paper, depot, trange, style, bot))
+                            tasks.append(task)
+                            count += 1
+                        results = await asyncio.gather(*tasks)
+                        filtered_results = list(filter(None, results))  # Filtere `None` Werte aus der Liste
+                        sorted_results = sorted(filtered_results, key=lambda x: x['sort'], reverse=False)  # Nach ROI sortieren
                     def chunks(lst, n):
                         for i in range(0, len(lst), n):
                             yield lst[i:i + n]
