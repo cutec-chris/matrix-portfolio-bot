@@ -529,9 +529,9 @@ async def ChangeDepotStatus(depot,newstatus):
                 sumprice = 0
                 for paper in adepot.papers:
                     if paper['count'] > 0:
-                        sym = database.FindSymbol(session,paper)
+                        sym = await database.FindSymbol(session,paper)
                         if sym:
-                            actprice = sym.GetActPrice(session,depot.currency)
+                            actprice = await sym.GetActPrice(session,depot.currency)
                         else: 
                             actprice = 0
                         sumactprice += actprice*paper['count']
