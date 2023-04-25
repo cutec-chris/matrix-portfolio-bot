@@ -142,7 +142,7 @@ class UpdateTickers:
                     if internal_updated.get(paper['isin'])<earliest:
                         earliest = internal_updated.get(paper['isin'])
                         epaper = paper
-                if epaper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin']) < datetime.datetime.now()-datetime.timedelta(seconds=self.Delay)):
+                if epaper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin'])+datetime.timedelta(seconds=self.Delay) < datetime.datetime.now()):
                     res,till = await UpdateTicker(epaper,self.market)
                     if not till: till = datetime.datetime.now()
                     if res: 
