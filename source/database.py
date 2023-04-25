@@ -380,7 +380,7 @@ class BotCerebro(backtrader.Cerebro):
             logging.warning(str(e))
 Data=pathlib.Path('.') / 'data' / 'database.db'
 Data.parent.mkdir(parents=True,exist_ok=True)
-engine=sqlalchemy.ext.asyncio.create_async_engine('sqlite+aiosqlite:///'+str(Data), connect_args={'timeout': 1}) 
+engine=sqlalchemy.ext.asyncio.create_async_engine('sqlite+aiosqlite:///'+str(Data)) 
 async def init_models():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
