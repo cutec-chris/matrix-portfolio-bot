@@ -204,8 +204,8 @@ class Symbol(Base):
         df.set_index("Datetime", inplace=True)
         return df
     async def GetConvertedData(self,session, start_date=None, end_date=None, TargetCurrency=None, timeframe='15m'):
-        excs = await session.execute(sqlalchemy.select(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency, self.currency)).limit(1))
-        excs = excs.scalar_one_or_none()
+        excs = await session.scalar(sqlalchemy.select(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency, self.currency)))
+        excs = excs.first()
         data = await self.GetData(session,start_date=start_date, end_date=end_date, timeframe=timeframe)
         if excs:
             exc = await excs.GetData(session,start_date=start_date, end_date=end_date, timeframe=timeframe)
@@ -225,13 +225,13 @@ class Symbol(Base):
             data = await self.GetData(session, start_date=start_date, end_date=end_date, timeframe=timeframe)
         return data
     async def GetDataHourly(self,session, start_date=None, end_date=None, TargetCurrency=None):
-        return self.GetConvertedData(session,start_date,end_date, TargetCurrency, timeframe='1h')
+        return await self.GetConvertedData(session,start_date,end_date, TargetCurrency, timeframe='1h')
     async def GetActPrice(self,session, TargetCurrency=None):
         last_minute_bar = (await session.execute(sqlalchemy.select(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()))).scalars().first()
-        if TargetCurrency:
+        if TargetCurrency and (TargetCurrency != self.currency):
             excs = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency,self.currency)))).scalars().first()
             if excs:
-                last_minute_bar.close = last_minute_bar.close / (await excs.GetActPrice(session,TargetCurrency))
+                last_minute_bar.close = last_minute_bar.close / (await excs.GetActPrice(session))
             elif self.currency and (TargetCurrency != self.currency):
                 return 0
         if last_minute_bar:
