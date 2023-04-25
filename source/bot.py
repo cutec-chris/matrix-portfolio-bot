@@ -69,8 +69,7 @@ async def tell(room, message):
                 if paper['count'] > 0:
                     paper['lastcount'] = paper['count']
                 async with database.new_session() as session,session.begin():
-                    db_depot = await session.scalars(sqlalchemy.select(database.Depot).filter_by(room=depot.room, name=depot.name))
-                    db_depot = db_depot.first()
+                    db_depot = (await session.scalars(sqlalchemy.select(database.Depot).filter_by(room=depot.room, name=depot.name))).first()
                     if not db_depot:
                         db_depot = database.Depot(
                             room=room.room_id,
@@ -83,10 +82,8 @@ async def tell(room, message):
                             cash=0,
                         )
                         session.add(db_depot)
-                    sym = await session.scalars(sqlalchemy.select(database.Symbol).filter_by(isin=match.args()[1], marketplace=depot.market))
-                    sym = sym.first()
+                    sym = (await session.scalars(sqlalchemy.select(database.Symbol).filter_by(isin=match.args()[1], marketplace=depot.market))).first()
                     db_position = await session.scalars(sqlalchemy.select(database.Position).filter_by(isin=paper["isin"], depot_id=db_depot.id))
-                    db_position = db_position.first()
                     if not db_position:
                         db_position = database.Position(
                             depot_id=db_depot.id,
@@ -127,8 +124,8 @@ async def tell(room, message):
                             elif match.command("remove"):
                                 depot.papers.remove(paper)
                             await save_servers()
-                            await bot.api.send_text_message(room.room_id, 'ok')
                             await session.commit()
+                            await bot.api.send_text_message(room.room_id, 'ok')
                             break
         elif (match.is_not_from_this_bot() and match.prefix())\
         and match.command("analyze",case_sensitive=False):

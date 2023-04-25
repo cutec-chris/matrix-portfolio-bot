@@ -204,8 +204,7 @@ class Symbol(Base):
         df.set_index("Datetime", inplace=True)
         return df
     async def GetConvertedData(self,session, start_date=None, end_date=None, TargetCurrency=None, timeframe='15m'):
-        excs = await session.scalar(sqlalchemy.select(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency, self.currency)))
-        excs = excs.first()
+        excs = (await session.scalars(sqlalchemy.select(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency, self.currency)))).first()
         data = await self.GetData(session,start_date=start_date, end_date=end_date, timeframe=timeframe)
         if excs:
             exc = await excs.GetData(session,start_date=start_date, end_date=end_date, timeframe=timeframe)
@@ -380,22 +379,21 @@ class BotCerebro(backtrader.Cerebro):
             logging.warning(str(e))
 Data=pathlib.Path('.') / 'data' / 'database.db'
 Data.parent.mkdir(parents=True,exist_ok=True)
-engine=sqlalchemy.ext.asyncio.create_async_engine('sqlite+aiosqlite:///'+str(Data), connect_args={'timeout': 15}) 
+engine=sqlalchemy.ext.asyncio.create_async_engine('sqlite+aiosqlite:///'+str(Data), connect_args={'timeout': 2}) 
 async def init_models():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 asyncio.run(init_models())
 def new_session():
-    return sqlalchemy.orm.sessionmaker(bind=engine, class_=sqlalchemy.ext.asyncio.AsyncSession, expire_on_commit=False)()
-    #return sqlalchemy.ext.asyncio.async_sessionmaker(bind=engine,expire_on_commit=False)
+    return sqlalchemy.orm.sessionmaker(bind=engine, class_=sqlalchemy.ext.asyncio.AsyncSession, expire_on_commit=False, autoflush=False)()
 async def FindSymbol(session,paper,market=None):
     if 'isin' in paper and paper['isin']:
-        sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin'],marketplace=market).limit(1))).scalars().one_or_none()
+        sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin'],marketplace=market).limit(1))).scalars().first()
         if not sym and market==None:
-            sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin']))).scalars().one_or_none()
+            sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin']))).scalars().first()
     elif 'ticker' in paper and paper['ticker']:
-        sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker=paper['ticker'],marketplace=market))).scalars().one_or_none()
+        sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker=paper['ticker'],marketplace=market))).scalars().first()
         if not sym and market==None:
-            sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker=paper['ticker']))).scalars().one_or_none()
+            sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker=paper['ticker']))).scalars().first()
     else: sym = None
     return sym
