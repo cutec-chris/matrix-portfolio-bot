@@ -556,7 +556,11 @@ async def check_depot(depot,fast=False):
             async with database.new_session() as session:
                 query = sqlalchemy.select(database.MinuteBar.symbol_id, sqlalchemy.func.max(database.MinuteBar.id).label("max_id")).where(database.MinuteBar.id > last_processed_minute_bar_id).group_by(database.MinuteBar.symbol_id)
                 new_bars = await session.execute(query)
-                symbol_ids = [row[0] for row in new_bars]
+                symbol_ids = []
+                for row in new_bars:
+                    symbol_ids.append(row[0])
+                    if row.max_id>last_processed_minute_bar_id:
+                        last_processed_minute_bar_id = row.max_id
                 symbols_query = sqlalchemy.select(database.Symbol).where(database.Symbol.id.in_(symbol_ids))
                 symbols = await session.execute(symbols_query)
                 symbols = symbols.scalars().all()
@@ -580,8 +584,6 @@ async def check_depot(depot,fast=False):
                             #ps = await ProcessIndicator(paper,depot,df)
                             #ShouldSave = ShouldSave or ps
                             break
-                if new_bars:
-                    last_processed_minute_bar_id = max([minute_bar.max_id for minute_bar in new_bars])
             logging.info(depot.name+' finished updates '+str(datetime.datetime.now()))
         except BaseException as e:
             logging.error(depot.name+' '+str(e))
