@@ -545,6 +545,7 @@ async def ChangeDepotStatus(depot,newstatus):
 async def check_depot(depot,fast=False):
     global lastsend,servers,connection
     last_processed_minute_bar_id = 0
+    updates_running = False
     check_status = []
     next_minute = datetime.datetime.now()
     while True:
@@ -599,6 +600,12 @@ async def check_depot(depot,fast=False):
         wait_time = (next_minute - datetime.datetime.now()).total_seconds()
         if wait_time<0: wait_time = 1
         await asyncio.sleep(wait_time)
+        if not updates_running:
+            updates_running = True
+            for datasource in datasources:
+                mod_ = datasource['mod']
+                if hasattr(mod_,'StartUpdate'):
+                    loop.create_task(mod_.StartUpdate(depot.papers,depot.market,depot.name))
 datasources = []
 strategies = []
 connection = None
@@ -650,11 +657,6 @@ async def startup(room):
         if server.room == room:
             if not hasattr(server,'market'): setattr(server,'market',None)
             loop.create_task(check_depot(server))
-            for datasource in datasources:
-                mod_ = datasource['mod']
-                if hasattr(mod_,'StartUpdate'):
-                    loop.create_task(mod_.StartUpdate(server.papers,server.market,server.name))
-                    pass
 @bot.listener.on_message_event
 async def bot_help(room, message):
     bot_help_message = f"""
