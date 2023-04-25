@@ -159,13 +159,15 @@ async def tell(room, message):
                         msg = 'Analyse of %s (%s,%s) with %s\n' % (sym.name,sym.isin,sym.ticker,strategy)\
                                 +'Open: %.2f Close: %.2f\n' % (float(df.iloc[0]['Open']),float(df.iloc[-1]['Close']))\
                                 +'Change: %.2f\n' % (float(df.iloc[-1]['Close'])-float(df.iloc[0]['Close']))\
-                                +'Last updated: %s\n' % (str(sym.GetActDate(connection.session)))\
+                                +'Last updated: %s\n' % (str(await sym.GetActDate(session)))\
                                 +'Volatility: %.2f\n' % vola
-                        if await sym.GetTargetPrice(session):
-                            ratings = await sym.GetTargetPrice(session)
+                        tarPrice = await sym.GetTargetPrice(session)
+                        if tarPrice:
+                            ratings = tarPrice
                             msg += "Target Price: %.2f from %d Analysts (%s)\nAverage: %.2f\n" % (ratings)
-                        if await sym.GetFairPrice(session):
-                            msg += "Fair Price: %.2f from %d Analysts (%s)\n" % (await sym.GetFairPrice(session))
+                        fairPrice = await sym.GetFairPrice(session)
+                        if fairPrice:
+                            msg += "Fair Price: %.2f from %d Analysts (%s)\n" % (fairPrice)
                         roi = calculate_roi(df)
                         for timeframe, value in roi.items():
                             msg += f"ROI for {timeframe}: {value:.2f}%\n"
@@ -275,7 +277,7 @@ async def tell(room, message):
                             df = await sym.GetDataHourly(session,datetime.datetime.utcnow()-trange)
                             await asyncio.sleep(0.05)
                             aprice = await sym.GetActPrice(session,depot.currency)
-                            analys = 'Price: %.2f<br>From: %s' % (aprice,str(await sym.GetActDate(connection.session)))+'<br>'
+                            analys = 'Price: %.2f<br>From: %s' % (aprice,str(await sym.GetActDate(session)))+'<br>'
                             chance_price=0
                             if await sym.GetTargetPrice(session):
                                 ratings = await sym.GetTargetPrice(session)
@@ -284,8 +286,8 @@ async def tell(room, message):
                                 chance_price=((ratings[0]-aprice)/aprice)
                                 analys += "Chance: %.2f %% in 1y<br>" % round(chance_price*100,1)
                             else: ratings = (0,0,'',0)
-                            if await sym.GetFairPrice(connection.session):
-                                analys += "Fair Price: %.2f from %d<br>(%s)<br>" % (await sym.GetFairPrice(connection.session))
+                            if await sym.GetFairPrice(session):
+                                analys += "Fair Price: %.2f from %d<br>(%s)<br>" % (await sym.GetFairPrice(session))
                             roi = calculate_roi(df)
                             def weighted_roi_sum(roi_dict):
                                 weights = {
