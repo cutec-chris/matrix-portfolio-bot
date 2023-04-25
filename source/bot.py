@@ -628,7 +628,8 @@ try:
             spec.loader.exec_module(mod_)
             module = {
                     'name': folder.name,
-                    'mod': mod_        
+                    'mod': mod_,  
+                    'task': None      
                 }
             datasources.append(module)
         except BaseException as e:

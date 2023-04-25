@@ -385,7 +385,7 @@ async def init_models():
         await conn.run_sync(Base.metadata.create_all)
 asyncio.run(init_models())
 def new_session():
-    return sqlalchemy.orm.sessionmaker(bind=engine, class_=sqlalchemy.ext.asyncio.AsyncSession, expire_on_commit=False, autoflush=False)()
+    return sqlalchemy.orm.sessionmaker(bind=engine, class_=sqlalchemy.ext.asyncio.AsyncSession, autocommit=False, autoflush=False)()
 async def FindSymbol(session,paper,market=None):
     if 'isin' in paper and paper['isin']:
         sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin'],marketplace=market).limit(1))).scalars().first()
