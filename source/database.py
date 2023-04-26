@@ -277,11 +277,9 @@ class Symbol(Base):
                         total_rating += rating_weight[rating.rating]*rc
                     except KeyError:
                         pass
-            if count == 0:
-                return None
-        if count > 0:
-            average_target_price = total_price_target / count
-        else: average_target_price = 0
+        if count == 0:
+            return None
+        average_target_price = total_price_target / count
         rating_count_str = ", ".join(f"{k}: {v}" for k, v in rating_count.items())
         average_rating = total_rating / count
         return average_target_price, count, rating_count_str, average_rating
