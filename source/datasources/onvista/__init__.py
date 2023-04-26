@@ -146,6 +146,7 @@ class UpdateTickers:
                     logging.error(str(e))
                 if self.WaitTime-(time.time()-started) > 0:
                     await asyncio.sleep(self.WaitTime-(time.time()-started))
+            await asyncio.sleep(10)
 async def StartUpdate(papers,market,name):
     await UpdateTickers(papers,market,name,60*60).run()
 if __name__ == '__main__':
