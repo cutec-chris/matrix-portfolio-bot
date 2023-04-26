@@ -279,7 +279,9 @@ class Symbol(Base):
                         pass
             if count == 0:
                 return None
-        average_target_price = total_price_target / count
+        if count > 0:
+            average_target_price = total_price_target / count
+        else: average_target_price = 0
         rating_count_str = ", ".join(f"{k}: {v}" for k, v in rating_count.items())
         average_rating = total_rating / count
         return average_target_price, count, rating_count_str, average_rating
