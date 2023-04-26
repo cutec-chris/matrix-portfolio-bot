@@ -131,28 +131,21 @@ class UpdateTickers:
     async def run(self):
         internal_updated = {}
         while True:
-            started = time.time()
-            try:
-                earliest = datetime.datetime.now()
-                epaper = None
-                for paper in self.papers:
-                    if internal_updated.get(paper['isin']) == None: 
-                        epaper = paper
-                        break
-                    if internal_updated.get(paper['isin'])<earliest:
-                        earliest = internal_updated.get(paper['isin'])
-                        epaper = paper
-                if epaper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin'])+datetime.timedelta(seconds=self.Delay) < datetime.datetime.now()):
-                    res,till = await UpdateTicker(epaper,self.market)
-                    if not till: till = datetime.datetime.now()
-                    if res: 
-                        internal_updated[paper['isin']] = till
-                    else:
-                        internal_updated[paper['isin']] = datetime.datetime.now()
-            except BaseException as e:
-                logging.error(str(e))
-            if self.WaitTime-(time.time()-started) > 0:
-                await asyncio.sleep(self.WaitTime-(time.time()-started))
+            for paper in self.papers:
+                started = time.time()
+                try:
+                    epaper = paper
+                    if paper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin'])+datetime.timedelta(seconds=self.Delay) < datetime.datetime.now()):
+                        res,till = await UpdateTicker(epaper,self.market)
+                        if not till: till = datetime.datetime.now()
+                        if res: 
+                            internal_updated[paper['isin']] = till
+                        else:
+                            internal_updated[paper['isin']] = datetime.datetime.now()
+                except BaseException as e:
+                    logging.error(str(e))
+                if self.WaitTime-(time.time()-started) > 0:
+                    await asyncio.sleep(self.WaitTime-(time.time()-started))
 async def StartUpdate(papers,market,name):
     await UpdateTickers(papers,market,name,60*60).run()
 if __name__ == '__main__':

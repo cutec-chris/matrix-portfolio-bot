@@ -545,6 +545,11 @@ async def ChangeDepotStatus(depot,newstatus):
 async def check_depot(depot,fast=False):
     global lastsend,servers,connection
     last_processed_minute_bar_id = 0
+    async with database.new_session() as session:
+        query = sqlalchemy.select(sqlalchemy.func.max(database.MinuteBar.id).label("max_id"))
+        last_bar = await session.execute(query)
+        for row in last_bar:
+            last_processed_minute_bar_id = row.max_id
     updates_running = False
     check_status = []
     next_minute = datetime.datetime.now()
@@ -628,8 +633,7 @@ try:
             spec.loader.exec_module(mod_)
             module = {
                     'name': folder.name,
-                    'mod': mod_,  
-                    'task': None      
+                    'mod': mod_      
                 }
             datasources.append(module)
         except BaseException as e:
