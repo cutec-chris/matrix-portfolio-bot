@@ -762,8 +762,4 @@ def truncate_text(text, max_length):
     if last_space != -1:
         truncated = truncated[:last_space]
     return truncated+'...'
-while True:
-    try:
-        bot.run()
-    except BaseException as e:
-        logging.error(str(e))
+bot.run()
