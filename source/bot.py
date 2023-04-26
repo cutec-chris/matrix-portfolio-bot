@@ -83,7 +83,7 @@ async def tell(room, message):
                         )
                         session.add(db_depot)
                     sym = (await session.scalars(sqlalchemy.select(database.Symbol).filter_by(isin=match.args()[1], marketplace=depot.market))).first()
-                    db_position = await session.scalars(sqlalchemy.select(database.Position).filter_by(isin=paper["isin"], depot_id=db_depot.id))
+                    db_position = (await session.scalars(sqlalchemy.select(database.Position).filter_by(isin=paper["isin"], depot_id=db_depot.id))).first()
                     if not db_position:
                         db_position = database.Position(
                             depot_id=db_depot.id,

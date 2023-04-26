@@ -181,20 +181,23 @@ class Symbol(Base):
         query = query.order_by(MinuteBar.date)
         if timeframe != '15m':
             query = sqlalchemy.select(
-                aggregator_func.label('Datetime'),
-                sqlalchemy.func.min(MinuteBar.low).label('Low'),
-                sqlalchemy.func.max(MinuteBar.high).label('High'),
-                sqlalchemy.func.first_value(MinuteBar.open).over(order_by=MinuteBar.date).label('Open'),
-                sqlalchemy.func.last_value(MinuteBar.close).over(order_by=MinuteBar.date).label('Close'),
-                sqlalchemy.func.sum(MinuteBar.volume).label('Volume')
+                aggregator_func.label('date'),
+                sqlalchemy.func.min(MinuteBar.low).label('low'),
+                sqlalchemy.func.max(MinuteBar.high).label('high'),
+                sqlalchemy.func.first_value(MinuteBar.open).over(order_by=MinuteBar.date).label('open'),
+                sqlalchemy.func.last_value(MinuteBar.close).over(order_by=MinuteBar.date).label('close'),
+                sqlalchemy.func.sum(MinuteBar.volume).label('volume')
             ).filter_by(symbol=self)
             if start_date:
                 query = query.filter(MinuteBar.date >= start_date)
             if end_date:
                 query = query.filter(MinuteBar.date <= end_date)
-            query = query.group_by('Datetime').order_by('Datetime')
-            result = await session.scalars(query)
-            rows = [(row.date, row.open, row.high, row.low, row.close, row.volume) for row in result.fetchall()]
+            query = query.group_by('date').order_by('date')
+            try:
+                result = await session.execute(query)
+                rows = [(row.date, row.open, row.high, row.low, row.close, row.volume) for row in result.all()]
+            except BaseException as e:
+                print(str(e))
             df = pandas.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
             df['Datetime'] = pandas.to_datetime(df['Datetime'])
         else:
@@ -250,11 +253,13 @@ class Symbol(Base):
             end_date = datetime.datetime.now()
         total_price_target = 0
         count = 0
+        analyst_ratings = await session.execute(sqlalchemy.select(AnalystRating).filter_by(symbol_isin=self.isin))
+        analyst_ratings = analyst_ratings.scalars().all()
         rating_count = {}
         total_rating = 0
         rating_weight = {'strong buy': 2, 'buy': 1, 'hold': 0, 'sell': -1, 'strong sell': -2}
         seen_ratings = set()
-        for rating in self.analyst_ratings:
+        for rating in analyst_ratings:
             if start_date <= rating.date <= end_date:
                 rating_key = (rating.name, rating.rating)
                 if rating_key not in seen_ratings:
@@ -286,7 +291,9 @@ class Symbol(Base):
         total_price_target = 0
         count = 0
         rating_count = {}
-        for rating in self.analyst_ratings:
+        analyst_ratings = await session.execute(sqlalchemy.select(AnalystRating).filter_by(symbol_isin=self.isin))
+        analyst_ratings = analyst_ratings.scalars().all()
+        for rating in analyst_ratings:
             if start_date <= rating.date <= end_date:
                 if rating.fair_price:
                     total_price_target += rating.fair_price
@@ -386,11 +393,12 @@ engine=sqlalchemy.ext.asyncio.create_async_engine('sqlite+aiosqlite:///'+str(Dat
         }) 
 async def init_models():
     async with engine.begin() as conn:
-        await conn.execute(sqlalchemy.text("PRAGMA journal_mode=WAL"))
+        res = await conn.execute(sqlalchemy.text("PRAGMA journal_mode=WAL2"))
         await conn.run_sync(Base.metadata.create_all)
 asyncio.run(init_models())
 def new_session():
     return sqlalchemy.orm.sessionmaker(bind=engine, class_=sqlalchemy.ext.asyncio.AsyncSession, autocommit=False, autoflush=False)()
+#logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
 async def FindSymbol(session,paper,market=None):
     if 'isin' in paper and paper['isin']:
         sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin'],marketplace=market).limit(1))).scalars().first()

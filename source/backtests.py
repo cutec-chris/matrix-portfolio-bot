@@ -3,11 +3,11 @@ async def run_backtest(cerebro):
     loop = asyncio.get_event_loop()
     with concurrent.futures.ThreadPoolExecutor() as executor:
         return await loop.run_in_executor(executor, cerebro.run)
-async def default_backtest(Strategy,ticker=None,isin=None,start=datetime.datetime.utcnow()-datetime.timedelta(days=30),end=None):
+async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.datetime.utcnow()-datetime.timedelta(days=30),end=None,timeframe='15m'):
     async with database.new_session() as session:
         sym = await database.FindSymbol(session,{'ticker': ticker,'isin': isin},None)
         if sym:
-            data = await sym.GetData(session,start,end)
+            data = await sym.GetData(session,start,end,timeframe)
             if data.empty:
                 return None,None
         else: return None
@@ -18,4 +18,6 @@ async def default_backtest(Strategy,ticker=None,isin=None,start=datetime.datetim
     cerebro.addobserver(backtrader.observers.BuySell,barplot=True,bardist=0.001)  # buy / sell arrows
     cerebro.addobserver(backtrader.observers.Broker)
     cerebro.addobserver(backtrader.observers.Trades)
+    if Strategy:
+        cerebro.addstrategy(Strategy)
     return await run_backtest(cerebro),cerebro
