@@ -21,11 +21,9 @@ async def UpdateTicker(paper,market=None):
     updatetime = 0.5
     res = False
     olddate = None
-    if market != None:#avoid updating symbols with other markets than supported
-        return res,olddate
     async with database.new_session() as session,session.begin():
         try:
-            sym = await database.FindSymbol(session,paper,market)
+            sym = await database.FindSymbol(session,paper,None)
             if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
                 sres = None
                 if 'isin' in paper and paper['isin']:
