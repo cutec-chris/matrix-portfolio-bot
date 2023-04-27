@@ -21,6 +21,8 @@ async def UpdateTicker(paper,market=None):
     updatetime = 0.5
     res = False
     olddate = None
+    if market != None:#avoid updating symbols with other markets than supported
+        return res,olddate
     async with database.new_session() as session,session.begin():
         try:
             sym = await database.FindSymbol(session,paper,market)

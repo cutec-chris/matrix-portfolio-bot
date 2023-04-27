@@ -402,11 +402,7 @@ def new_session():
 async def FindSymbol(session,paper,market=None):
     if 'isin' in paper and paper['isin']:
         sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin'],marketplace=market).limit(1))).scalars().first()
-        if not sym and market==None:
-            sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin']))).scalars().first()
     elif 'ticker' in paper and paper['ticker']:
         sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker=paper['ticker'],marketplace=market))).scalars().first()
-        if not sym and market==None:
-            sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker=paper['ticker']))).scalars().first()
     else: sym = None
     return sym
