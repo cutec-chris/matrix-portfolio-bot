@@ -134,10 +134,10 @@ async def SearchPaper(isin):
                 return data['quotes'][0]
     return None
 class UpdateTickers:
-    def __init__(self, papers, market,name, delay=0) -> None:
+    def __init__(self, papers, market,name, delay=0, Waittime=60/3) -> None:
         self.papers = papers
         self.market = market
-        self.WaitTime = 60/3
+        self.WaitTime = Waittime
         self.Delay = delay
     async def run(self):
         internal_updated = {}
@@ -153,10 +153,10 @@ class UpdateTickers:
                             internal_updated[paper['isin']] = till
                         else:
                             internal_updated[paper['isin']] = datetime.datetime.now()
+                        if self.WaitTime-(time.time()-started) > 0:
+                            await asyncio.sleep(self.WaitTime-(time.time()-started))
                 except BaseException as e:
                     logging.error(str(e))
-                if self.WaitTime-(time.time()-started) > 0:
-                    await asyncio.sleep(self.WaitTime-(time.time()-started))
             await asyncio.sleep(10)
 async def StartUpdate(papers,market,name):
     await UpdateTickers(papers,market,name,15*60).run()

@@ -1,5 +1,5 @@
 from init import *
-import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles,random,backtests
+import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles,random,backtests,os
 loop = None
 lastsend = None
 class Portfolio(Config):
@@ -178,7 +178,6 @@ async def tell(room, message):
                                 break
                         if ast:
                             cerebro = database.BotCerebro(stdstats=False)
-                            cerebro.addstrategy(ast['mod'].Strategy)
                             cerebro.broker.setcash(1000)
                             cerebro.addobserver(
                                 backtrader.observers.BuySell,
@@ -190,7 +189,11 @@ async def tell(room, message):
                             cerebro.addobserver(backtrader.observers.Trades)
                             initial_capital = cerebro.broker.getvalue()
                             cerebro.addsizer(backtrader.sizers.PercentSizer, percents=100)
+                            cerebro.addstrategy(ast['mod'].Strategy)
+                            cdata = backtrader.feeds.PandasData(dataname=df)
+                            cerebro.adddata(cdata)
                             await backtests.run_backtest(cerebro)
+                            cerebro.saveplots(style='line',file_path = '/tmp/plot.jpeg',volume=True,grid=True,valuetags=True,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=True)
                             msg += 'Statistic ROI: %.2f\n' % (((cerebro.broker.getvalue() - initial_capital) / initial_capital)*100)
                             checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
                             amsg = None
@@ -333,7 +336,6 @@ async def tell(room, message):
                                         cerebro.adddata(cdata)
                                         try:
                                             await backtests.run_backtest(cerebro)
-                                            #cerebro.run(stdstats=False)
                                             cerebro.saveplots(style='line',file_path = fpath,width=32*4, height=16*4,dpi=50,volume=False,grid=False,valuetags=False,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=False)
                                         except BaseException as e:
                                             logging.warning('failed to process:'+str(e))
@@ -762,4 +764,10 @@ def truncate_text(text, max_length):
     if last_space != -1:
         truncated = truncated[:last_space]
     return truncated+'...'
-bot.run()
+async def main():
+    try:
+        await bot.main()
+    except BaseException as e:
+        logging.error('bot main fails:'+str(e))
+        os._exit(1)
+asyncio.run(main())
