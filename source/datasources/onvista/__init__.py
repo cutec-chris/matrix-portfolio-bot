@@ -1,6 +1,6 @@
 import pathlib,sys;sys.path.append(str(pathlib.Path(__file__).parent.parent.parent))
 import sys,pathlib;sys.path.append(str(pathlib.Path(__file__).parent / 'pyonvista' / 'src'))
-import pyonvista,asyncio,aiohttp,datetime,pytz,time,logging,database,pandas,json,aiofiles,datetime,sqlalchemy,threading
+import pyonvista,asyncio,aiohttp,datetime,pytz,time,logging,database,pandas,json,aiofiles,datetime,sqlalchemy,threading,random
 async def UpdateTicker(paper,market=None):
     started = time.time()
     updatetime = 0.5
@@ -133,24 +133,26 @@ class UpdateTickers:
     async def run(self):
         internal_updated = {}
         while True:
-            for paper in self.papers:
+            shuffled_papers = list(self.papers)
+            random.shuffle(shuffled_papers)
+            for paper in shuffled_papers:
                 started = time.time()
                 try:
                     epaper = paper
-                    if paper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin'])+datetime.timedelta(seconds=self.Delay) < datetime.datetime.now()):
+                    if paper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin'])+datetime.timedelta(seconds=self.Delay) < datetime.datetime.utcnow()):
                         res,till = await UpdateTicker(epaper,self.market)
                         if not till: till = datetime.datetime.now()
-                        if res: 
+                        if till and till > datetime.datetime.utcnow()-datetime.timedelta(seconds=self.Delay+60*60): 
                             internal_updated[paper['isin']] = till
                         else:
-                            internal_updated[paper['isin']] = datetime.datetime.now()
+                            internal_updated[paper['isin']] = datetime.datetime.utcnow()
                         if self.WaitTime-(time.time()-started) > 0:
                             await asyncio.sleep(self.WaitTime-(time.time()-started))
                 except BaseException as e:
                     logging.error(str(e))
             await asyncio.sleep(10)
 async def StartUpdate(papers,market,name):
-    await UpdateTickers(papers,market,name,60*60,60/6).run()
+    await UpdateTickers(papers,market,name,15*60,60/12).run()
 if __name__ == '__main__':
     logging.root.setLevel(logging.DEBUG)
     apaper = {

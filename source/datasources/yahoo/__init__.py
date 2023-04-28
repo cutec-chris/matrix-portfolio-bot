@@ -1,6 +1,6 @@
 import pathlib,sys;sys.path.append(str(pathlib.Path(__file__).parent.parent.parent))
 import asyncio,aiohttp,csv,datetime,pytz,time,threading,concurrent.futures
-import requests,pandas,pathlib,database,sqlalchemy.sql.expression,asyncio,logging,io
+import requests,pandas,pathlib,database,sqlalchemy.sql.expression,asyncio,logging,io,random
 UserAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.109 Safari/537.36'
 async def UpdateTicker(paper,market=None):
     def extract_trading_times(metadata):
@@ -140,7 +140,9 @@ class UpdateTickers:
     async def run(self):
         internal_updated = {}
         while True:
-            for paper in self.papers:
+            shuffled_papers = list(self.papers)
+            random.shuffle(shuffled_papers)
+            for paper in shuffled_papers:
                 started = time.time()
                 try:
                     epaper = paper
