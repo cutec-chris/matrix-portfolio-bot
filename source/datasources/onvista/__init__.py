@@ -96,8 +96,8 @@ async def UpdateTicker(paper,market=None):
                                         res = res or acnt>0
                                         session.add(sym)
                                         if res: 
-                                            olddate = pdata['Datetime'].iloc[-1]
                                             logging.info('onvista:'+sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' from '+str(olddate))
+                                            olddate = pdata['Datetime'].iloc[-1]
                                         else:
                                             logging.info('onvista:'+sym.ticker+' no new data')
                                         updatetime = 10
@@ -141,7 +141,6 @@ class UpdateTickers:
                     epaper = paper
                     if paper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin'])+datetime.timedelta(seconds=self.Delay) < datetime.datetime.utcnow()):
                         res,till = await UpdateTicker(epaper,self.market)
-                        if not till: till = datetime.datetime.now()
                         if till and till > datetime.datetime.utcnow()-datetime.timedelta(seconds=self.Delay+60*60): 
                             internal_updated[paper['isin']] = till
                         else:
@@ -154,7 +153,7 @@ class UpdateTickers:
 async def StartUpdate(papers,market,name):
     await UpdateTickers(papers,market,name,15*60,60/12).run()
 if __name__ == '__main__':
-    logging.root.setLevel(logging.DEBUG)
+    #logging.root.setLevel(logging.DEBUG)
     apaper = {
         "isin": "DE0007037129",
         "count": 0,
