@@ -94,7 +94,7 @@ async def UpdateTicker(paper,market=None):
                                                     acnt = await sym.AppendData(session,pdata)
                                                     res = res or acnt>0
                                                     if res: 
-                                                        logging.info('yahoo:'+sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1]))
+                                                        logging.info('yahoo:'+sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' from '+str(olddate))
                                                         olddate = pdata['Datetime'].iloc[-1]
                                                     else:
                                                         logging.info('yahoo:'+sym.ticker+' no new data')
