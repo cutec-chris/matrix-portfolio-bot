@@ -1,4 +1,4 @@
-import sqlalchemy,pathlib,enum,datetime,pandas,asyncio,backtrader,logging,csv,io,re,threading,sqlalchemy.orm,sqlalchemy.ext.asyncio
+import sqlalchemy,pathlib,enum,datetime,pandas,asyncio,backtrader,logging,csv,io,re,threading,sqlalchemy.orm,sqlalchemy.ext.asyncio,random,time
 Base = sqlalchemy.orm.declarative_base()
 class Depot(Base):
     __tablename__ = 'depot'
@@ -406,3 +406,38 @@ async def FindSymbol(session,paper,market=None):
         sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker=paper['ticker'],marketplace=market))).scalars().first()
     else: sym = None
     return sym
+class UpdateTickers:
+    def __init__(self, papers, market, name, UpdateTicker, delay=0, Waittime=60/3) -> None:
+        self.papers = papers
+        self.market = market
+        self.WaitTime = Waittime
+        self.Delay = delay
+        self.UpdateTicker = UpdateTicker
+    async def run(self):
+        internal_updated = {}
+        internal_delay_mult = {}
+        while True:
+            shuffled_papers = list(self.papers)
+            random.shuffle(shuffled_papers)
+            for paper in shuffled_papers:
+                started = time.time()
+                if not paper['isin'] in internal_delay_mult:
+                    internal_delay_mult[paper['isin']] = 1
+                try:
+                    epaper = paper
+                    if paper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin'])+datetime.timedelta(seconds=self.Delay*internal_delay_mult[paper['isin']]) < datetime.datetime.now()):
+                        res,till = await self.UpdateTicker(epaper,self.market)
+                        if res and till: 
+                            internal_updated[paper['isin']] = till
+                            if internal_delay_mult[paper['isin']] > 5:
+                                internal_delay_mult[paper['isin']] = 4
+                            else:
+                                internal_delay_mult[paper['isin']] -= 1
+                        else:
+                            internal_updated[paper['isin']] = datetime.datetime.now()
+                            internal_delay_mult[paper['isin']] += 1
+                        if self.WaitTime-(time.time()-started) > 0:
+                            await asyncio.sleep(self.WaitTime-(time.time()-started))
+                except BaseException as e:
+                    logging.error(str(e))
+            await asyncio.sleep(10)

@@ -124,34 +124,8 @@ async def SearchPaper(isin):
                 'type': instrument.type
             }
     return None
-class UpdateTickers:
-    def __init__(self, papers, market,name, delay=0, Waittime=60/3) -> None:
-        self.papers = papers
-        self.market = market
-        self.WaitTime = Waittime
-        self.Delay = delay
-    async def run(self):
-        internal_updated = {}
-        while True:
-            shuffled_papers = list(self.papers)
-            random.shuffle(shuffled_papers)
-            for paper in shuffled_papers:
-                started = time.time()
-                try:
-                    epaper = paper
-                    if paper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin'])+datetime.timedelta(seconds=self.Delay) < datetime.datetime.now()):
-                        res,till = await UpdateTicker(epaper,self.market)
-                        if res and till: 
-                            internal_updated[paper['isin']] = till
-                        else:
-                            internal_updated[paper['isin']] = datetime.datetime.now()
-                        if self.WaitTime-(time.time()-started) > 0:
-                            await asyncio.sleep(self.WaitTime-(time.time()-started))
-                except BaseException as e:
-                    logging.error(str(e))
-            await asyncio.sleep(10)
 async def StartUpdate(papers,market,name):
-    await UpdateTickers(papers,market,name,20*60,60/12).run()
+    await database.UpdateTickers(papers,market,name,UpdateTicker,15*60,60/12).run()
 if __name__ == '__main__':
     logging.root.setLevel(logging.INFO)
     apaper = {
