@@ -139,21 +139,21 @@ class UpdateTickers:
                 started = time.time()
                 try:
                     epaper = paper
-                    if paper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin'])+datetime.timedelta(seconds=self.Delay) < datetime.datetime.utcnow()):
+                    if paper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin'])+datetime.timedelta(seconds=self.Delay) < datetime.datetime.now()):
                         res,till = await UpdateTicker(epaper,self.market)
-                        if till and till > datetime.datetime.utcnow()-datetime.timedelta(seconds=self.Delay+60*60): 
+                        if res and till: 
                             internal_updated[paper['isin']] = till
                         else:
-                            internal_updated[paper['isin']] = datetime.datetime.utcnow()
+                            internal_updated[paper['isin']] = datetime.datetime.now()
                         if self.WaitTime-(time.time()-started) > 0:
                             await asyncio.sleep(self.WaitTime-(time.time()-started))
                 except BaseException as e:
                     logging.error(str(e))
             await asyncio.sleep(10)
 async def StartUpdate(papers,market,name):
-    await UpdateTickers(papers,market,name,15*60,60/12).run()
+    await UpdateTickers(papers,market,name,20*60,60/12).run()
 if __name__ == '__main__':
-    #logging.root.setLevel(logging.DEBUG)
+    logging.root.setLevel(logging.INFO)
     apaper = {
         "isin": "DE0007037129",
         "count": 0,
