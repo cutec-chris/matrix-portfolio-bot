@@ -431,7 +431,7 @@ class UpdateCyclic:
                             internal_updated[paper['isin']] = till
                             if internal_delay_mult[paper['isin']] > 5:
                                 internal_delay_mult[paper['isin']] = 4
-                            else:
+                            elif internal_delay_mult[paper['isin']] > 2:
                                 internal_delay_mult[paper['isin']] -= 1
                         else:
                             internal_updated[paper['isin']] = datetime.datetime.now()
