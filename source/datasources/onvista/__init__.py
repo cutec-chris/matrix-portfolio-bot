@@ -42,8 +42,7 @@ async def UpdateTicker(paper,market=None):
                     if not latest_date:
                         startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
                     if (not (sym.tradingstart and sym.tradingend))\
-                    or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8))\
-                    or sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time():
+                    or ((sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time()) and (datetime.datetime.utcnow().weekday() < 5)):
                         client = aiohttp.ClientSession()
                         api = pyonvista.PyOnVista()
                         await api.install_client(client)
