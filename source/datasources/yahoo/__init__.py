@@ -132,7 +132,7 @@ async def SearchPaper(isin):
                 return data['quotes'][0]
     return None
 async def StartUpdate(papers,market,name):
-    await database.UpdateTickers(papers,market,name,UpdateTicker,15*60).run()
+    await database.UpdateCyclic(papers,market,name,UpdateTicker,15*60).run()
 if __name__ == '__main__':
     logging.root.setLevel(logging.DEBUG)
     apaper = {

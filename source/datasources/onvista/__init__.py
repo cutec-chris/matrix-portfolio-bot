@@ -93,7 +93,7 @@ async def UpdateTicker(paper,market=None):
                                     try:
                                         olddate = await sym.GetActDate(session)
                                         acnt = await sym.AppendData(session,pdata)
-                                        res = res or acnt>0
+                                        res = acnt>0
                                         session.add(sym)
                                         if res: 
                                             logging.info('onvista:'+sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' from '+str(olddate))
@@ -125,7 +125,7 @@ async def SearchPaper(isin):
             }
     return None
 async def StartUpdate(papers,market,name):
-    await database.UpdateTickers(papers,market,name,UpdateTicker,15*60,60/12).run()
+    await database.UpdateCyclic(papers,market,name,UpdateTicker,15*60,60/12).run()
 if __name__ == '__main__':
     logging.root.setLevel(logging.INFO)
     apaper = {

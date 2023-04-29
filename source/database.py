@@ -406,13 +406,13 @@ async def FindSymbol(session,paper,market=None):
         sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker=paper['ticker'],marketplace=market))).scalars().first()
     else: sym = None
     return sym
-class UpdateTickers:
-    def __init__(self, papers, market, name, UpdateTicker, delay=0, Waittime=60/3) -> None:
+class UpdateCyclic:
+    def __init__(self, papers, market, name, UpdateFunc, delay=0, Waittime=60/3) -> None:
         self.papers = papers
         self.market = market
         self.WaitTime = Waittime
         self.Delay = delay
-        self.UpdateTicker = UpdateTicker
+        self.UpdateFunc = UpdateFunc
     async def run(self):
         internal_updated = {}
         internal_delay_mult = {}
@@ -426,7 +426,7 @@ class UpdateTickers:
                 try:
                     epaper = paper
                     if paper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin'])+datetime.timedelta(seconds=self.Delay*internal_delay_mult[paper['isin']]) < datetime.datetime.now()):
-                        res,till = await self.UpdateTicker(epaper,self.market)
+                        res,till = await self.UpdateFunc(epaper,self.market)
                         if res and till: 
                             internal_updated[paper['isin']] = till
                             if internal_delay_mult[paper['isin']] > 5:
