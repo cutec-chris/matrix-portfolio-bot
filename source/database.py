@@ -339,9 +339,7 @@ class AnalystRating(Base):
     rating = sqlalchemy.Column(sqlalchemy.String(200),nullable=True)
     ratingcount = sqlalchemy.Column(sqlalchemy.Integer,nullable=True)
     symbol_isin = sqlalchemy.Column(sqlalchemy.String(50),
-                sqlalchemy.ForeignKey('symbol.isin',
-                            onupdate="CASCADE",
-                            ondelete="CASCADE"),
+                sqlalchemy.ForeignKey('symbol.isin'),
                 nullable=False)
     symbol = sqlalchemy.orm.relationship('Symbol', backref='analyst_ratings')
 class EarningsCalendar(Base):
@@ -351,11 +349,21 @@ class EarningsCalendar(Base):
     name = sqlalchemy.Column(sqlalchemy.String(100), nullable=False)
     estimated_eps = sqlalchemy.Column(sqlalchemy.Float, nullable=True)
     symbol_isin = sqlalchemy.Column(sqlalchemy.String(50),
-                sqlalchemy.ForeignKey('symbol.isin',
-                            onupdate="CASCADE",
-                            ondelete="CASCADE"),
+                sqlalchemy.ForeignKey('symbol.isin'),
                 nullable=False)
     symbol = sqlalchemy.orm.relationship('Symbol', backref='earnings_calendar_entries')
+class NewsEntry(Base):
+    __tablename__ = 'news'
+    id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
+    release_date = sqlalchemy.Column(sqlalchemy.DateTime, nullable=False)
+    headline = sqlalchemy.Column(sqlalchemy.String(100))
+    content = sqlalchemy.Column(sqlalchemy.Text, nullable=False)
+    category = sqlalchemy.Column(sqlalchemy.String(100))
+    source_id = sqlalchemy.Column(sqlalchemy.String(100))
+    symbol_isin = sqlalchemy.Column(sqlalchemy.String(50),
+                sqlalchemy.ForeignKey('symbol.isin'),
+                nullable=False)
+    symbol = sqlalchemy.orm.relationship('Symbol', backref='news_entries')
 class BotCerebro(backtrader.Cerebro):
     def __init__(self):
         super().__init__()
