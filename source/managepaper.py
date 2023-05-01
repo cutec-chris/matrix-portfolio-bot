@@ -1,6 +1,7 @@
 import database,sqlalchemy,logging,asyncio
 bot = None
 servers = None
+datasources = None
 async def manage_paper(room,message,match):
     depot = None
     count = None
@@ -19,7 +20,8 @@ async def manage_paper(room,message,match):
         found = False
         async with database.new_session() as session:
             for paper in depot.papers:
-                if paper['isin'] == match.args()[1]:
+                if paper['isin'] == match.args()[1]\
+                or paper['ticker'] == match.args()[1]:
                     found = True
                     if not price:
                         sym = await database.FindSymbol(session,paper)
@@ -38,6 +40,12 @@ async def manage_paper(room,message,match):
             }
             datafound = False 
             res = False
+            async with database.new_session() as session:
+                sym = await database.FindSymbol(session,paper)
+                if sym: 
+                    datafound = True
+                    if not price:
+                        price = await sym.GetActPrice(session)
             for datasource in datasources:
                 if hasattr(datasource['mod'],'UpdateTicker'):
                     res,_ = await datasource['mod'].UpdateTicker(paper)

@@ -186,6 +186,9 @@ async def main():
 processpaper.bot = bot
 processpaper.servers = servers
 processpaper.datasources = datasources
+processpaper.save_servers = save_servers
 managepaper.bot = bot
 managepaper.servers = servers
+managepaper.datasources = datasources
+managepaper.save_servers = save_servers
 asyncio.run(main())
