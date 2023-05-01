@@ -92,6 +92,7 @@ async def UpdateTicker(paper,market=None):
                                     pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"])
                                     gmtoffset = datetime.datetime.now()-datetime.datetime.utcnow()
                                     pdata["Datetime"] -= gmtoffset
+                                    pdata["Datetime"] = pdata["Datetime"].dt.floor('S')
                                     try:
                                         olddate = await sym.GetActDate(session)
                                         acnt = await sym.AppendData(session,pdata)
@@ -114,17 +115,19 @@ def GetUpdateFrequency():
     return 15*60
 async def SearchPaper(isin):
     client = aiohttp.ClientSession()
-    api = pyonvista.PyOnVista()
-    await api.install_client(client)
-    async with client:
-        instruments = await api.search_instrument(key=isin)
-        if len(instruments)>0:
-            instrument = await api.request_instrument(instruments[0])
-            return {
-                'longname': instrument.name,
-                'symbol': instrument.symbol,
-                'type': instrument.type
-            }
+    try:
+        api = pyonvista.PyOnVista()
+        await api.install_client(client)
+        async with client:
+            instruments = await api.search_instrument(key=isin)
+            if len(instruments)>0:
+                instrument = await api.request_instrument(instruments[0])
+                return {
+                    'longname': instrument.name,
+                    'symbol': instrument.symbol,
+                    'type': instrument.type
+                }
+    except BaseException as e: pass
     return None
 async def StartUpdate(papers,market,name):
     await database.UpdateCyclic(papers,market,name,UpdateTicker,15*60,60/12).run()

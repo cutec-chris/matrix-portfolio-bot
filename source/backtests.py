@@ -1,4 +1,4 @@
-import backtrader,asyncio,concurrent.futures,database,datetime
+import backtrader,asyncio,concurrent.futures,database,datetime,pandas
 async def run_backtest(cerebro):
     loop = asyncio.get_event_loop()
     with concurrent.futures.ThreadPoolExecutor() as executor:
