@@ -353,3 +353,56 @@ async def check_depot(depot,fast=False):
                 mod_ = datasource['mod']
                 if hasattr(mod_,'StartUpdate'):
                     loop.create_task(mod_.StartUpdate(depot.papers,depot.market,depot.name),name='update-ds-'+depot.name)
+def parse_human_readable_duration(duration_str):
+    units = {'d': 'days', 'w': 'weeks', 'y': 'years'}
+    value = int(duration_str[:-1])
+    unit = duration_str[-1]
+
+    if unit not in units:
+        raise ValueError(f"Invalid time unit '{unit}', valid units are {', '.join(units.keys())}")
+
+    kwargs = {units[unit]: value}
+    return datetime.timedelta(**kwargs)
+def calculate_roi(df):
+    timeframes = [('1 hour', datetime.timedelta(hours=1)), 
+                  ('1 day', datetime.timedelta(days=1)), 
+                  ('1 month', datetime.timedelta(days=30)), 
+                  ('1 year', datetime.timedelta(days=365)),
+                  ('all', df.index.max() - df.index.min())]
+    roi = {}
+    for label, delta in timeframes:
+        last_time = df.index.max()
+        first_time = last_time - delta
+        if first_time < df.index.min() or first_time > df.index.max():
+            continue
+        last_close_idx = df.index.searchsorted(last_time)
+        first_close_idx = df.index.searchsorted(first_time)
+        if last_close_idx >= len(df) or df.index[last_close_idx] > last_time:
+            last_close_idx -= 1
+        if first_close_idx >= len(df) or df.index[first_close_idx] > first_time:
+            first_close_idx -= 1
+        first_close = df.iloc[first_close_idx]['Close']
+        last_close = df.iloc[last_close_idx]['Close']
+        roi[label] = (last_close - first_close) / first_close * 100
+    return roi
+def rating_to_color(rating, min_rating=-2, max_rating=2):
+    middle = min_rating+max_rating
+    if rating > middle:
+        if rating>max_rating: rating = max_rating
+        r = 0
+        g = 82+round(((255-82)/max_rating)*rating)
+        b = 0
+    else:
+        if rating<min_rating: rating = min_rating
+        r = 82+round(((255-82)/min_rating)*rating)
+        g = 0
+        b = 0
+    return f"#{r:02x}{g:02x}{b:02x}"
+def truncate_text(text, max_length):
+    if len(text) <= max_length:
+        return text
+    truncated = text[:max_length].rstrip()
+    last_space = truncated.rfind(' ')
+    if last_space != -1:
+        truncated = truncated[:last_space]
+    return truncated+'...'
