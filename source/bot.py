@@ -202,7 +202,7 @@ async def tell(room, message):
                                         amsg += '\n'
                             if amsg: msg += amsg
                             await bot.api.send_markdown_message(room.room_id, msg)
-                            await plot_strategy(cerebro)
+                            await plot_strategy(cerebro,depot)
                         else:
                             await bot.api.send_markdown_message(room.room_id, msg)
                     else:
@@ -415,9 +415,9 @@ async def tell(room, message):
         logging.error(str(e), exc_info=True)
         await bot.api.send_text_message(room,str(e))
     await bot.api.async_client.room_typing(room.room_id,False,0)
-async def plot_strategy(cerebro):
+async def plot_strategy(cerebro,depot):
     cerebro.saveplots(style='line',file_path = '/tmp/plot.jpeg',volume=True,grid=True,valuetags=True,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=True)
-    await bot.api.send_image_message(room.room_id,'/tmp/plot.jpeg')
+    await bot.api.send_image_message(depot.room.room_id,'/tmp/plot.jpeg')
 async def ProcessStrategy(paper,depot,data):
     cerebro = None
     if not isinstance(data, pandas.DataFrame) or data.empty:
@@ -465,7 +465,7 @@ async def ProcessStrategy(paper,depot,data):
                         await bot.api.send_text_message(depot.room,msg2)
                         paper['lastreco'] = strategy+':'+msg2
                         paper['lastcheck'] = orderdate.strftime("%Y-%m-%d %H:%M:%S")
-                        await plot_strategy(cerebro)
+                        await plot_strategy(cerebro,depot)
                         res = True
 async def ChangeDepotStatus(depot,newstatus):
     global servers
