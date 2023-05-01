@@ -77,7 +77,7 @@ async def tell(room, message):
                 await bot.api.send_text_message(room.room_id, 'ok')
         elif (match.is_not_from_this_bot() and match.prefix())\
         and match.command("restart"):
-            await bot.api.send_text_message(room.room_id, 'ok')
+            await bot.api.send_text_message(room.room_id, 'exitting...')
             os._exit(0)
     except BaseException as e:
         logging.error(str(e), exc_info=True)

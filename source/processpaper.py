@@ -352,10 +352,35 @@ async def check_depot(depot,fast=False):
         if not updates_running:
             loop = asyncio.get_running_loop()
             updates_running = True
+            loop.create_task(check_news(depot),name='update-news')
             for datasource in datasources:
                 mod_ = datasource['mod']
                 if hasattr(mod_,'StartUpdate'):
                     loop.create_task(mod_.StartUpdate(depot.papers,depot.market,depot.name),name='update-ds-'+depot.name)
+async def check_news(depot):
+    global lastsend,servers,connection
+    last_processed = 0
+    async with database.new_session() as session:
+        query = sqlalchemy.select(sqlalchemy.func.max(database.NewsEntry.id).label("max_id"))
+        last_bar = await session.execute(query)
+        for row in last_bar:
+            last_processed = row.max_id
+    while True:
+        try:
+            shown_ids = []
+            async with database.new_session() as session:
+                query = sqlalchemy.select(database.NewsEntry).where(database.NewsEntry.id > last_processed)
+                new_news = await session.scalars(query)
+                for entry in new_news.all():
+                    if entry.source_id in shown_ids:
+                        continue
+                    msg = entry.symbol_isin+':'+entry.headline+'<br>'+entry.content
+                    await bot.api.send_markdown_message(depot.room, msg)
+                    shown_ids.append(entry.source_id)
+        except BaseException as e:
+            logging.error('news show:'+str(e))
+        await asyncio.sleep(60*2)
+
 def parse_human_readable_duration(duration_str):
     units = {'d': 'days', 'w': 'weeks', 'y': 'years'}
     value = int(duration_str[:-1])
