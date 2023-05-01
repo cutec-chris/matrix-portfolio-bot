@@ -177,23 +177,13 @@ async def tell(room, message):
                                 ast = st
                                 break
                         if ast:
-                            cerebro = database.BotCerebro(stdstats=False)
-                            cerebro.broker.setcash(1000)
-                            cerebro.addobserver(
-                                backtrader.observers.BuySell,
-                                barplot=True,
-                                bardist=0.001)  # buy / sell arrows
-                            #cerebro.addobserver(backtrader.observers.DrawDown)
-                            #cerebro.addobserver(backtrader.observers.DataTrades)
-                            cerebro.addobserver(backtrader.observers.Broker)
-                            cerebro.addobserver(backtrader.observers.Trades)
-                            initial_capital = cerebro.broker.getvalue()
-                            cerebro.addsizer(backtrader.sizers.PercentSizer, percents=100)
-                            cerebro.addstrategy(ast['mod'].Strategy)
-                            cdata = backtrader.feeds.PandasData(dataname=df)
-                            cerebro.adddata(cdata)
-                            await backtests.run_backtest(cerebro)
-                            cerebro.saveplots(style='line',file_path = '/tmp/plot.jpeg',volume=True,grid=True,valuetags=True,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=True)
+                            initial_capital=1000
+                            try:
+                                res,cerebro = await backtests.default_backtest(st['mod'].Strategy,data=df)
+                            except BaseException as e:
+                                logging.error(str(e))
+                                cerebro = None
+                        if cerebro:
                             msg += 'Statistic ROI: %.2f\n' % (((cerebro.broker.getvalue() - initial_capital) / initial_capital)*100)
                             checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
                             amsg = None
@@ -212,7 +202,7 @@ async def tell(room, message):
                                         amsg += '\n'
                             if amsg: msg += amsg
                             await bot.api.send_markdown_message(room.room_id, msg)
-                            await bot.api.send_image_message(room.room_id,'/tmp/plot.jpeg')
+                            await plot_strategy(cerebro)
                         else:
                             await bot.api.send_markdown_message(room.room_id, msg)
                     else:
@@ -428,8 +418,13 @@ async def tell(room, message):
         logging.error(str(e), exc_info=True)
         await bot.api.send_text_message(room,str(e))
     await bot.api.async_client.room_typing(room.room_id,False,0)
+async def plot_strategy(cerebro):
+    cerebro.saveplots(style='line',file_path = '/tmp/plot.jpeg',volume=True,grid=True,valuetags=True,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=True)
+    await bot.api.send_image_message(room.room_id,'/tmp/plot.jpeg')
 async def ProcessStrategy(paper,depot,data):
     cerebro = None
+    if not isinstance(data, pandas.DataFrame) or data.empty:
+        return False
     strategy = 'sma'
     if 'strategy' in paper:
         strategy = paper['strategy']
@@ -437,84 +432,44 @@ async def ProcessStrategy(paper,depot,data):
         strategy = depot.strategy
     for st in strategies:
         if st['name'] in strategy:
-            cerebro = database.BotCerebro()
-            cerebro.broker.setcash(1000)
-            cerebro.addsizer(backtrader.sizers.PercentSizer, percents=100)
-            cerebro.addstrategy(st['mod'].Strategy)
-            break
-    if cerebro and isinstance(data, pandas.DataFrame) and cerebro and not data.empty:
-        logging.info(str(depot.name)+': processing ticker '+paper['ticker']+' till '+str(data.index[-1]))
-        try:
-            cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
-            await backtests.run_backtest(cerebro)
-        except BaseException as e:
-            logging.error(str(e))
-            return False
-        size_sum = 0
-        price_sum = 0
-        checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
-        if 'lastcheck' in paper: checkfrom = datetime.datetime.strptime(paper['lastcheck'], "%Y-%m-%d %H:%M:%S")
-        orderdate = datetime.datetime.now()
-        for order in cerebro._broker.orders:
-            if order.status == 4:
-                if order.executed.dt: orderdate = backtrader.num2date(order.executed.dt)
-                if orderdate > checkfrom:
-                    size_sum = order.size
-                    #print(order.isbuy(),order.size,orderdate)
-        if size_sum != 0:
-            if not 'lastreco' in paper: paper['lastreco'] = ''
-            if size_sum > 0:
-                msg1 = 'strategy %s propose buying %d x %s %s (%s) at %s' % (strategy,round(size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
-                if hasattr(order,'chance'):
-                    msg1 += ' chance %.1f till %s' % (order.chance,oder.chancetarget)
-                msg1 += '\n'
-                msg2 = 'buy %s %d' % (paper['isin'],round(size_sum))
-                if paper['count']>0: return False
-            else:
-                msg1 = 'strategy %s propose selling %d x %s %s (%s) at %s' % (strategy,round(-size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
-                msg2 = 'sell %s %d' % (paper['isin'],round(-size_sum))
-                if paper['count']==0: return False
-            if strategy+':'+msg2 != paper['lastreco']:
-                await bot.api.send_text_message(depot.room,msg1)
-                await bot.api.send_text_message(depot.room,msg2)
-                paper['lastreco'] = strategy+':'+msg2
-                paper['lastcheck'] = orderdate.strftime("%Y-%m-%d %H:%M:%S")
-                return True
-    return False
-async def ProcessIndicator(paper,depot,data):
-    res = False
-    def heikin_ashi(data):
-        ha_data = pandas.DataFrame(index=data.index)
-        ha_data['HA_Open'] = (data['Open'] + data['Close']) / 2
-        ha_data['HA_High'] = data[['High', 'Open', 'Close']].max(axis=1)
-        ha_data['HA_Low'] = data[['Low', 'Open', 'Close']].min(axis=1)
-        ha_data['HA_Close'] = (data['Open'] + data['High'] + data['Low'] + data['Close']) / 4
-        return ha_data
-    hdata = data.resample('4H').agg({
-                            'Open':'first',
-                            'High':'max',
-                            'Low':'min',
-                            'Close':'last'})
-    data = heikin_ashi(hdata)
-    if   data.iloc[-2]['HA_Close']>data.iloc[-2]['HA_Open']:# and data.iloc[-2]['HA_Low']==data.iloc[-2]['HA_Open']:
-        act_indicator = True
-    elif data.iloc[-2]['HA_Close']<data.iloc[-2]['HA_Open']:# and data.iloc[-2]['HA_High']==data.iloc[-2]['HA_Close']:
-        act_indicator = False
-    else:
-        act_indicator = None
-    if not act_indicator: trend_symbol = '⌄'
-    else: trend_symbol = '⌃'
-    msg1 = 'trend changes to %s for %s %s (%s)' % (trend_symbol,paper['isin'],paper['name'],paper['ticker'])
-    if 'trend_up' in paper:
-        if act_indicator != paper['trend_up']:
-            if act_indicator==False and paper['count']>0: #Downward Trend on an paper we have
-                await bot.api.send_text_message(depot.room,msg1)
-            elif act_indicator==True: #Trend changes to upwards
-                await bot.api.send_text_message(depot.room,msg1)
-            res = True
-    else: res = True
-    paper['trend_up'] = act_indicator
-    return res
+            logging.info(str(depot.name)+': processing ticker '+paper['ticker']+' till '+str(data.index[-1])+' with '+st['name'])
+            try:
+                res,cerebro = backtests.default_backtest(st['mod'].Strategy,data=data)
+            except BaseException as e:
+                logging.error(str(e))
+                cerebro = None
+            if cerebro:
+                size_sum = 0
+                price_sum = 0
+                checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
+                if 'lastcheck' in paper: checkfrom = datetime.datetime.strptime(paper['lastcheck'], "%Y-%m-%d %H:%M:%S")
+                orderdate = datetime.datetime.now()
+                for order in cerebro._broker.orders:
+                    if order.status == 4:
+                        if order.executed.dt: orderdate = backtrader.num2date(order.executed.dt)
+                        if orderdate > checkfrom:
+                            size_sum = order.size
+                            #print(order.isbuy(),order.size,orderdate)
+                if size_sum != 0:
+                    if not 'lastreco' in paper: paper['lastreco'] = ''
+                    if size_sum > 0:
+                        msg1 = 'strategy %s propose buying %d x %s %s (%s) at %s' % (strategy,round(size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
+                        if hasattr(order,'chance'):
+                            msg1 += ' chance %.1f till %s' % (order.chance,oder.chancetarget)
+                        msg1 += '\n'
+                        msg2 = 'buy %s %d' % (paper['isin'],round(size_sum))
+                        if paper['count']>0: return False
+                    else:
+                        msg1 = 'strategy %s propose selling %d x %s %s (%s) at %s' % (strategy,round(-size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
+                        msg2 = 'sell %s %d' % (paper['isin'],round(-size_sum))
+                        if paper['count']==0: return False
+                    if strategy+':'+msg2 != paper['lastreco']:
+                        await bot.api.send_text_message(depot.room,msg1)
+                        await bot.api.send_text_message(depot.room,msg2)
+                        paper['lastreco'] = strategy+':'+msg2
+                        paper['lastcheck'] = orderdate.strftime("%Y-%m-%d %H:%M:%S")
+                        await plot_strategy(cerebro)
+                        res = True
 async def ChangeDepotStatus(depot,newstatus):
     global servers
     if newstatus!='':
@@ -591,8 +546,6 @@ async def check_depot(depot,fast=False):
                             ps = await ProcessStrategy(paper,depot,df)
                             ShouldSave = ShouldSave or ps
                             await asyncio.sleep(0.1)
-                            #ps = await ProcessIndicator(paper,depot,df)
-                            #ShouldSave = ShouldSave or ps
                             break
             logging.info(depot.name+' finished updates '+str(datetime.datetime.now()))
         except BaseException as e:
