@@ -89,6 +89,9 @@ async def UpdateTicker(paper,market=None):
                                     # Erstellen des DataFrames aus der Liste von Dictionaries
                                     df = pandas.DataFrame(data)
                                     pdata = df.dropna()
+                                    pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"])
+                                    gmtoffset = datetime.datetime.now()-datetime.datetime.utcnow()
+                                    pdata["Datetime"] -= gmtoffset
                                     try:
                                         olddate = await sym.GetActDate(session)
                                         acnt = await sym.AppendData(session,pdata)
