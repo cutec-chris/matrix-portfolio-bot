@@ -1,4 +1,4 @@
-import database,sqlalchemy,logging,backtrader,asyncio,datetime,random,backtests
+import database,sqlalchemy,logging,backtrader,asyncio,datetime,random,backtests,aiofiles
 bot = None
 server = None
 datasources = None
@@ -159,6 +159,9 @@ async def overview(room,message,match):
                             fpath = '/tmp/%s.jpeg' % paper['isin']
                             async def process_cerebro(df,fpath):
                                 try:
+                                    cerebro = database.BotCerebro(stdstats=False)
+                                    cdata = backtrader.feeds.PandasData(dataname=df)
+                                    cerebro.adddata(cdata)
                                     await backtests.run_backtest(cerebro)
                                     cerebro.saveplots(style='line',file_path = fpath,width=32*4, height=16*4,dpi=50,volume=False,grid=False,valuetags=False,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=False)
                                 except BaseException as e:
@@ -206,7 +209,7 @@ async def overview(room,message,match):
                 await bot.api.send_markdown_message(room.room_id, msg)
 async def plot_strategy(cerebro,depot):
     cerebro.saveplots(style='line',file_path = '/tmp/plot.jpeg',volume=True,grid=True,valuetags=True,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=True)
-    await bot.api.send_image_message(room.room_id,'/tmp/plot.jpeg')
+    await bot.api.send_image_message(depot.room,'/tmp/plot.jpeg')
 async def ProcessStrategy(paper,depot,data):
     cerebro = None
     if not isinstance(data, pandas.DataFrame) or data.empty:
