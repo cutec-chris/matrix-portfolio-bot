@@ -72,6 +72,7 @@ async def UpdateTicker(paper,market=None):
                                             if not sym.tradingstart or not sym.currency:
                                                 sym.tradingstart, sym.tradingend = extract_trading_times(data["chart"]["result"][0]['meta']['currentTradingPeriod'])
                                                 sym.currency = data["chart"]["result"][0]['meta']['currency']
+                                            gmtoffset_timedelta = datetime.timedelta(seconds=data["chart"]["result"][0]['meta']['gmtoffset'])
                                             ohlc_data = data["chart"]["result"][0]["indicators"]["quote"][0]
                                             if len(ohlc_data)>0:
                                                 pdata = pandas.DataFrame({
@@ -83,6 +84,7 @@ async def UpdateTicker(paper,market=None):
                                                     "Volume": ohlc_data["volume"]
                                                 })
                                                 pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
+                                                pdata["Datetime"] -= gmtoffset_timedelta
                                                 pdata = pdata.dropna()
                                                 if pdata["Datetime"].iloc[-1].minute % 15 != 0:
                                                     # Entferne die letzte Zeile aus dem DataFrame
