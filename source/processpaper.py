@@ -76,7 +76,7 @@ async def analyze(room,message,match):
                                 amsg += '\n'
                     if amsg: msg += amsg
                     await bot.api.send_markdown_message(room.room_id, msg)
-                    await plot_strategy(cerebro)
+                    await plot_strategy(cerebro,depot)
                 else:
                     await bot.api.send_markdown_message(room.room_id, msg)
             else:
