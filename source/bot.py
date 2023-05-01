@@ -417,7 +417,7 @@ async def tell(room, message):
     await bot.api.async_client.room_typing(room.room_id,False,0)
 async def plot_strategy(cerebro,depot):
     cerebro.saveplots(style='line',file_path = '/tmp/plot.jpeg',volume=True,grid=True,valuetags=True,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=True)
-    await bot.api.send_image_message(depot.room.room_id,'/tmp/plot.jpeg')
+    await bot.api.send_image_message(depot.room,'/tmp/plot.jpeg')
 async def ProcessStrategy(paper,depot,data):
     cerebro = None
     if not isinstance(data, pandas.DataFrame) or data.empty:
