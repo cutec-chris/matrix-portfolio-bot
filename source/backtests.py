@@ -4,7 +4,7 @@ async def run_backtest(cerebro):
     with concurrent.futures.ThreadPoolExecutor() as executor:
         return await loop.run_in_executor(executor, cerebro.run)
 async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.datetime.utcnow()-datetime.timedelta(days=30),end=None,timeframe='15m',data=None,initial_captial=1000):
-    if data == None:
+    if not isinstance(data, pandas.DataFrame):
         async with database.new_session() as session:
             sym = await database.FindSymbol(session,{'ticker': ticker,'isin': isin},None)
             if sym:
