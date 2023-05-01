@@ -321,9 +321,6 @@ async def tell(room, message):
                                 if not (df.empty):
                                     fpath = '/tmp/%s.jpeg' % paper['isin']
                                     async def process_cerebro(df,fpath):
-                                        cerebro = database.BotCerebro(stdstats=False)
-                                        cdata = backtrader.feeds.PandasData(dataname=df)
-                                        cerebro.adddata(cdata)
                                         try:
                                             await backtests.run_backtest(cerebro)
                                             cerebro.saveplots(style='line',file_path = fpath,width=32*4, height=16*4,dpi=50,volume=False,grid=False,valuetags=False,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=False)
@@ -344,7 +341,7 @@ async def tell(room, message):
                         return result
                     tasks = []
                     for paper in depot.papers:
-                        task = asyncio.create_task(overview_process(paper, depot, trange, style, bot))
+                        task = asyncio.create_task(overview_process(paper, depot, trange, style, bot),name='overview-'+paper['ticker'])
                         tasks.append(task)
                         count += 1
                     results = await asyncio.gather(*tasks)
@@ -356,7 +353,7 @@ async def tell(room, message):
                     for chunk in chunks(sorted_results, 25):
                         chunk_tasks = []
                         for result in chunk:
-                            ctask = asyncio.create_task(graphics_process(result))
+                            ctask = asyncio.create_task(graphics_process(result),name='overview-graphic-'+paper['ticker'])
                             chunk_tasks.append(ctask)
                         chunk_results = await asyncio.gather(*chunk_tasks)
                         msg = '<table style="text-align: right">\n'
@@ -395,7 +392,7 @@ async def tell(room, message):
             if len(match.args())>2:
                 pf.taxCostPercent = float(match.args()[2])
             servers.append(pf)
-            loop.create_task(check_depot(pf))
+            loop.create_task(check_depot(pf),name='check-depot-'+pf.name)
             await save_servers()
             await bot.api.send_text_message(room.room_id, 'ok')
         elif (match.is_not_from_this_bot() and match.prefix())\
@@ -565,7 +562,7 @@ async def check_depot(depot,fast=False):
             for datasource in datasources:
                 mod_ = datasource['mod']
                 if hasattr(mod_,'StartUpdate'):
-                    loop.create_task(mod_.StartUpdate(depot.papers,depot.market,depot.name))
+                    loop.create_task(mod_.StartUpdate(depot.papers,depot.market,depot.name),name='update-ds-'+depot.name)
 datasources = []
 strategies = []
 connection = None
@@ -616,7 +613,7 @@ async def startup(room):
     for server in servers:
         if server.room == room:
             if not hasattr(server,'market'): setattr(server,'market',None)
-            loop.create_task(check_depot(server))
+            loop.create_task(check_depot(server),name='check-depot-'+server.name)
 @bot.listener.on_message_event
 async def bot_help(room, message):
     bot_help_message = f"""

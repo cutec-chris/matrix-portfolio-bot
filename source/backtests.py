@@ -12,7 +12,7 @@ async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.da
                 if data.empty:
                     return None,None
             else: return None
-    cerebro = backtrader.Cerebro(stdstats=False,cheat_on_open=True)
+    cerebro = database.BotCerebro(stdstats=False,cheat_on_open=True)
     cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
     cerebro.broker.setcash(initial_captial)
     cerebro.addsizer(backtrader.sizers.PercentSizer, percents=33.3)
