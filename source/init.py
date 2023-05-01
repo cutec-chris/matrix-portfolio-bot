@@ -14,8 +14,17 @@ try:
     prefix = config['server']['prefix']
 except:
     prefix = config['server']['user']
+class FailsafeBot(botlib.Bot):
+    async def main(self):
+        try:
+            await super().main()
+        except: pass
+        while True:
+            logging.error('Server disconnected, reconnecting ...')
+            await asyncio.sleep(1)
+            await self.async_client.sync_forever(timeout=30000, full_state=True)
 creds = botlib.Creds(config['server']['url'], config['server']['user'], config['server']['password'])
-bot = botlib.Bot(creds)
+bot = FailsafeBot(creds)
 class Config(object):
     def __init__(self,room,**kwargs) -> None:
         if isinstance(room, dict):
@@ -75,9 +84,12 @@ async def get_room_events(client, room, limit = 1):
     # as well.
     events = await fetch_room_events(client,start_token,bot.api.async_client.rooms[room],nio.MessageDirection.back,limit)
     return events
-async def run_in_thread(coroutine):
+async def run_in_thread(coroutine,sync=False):
     loop = asyncio.get_running_loop()
     with concurrent.futures.ThreadPoolExecutor() as executor:
         # Passen Sie die Coroutine an, um sie als Funktion auszuführen
-        result = await loop.run_in_executor(executor, lambda: asyncio.run(coroutine))
+        if sync:
+            result = await loop.run_in_executor(executor, coroutine)
+        else:
+            result = await loop.run_in_executor(executor, lambda: asyncio.run(coroutine))
     return result

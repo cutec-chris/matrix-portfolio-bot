@@ -26,13 +26,8 @@ class Strategy(backtrader.Strategy):
             self.close()
 if __name__ == "__main__":
     import pathlib,sys;sys.path.append(str(pathlib.Path(__file__).parent.parent.parent))
-    import database
-    cerebro = backtrader.Cerebro()
-    cerebro.addstrategy(Strategy)
-    cerebro.addsizer(backtrader.sizers.PercentSizer, percents=100)
-    cerebro.broker.setcash(1000)
-    sym = database.session.query(database.Symbol).filter_by(ticker='TSLA').first()
-    data = sym.GetData(datetime.datetime.utcnow()-datetime.timedelta(days=30*3))
-    cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
-    cerebro.run()
+    import database,datetime,backtests,asyncio,logging
+    logging.basicConfig(level=logging.DEBUG)
+    res,cerebro = asyncio.run(backtests.default_backtest(Strategy,ticker='RWE'))
     cerebro.plot()
+    print(res)

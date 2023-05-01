@@ -1,100 +1,118 @@
-import asyncio,aiohttp,csv,datetime,pytz,time
-import requests,pandas,pathlib,database,sqlalchemy.sql.expression,asyncio,logging,io
+import pathlib,sys;sys.path.append(str(pathlib.Path(__file__).parent.parent.parent))
+import asyncio,aiohttp,csv,datetime,pytz,time,threading,concurrent.futures
+import requests,pandas,pathlib,database,sqlalchemy.sql.expression,asyncio,logging,io,random
 UserAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.109 Safari/537.36'
 async def UpdateTicker(paper,market=None):
     def extract_trading_times(metadata):
         try:
             timezone = metadata['regular']['timezone']
+            if timezone == 'CEST': timezone = 'Europe/Berlin'
+            if timezone == 'EDT': timezone = 'America/New_York'
+            if timezone == 'CDT': timezone = 'America/Chicago'
             # Convert the timezone information to UTC
             utc = pytz.timezone('UTC')
             local_tz = pytz.timezone(timezone)
             start_time = datetime.datetime.fromtimestamp(metadata['pre']['start'], local_tz)
             end_time = datetime.datetime.fromtimestamp(metadata['post']['end'], local_tz)
             return start_time, end_time
-        except:
+        except BaseException as e:
             return None,None
     started = time.time()
     updatetime = 0.5
     res = False
-    try:
-        sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
-        if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
-            res = await SearchPaper(paper['isin'])
-            if res:
-                paper['ticker'] = res['symbol']
-                if 'longname' in res:
-                    paper['name'] = res['longname']
-                elif 'shortname' in res:
-                    paper['name'] = res['shortname']
-            else:
-                logging.warning('paper '+paper['isin']+' not found !')
-                return False,None
-        if 'ticker' in paper and paper['ticker']:
-            startdate = datetime.datetime.utcnow()-datetime.timedelta(days=365*3)
-            if sym == None and res:
-                #initial download
-                sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=database.Market.stock,active=True)
-                try:
-                    database.session.add(sym)
-                    database.session.commit()
-                except BaseException as e:
-                    logging.warning('failed writing to db:'+str(e))
-                    database.session.rollback()
-            sym = database.session.query(database.Symbol).filter_by(isin=paper['isin']).first()
-            if sym:
-                date_entry,latest_date = database.session.query(database.MinuteBar,sqlalchemy.sql.expression.func.max(database.MinuteBar.date)).filter_by(symbol=sym).first()
-                startdate = latest_date
-                if latest_date:
-                    next_update = latest_date+datetime.timedelta(seconds=GetUpdateFrequency())
-                    if (next_update-datetime.datetime.utcnow() < (datetime.timedelta(minutes=GetUpdateFrequency() / 4))):
-                        await asyncio.sleep((next_update-datetime.datetime.utcnow()).total_seconds())
-                    else: #when wait-time >90% return and wait for next cycle
-                        return False,None
-                try:
-                    while startdate < datetime.datetime.utcnow():
-                        from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
-                        to_timestamp = int(((startdate+datetime.timedelta(days=59)) - datetime.datetime(1970, 1, 1)).total_seconds())
-                        if (not (sym.tradingstart and sym.tradingend))\
-                        or (datetime.datetime.utcnow()-startdate>datetime.timedelta(days=0.8))\
-                        or sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time():
-                            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=true&events=history&period1={from_timestamp}&period2={to_timestamp}"
-                            async with aiohttp.ClientSession(headers={'User-Agent': UserAgent}) as session:
-                                async with session.get(url) as resp:
-                                    data = await resp.json()
-                                    if data["chart"]["result"]:
-                                        sym.tradingstart, sym.tradingend = extract_trading_times(data["chart"]["result"][0]['meta']['currentTradingPeriod'])
-                                        sym.currency = data["chart"]["result"][0]['meta']['currency']
-                                        ohlc_data = data["chart"]["result"][0]["indicators"]["quote"][0]
-                                        if len(ohlc_data)>0:
-                                            pdata = pandas.DataFrame({
-                                                "Datetime": data["chart"]["result"][0]["timestamp"],
-                                                "Open": ohlc_data["open"],
-                                                "High": ohlc_data["high"],
-                                                "Low": ohlc_data["low"],
-                                                "Close": ohlc_data["close"],
-                                                "Volume": ohlc_data["volume"]
-                                            })
-                                            pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
-                                            pdata = pdata.dropna()
-                                            try:
-                                                database.session.add(sym)
-                                                database.session.commit()
-                                                if res: 
-                                                    logging.info('yahoo:'+sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' ('+str(sym.tradingend)+')')
-                                                else:
-                                                    logging.info('yahoo:'+sym.ticker+' no new data')
-                                                updatetime = 10
-                                                res = True
-                                            except BaseException as e:
-                                                logging.warning('failed writing to db:'+str(e))
-                                                database.session.rollback()
-                        startdate += datetime.timedelta(days=59)
-                except BaseException as e:
-                    logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
-    except BaseException as e:
-        logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
-    await asyncio.sleep(updatetime-(time.time()-started)) #3 times per minute
-    return res,None
+    olddate = None
+    async with database.new_session() as session,session.begin():
+        try:
+            sym = await database.FindSymbol(session,paper,None)
+            if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
+                sres = None
+                if 'isin' in paper and paper['isin']:
+                    sres = await SearchPaper(paper['isin'])
+                if not res and 'ticker' in paper and paper['ticker']:
+                    sres = await SearchPaper(paper['ticker'])
+                if sres:
+                    paper['ticker'] = sres['symbol']
+                    if 'longname' in sres:
+                        paper['name'] = sres['longname']
+                    elif 'shortname' in sres:
+                        paper['name'] = sres['shortname']
+                else:
+                    logging.warning('paper '+paper['isin']+' not found !')
+                    return False,None
+            if 'ticker' in paper and paper['ticker']:
+                startdate = datetime.datetime.utcnow()-datetime.timedelta(days=365*3)
+                if sym == None and sres:
+                    #initial download
+                    markett = database.Market.stock
+                    if sres['quoteType'] == 'INDEX':
+                        markett = database.Market.index
+                        paper['isin'] = paper['ticker']
+                    sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=markett,active=True)
+                    try:
+                        session.add(sym)
+                    except BaseException as e:
+                        logging.warning('failed writing to db:'+str(e))
+                if sym:
+                    result = await session.execute(sqlalchemy.select(database.MinuteBar, sqlalchemy.func.max(database.MinuteBar.date)).where(database.MinuteBar.symbol == sym))
+                    date_entry, latest_date = result.fetchone()
+                    startdate = latest_date
+                    if not startdate:
+                        startdate = datetime.datetime.utcnow()-datetime.timedelta(days=59)
+                    try:
+                        while startdate < datetime.datetime.utcnow():
+                            from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
+                            to_timestamp = int(((startdate+datetime.timedelta(days=59)) - datetime.datetime(1970, 1, 1)).total_seconds())
+                            if (not (sym.tradingstart and sym.tradingend))\
+                            or ((sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time()) and (datetime.datetime.utcnow().weekday() < 5)):
+                                url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=true&events=history&period1={from_timestamp}&period2={to_timestamp}"
+                                async with aiohttp.ClientSession(headers={'User-Agent': UserAgent}) as hsession:
+                                    async with hsession.get(url) as resp:
+                                        data = await resp.json()
+                                        if data["chart"]["result"]:
+                                            if not sym.tradingstart or not sym.currency:
+                                                sym.tradingstart, sym.tradingend = extract_trading_times(data["chart"]["result"][0]['meta']['currentTradingPeriod'])
+                                                sym.currency = data["chart"]["result"][0]['meta']['currency']
+                                            gmtoffset_timedelta = datetime.timedelta(seconds=data["chart"]["result"][0]['meta']['gmtoffset'])
+                                            ohlc_data = data["chart"]["result"][0]["indicators"]["quote"][0]
+                                            if len(ohlc_data)>0:
+                                                pdata = pandas.DataFrame({
+                                                    "Datetime": data["chart"]["result"][0]["timestamp"],
+                                                    "Open": ohlc_data["open"],
+                                                    "High": ohlc_data["high"],
+                                                    "Low": ohlc_data["low"],
+                                                    "Close": ohlc_data["close"],
+                                                    "Volume": ohlc_data["volume"]
+                                                })
+                                                pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
+                                                pdata["Datetime"] -= gmtoffset_timedelta
+                                                pdata["Datetime"] = pdata["Datetime"].dt.floor('S')
+                                                pdata = pdata.dropna()
+                                                if pdata["Datetime"].iloc[-1].minute % 15 != 0:
+                                                    # Entferne die letzte Zeile aus dem DataFrame
+                                                    pdata = pdata.iloc[:-1]
+                                                try:
+                                                    olddate = await sym.GetActDate(session)
+                                                    session.add(sym)
+                                                    acnt = await sym.AppendData(session,pdata)
+                                                    res = res or acnt>0
+                                                    if res: 
+                                                        logging.info('yahoo:'+sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' from '+str(olddate))
+                                                        olddate = pdata['Datetime'].iloc[-1]
+                                                    else:
+                                                        logging.info('yahoo:'+sym.ticker+' no new data')
+                                                    updatetime = 10
+                                                except BaseException as e:
+                                                    logging.warning('failed writing to db:'+str(e))
+                                                    connection.session.rollback()
+                                            else:
+                                                logging.info('yahoo:'+paper['ticker']+' no new data')
+                            startdate += datetime.timedelta(days=59)
+                        if res: await session.commit()
+                    except BaseException as e:
+                        logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
+        except BaseException as e:
+            logging.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
+    return res,olddate
 def GetUpdateFrequency():
     return 15*60
 async def SearchPaper(isin):
@@ -115,3 +133,22 @@ async def SearchPaper(isin):
             if 'quotes' in data and len(data['quotes']) > 0:
                 return data['quotes'][0]
     return None
+async def StartUpdate(papers,market,name):
+    await database.UpdateCyclic(papers,market,name,UpdateTicker,15*60).run()
+if __name__ == '__main__':
+    logging.root.setLevel(logging.DEBUG)
+    apaper = {
+        "isin": "DE0007037129",
+        "count": 0,
+        "price": 0,
+        "ticker": "RWE.DE",
+        "name": "RWE Aktiengesellschaft"
+    }
+    apaper1 = {
+        "isin": None,
+        "count": 0,
+        "price": 0,
+        "ticker": "^TECDAX",
+        "name": "Tech DAX"
+    }
+    asyncio.run(StartUpdate([apaper,apaper1],None,''))

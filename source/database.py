@@ -1,6 +1,5 @@
-import sqlalchemy,pathlib,enum,datetime,pandas,asyncio,backtrader,logging,csv,io,re,threading
-from sqlalchemy.ext.declarative import declarative_base
-Base = declarative_base()
+import sqlalchemy,pathlib,enum,datetime,pandas,asyncio,backtrader,logging,csv,io,re,threading,sqlalchemy.orm,sqlalchemy.ext.asyncio,random,time
+Base = sqlalchemy.orm.declarative_base()
 class Depot(Base):
     __tablename__ = 'depot'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
@@ -29,7 +28,8 @@ class Trade(Base):
     shares = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
     price = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
     position = sqlalchemy.orm.relationship("Position", backref="trades")
-    def ImportTrades(self,filename,onlydetect=False):
+    """
+    def ImportTrades(self,session,filename,onlydetect=False):
         def parse_date(date_str: str) -> datetime:
             DATE_FORMATS = ['%d/%m/%Y %H:%M', '%d.%m.%Y', '%d/%m/%Y']
             for fmt in DATE_FORMATS:
@@ -130,6 +130,7 @@ class Trade(Base):
                     )
                     session.add(trade)
                     session.commit()
+    """
 class Market(enum.Enum):
     crypto = 'crypto'
     stock = 'stock'
@@ -137,6 +138,7 @@ class Market(enum.Enum):
     fund = 'fund'
     forex = 'forex'
     futures = 'futures'
+    index = 'index'
 class Symbol(Base):
     __tablename__ = 'symbol'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
@@ -149,19 +151,19 @@ class Symbol(Base):
     tradingstart = sqlalchemy.Column(sqlalchemy.DateTime)
     tradingend = sqlalchemy.Column(sqlalchemy.DateTime)
     currency = sqlalchemy.Column(sqlalchemy.String(5), nullable=False)
-    def AppendData(self, df):
+    async def AppendData(self,session, df):
         res = 0
         for index, row in df.iterrows():
             date = row["Datetime"]
             # Check if data for the date already exists
-            existing_data = session.query(MinuteBar).filter_by(symbol=self, date=date).first()
-            if existing_data:
+            existing_data = await session.execute(sqlalchemy.select(MinuteBar).filter_by(symbol=self, date=date))
+            if existing_data.scalar():
                 continue
             # Add new data if it doesn't exist
             session.add(MinuteBar(date=date, open=row["Open"], high=row["High"], low=row["Low"], close=row["Close"], volume=row["Volume"], symbol=self))
             res += 1
         return res
-    def GetData(self, start_date=None, end_date=None, timeframe='15m'):
+    async def GetData(self,session, start_date=None, end_date=None, timeframe='15m'):
         if timeframe == '15m':
             aggregator_func = None
         elif timeframe == '1h':
@@ -170,88 +172,94 @@ class Symbol(Base):
             aggregator_func = sqlalchemy.func.strftime('%Y-%m-%d', MinuteBar.date)
         else:
             raise ValueError(f'Unsupported timeframe: {timeframe}')
-        query = session.query(MinuteBar).filter_by(symbol=self)
+        query = sqlalchemy.select(MinuteBar)
+        query = query.filter_by(symbol=self)
         if start_date:
             query = query.filter(MinuteBar.date >= start_date)
         if end_date:
             query = query.filter(MinuteBar.date <= end_date)
         query = query.order_by(MinuteBar.date)
         if timeframe != '15m':
-            query = session.query(
-                aggregator_func.label('Datetime'),
-                sqlalchemy.func.min(MinuteBar.low).label('Low'),
-                sqlalchemy.func.max(MinuteBar.high).label('High'),
-                sqlalchemy.func.first_value(MinuteBar.open).over(order_by=MinuteBar.date).label('Open'),
-                sqlalchemy.func.last_value(MinuteBar.close).over(order_by=MinuteBar.date).label('Close'),
-                sqlalchemy.func.sum(MinuteBar.volume).label('Volume')
+            query = sqlalchemy.select(
+                aggregator_func.label('date'),
+                sqlalchemy.func.min(MinuteBar.low).label('low'),
+                sqlalchemy.func.max(MinuteBar.high).label('high'),
+                sqlalchemy.func.first_value(MinuteBar.open).over(order_by=MinuteBar.date).label('open'),
+                sqlalchemy.func.last_value(MinuteBar.close).over(order_by=MinuteBar.date).label('close'),
+                sqlalchemy.func.sum(MinuteBar.volume).label('volume')
             ).filter_by(symbol=self)
             if start_date:
                 query = query.filter(MinuteBar.date >= start_date)
             if end_date:
                 query = query.filter(MinuteBar.date <= end_date)
-            query = query.group_by('Datetime').order_by('Datetime')
-            df = pandas.read_sql(query.statement, query.session.bind)
+            query = query.group_by('date').order_by('date')
+            try:
+                result = await session.execute(query)
+                rows = [(row.date, row.open, row.high, row.low, row.close, row.volume) for row in result.all()]
+            except BaseException as e:
+                print(str(e))
+            df = pandas.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
             df['Datetime'] = pandas.to_datetime(df['Datetime'])
         else:
-            df = pandas.DataFrame(
-                [(row.date, row.open, row.high, row.low, row.close, row.volume) for row in query.all()],
-                columns=["Datetime", "Open", "High", "Low", "Close", "Volume"]
-            )
+            result = await session.scalars(query)
+            rows = [(row.date, row.open, row.high, row.low, row.close, row.volume) for row in result.fetchall()]
+            df = pandas.DataFrame(rows, columns=["Datetime", "Open", "High", "Low", "Close", "Volume"])
         df.set_index("Datetime", inplace=True)
         return df
-    def GetConvertedData(self,start_date=None, end_date=None, TargetCurrency=None, timeframe='15m'):
-        excs = session.query(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency,self.currency)).first()
-        data = self.GetData(start_date,end_date, timeframe)
+    async def GetConvertedData(self,session, start_date=None, end_date=None, TargetCurrency=None, timeframe='15m'):
+        excs = (await session.scalars(sqlalchemy.select(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency, self.currency)))).first()
+        data = await self.GetData(session,start_date=start_date, end_date=end_date, timeframe=timeframe)
         if excs:
-            exc = excs.GetData(start_date, end_date,timeframe)
+            exc = await excs.GetData(session,start_date=start_date, end_date=end_date, timeframe=timeframe)
             if not exc.empty:
                 for index, row in data.iterrows():
                     # Den nächsten verfügbaren Wechselkurs suchen
                     if not exc.loc[exc.index >= index].empty:
-                        exc_next = exc.loc[exc.index >= index].iloc[0] 
-                    else: exc_next = exc.iloc[0]
+                        exc_next = exc.loc[exc.index >= index].iloc[0]
+                    else:
+                        exc_next = exc.iloc[0]
                     # Umgerechnete Preise für diesen Zeitstempel berechnen
                     row['Open'] = row['Open'] / exc_next['Close']
                     row['High'] = row['High'] / exc_next['Close']
                     row['Low'] = row['Low'] / exc_next['Close']
                     row['Close'] = row['Close'] / exc_next['Close']
-                return data
         elif TargetCurrency == self.currency:
-            data = self.GetData(start_date,end_date)
-            return data
+            data = await self.GetData(session, start_date=start_date, end_date=end_date, timeframe=timeframe)
         return data
-    def GetDataHourly(self, start_date=None, end_date=None, TargetCurrency=None):
-        return self.GetConvertedData(start_date,end_date, TargetCurrency, timeframe='1h')
-    def GetActPrice(self,TargetCurrency=None):
-        last_minute_bar = session.query(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()).first()
-        if TargetCurrency:
-            excs = session.query(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency,self.currency)).first()
+    async def GetDataHourly(self,session, start_date=None, end_date=None, TargetCurrency=None):
+        return await self.GetConvertedData(session,start_date,end_date, TargetCurrency, timeframe='1h')
+    async def GetActPrice(self,session, TargetCurrency=None):
+        last_minute_bar = (await session.execute(sqlalchemy.select(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()))).scalars().first()
+        if TargetCurrency and (TargetCurrency != self.currency):
+            excs = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency,self.currency)))).scalars().first()
             if excs:
-                last_minute_bar.close = last_minute_bar.close / excs.GetActPrice()
+                last_minute_bar.close = last_minute_bar.close / (await excs.GetActPrice(session))
             elif self.currency and (TargetCurrency != self.currency):
                 return 0
         if last_minute_bar:
             return last_minute_bar.close
         else:
             return 0
-    def GetActDate(self):
-        last_minute_bar = session.query(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()).first()
+    async def GetActDate(self,session):
+        last_minute_bar = (await session.execute(sqlalchemy.select(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()))).scalars().first()
         if last_minute_bar:
             return last_minute_bar.date
         else:
             return 0
-    def GetTargetPrice(self, start_date=None, end_date=None):
+    async def GetTargetPrice(self,session, start_date=None, end_date=None):
         if start_date is None:
             start_date = datetime.datetime.now() - datetime.timedelta(days=90)
         if end_date is None:
             end_date = datetime.datetime.now()
         total_price_target = 0
         count = 0
+        analyst_ratings = await session.execute(sqlalchemy.select(AnalystRating).filter_by(symbol_isin=self.isin))
+        analyst_ratings = analyst_ratings.scalars().all()
         rating_count = {}
         total_rating = 0
         rating_weight = {'strong buy': 2, 'buy': 1, 'hold': 0, 'sell': -1, 'strong sell': -2}
         seen_ratings = set()
-        for rating in self.analyst_ratings:
+        for rating in analyst_ratings:
             if start_date <= rating.date <= end_date:
                 rating_key = (rating.name, rating.rating)
                 if rating_key not in seen_ratings:
@@ -275,16 +283,17 @@ class Symbol(Base):
         rating_count_str = ", ".join(f"{k}: {v}" for k, v in rating_count.items())
         average_rating = total_rating / count
         return average_target_price, count, rating_count_str, average_rating
-    def GetFairPrice(self, start_date=None, end_date=None):
+    async def GetFairPrice(self,session, start_date=None, end_date=None):
         if start_date is None:
             start_date = datetime.datetime.now() - datetime.timedelta(days=90)
         if end_date is None:
             end_date = datetime.datetime.now()
-
         total_price_target = 0
         count = 0
         rating_count = {}
-        for rating in self.analyst_ratings:
+        analyst_ratings = await session.execute(sqlalchemy.select(AnalystRating).filter_by(symbol_isin=self.isin))
+        analyst_ratings = analyst_ratings.scalars().all()
+        for rating in analyst_ratings:
             if start_date <= rating.date <= end_date:
                 if rating.fair_price:
                     total_price_target += rating.fair_price
@@ -330,9 +339,7 @@ class AnalystRating(Base):
     rating = sqlalchemy.Column(sqlalchemy.String(200),nullable=True)
     ratingcount = sqlalchemy.Column(sqlalchemy.Integer,nullable=True)
     symbol_isin = sqlalchemy.Column(sqlalchemy.String(50),
-                sqlalchemy.ForeignKey('symbol.isin',
-                            onupdate="CASCADE",
-                            ondelete="CASCADE"),
+                sqlalchemy.ForeignKey('symbol.isin'),
                 nullable=False)
     symbol = sqlalchemy.orm.relationship('Symbol', backref='analyst_ratings')
 class EarningsCalendar(Base):
@@ -342,11 +349,21 @@ class EarningsCalendar(Base):
     name = sqlalchemy.Column(sqlalchemy.String(100), nullable=False)
     estimated_eps = sqlalchemy.Column(sqlalchemy.Float, nullable=True)
     symbol_isin = sqlalchemy.Column(sqlalchemy.String(50),
-                sqlalchemy.ForeignKey('symbol.isin',
-                            onupdate="CASCADE",
-                            ondelete="CASCADE"),
+                sqlalchemy.ForeignKey('symbol.isin'),
                 nullable=False)
     symbol = sqlalchemy.orm.relationship('Symbol', backref='earnings_calendar_entries')
+class NewsEntry(Base):
+    __tablename__ = 'news'
+    id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
+    release_date = sqlalchemy.Column(sqlalchemy.DateTime, nullable=False)
+    headline = sqlalchemy.Column(sqlalchemy.String(100))
+    content = sqlalchemy.Column(sqlalchemy.Text, nullable=False)
+    category = sqlalchemy.Column(sqlalchemy.String(100))
+    source_id = sqlalchemy.Column(sqlalchemy.String(100))
+    symbol_isin = sqlalchemy.Column(sqlalchemy.String(50),
+                sqlalchemy.ForeignKey('symbol.isin'),
+                nullable=False)
+    symbol = sqlalchemy.orm.relationship('Symbol', backref='news_entries')
 class BotCerebro(backtrader.Cerebro):
     def __init__(self):
         super().__init__()
@@ -375,20 +392,60 @@ class BotCerebro(backtrader.Cerebro):
             return figs
         except BaseException as e:
             logging.warning(str(e))
-Data = pathlib.Path('.') / 'data'
-Data.mkdir(parents=True,exist_ok=True)
-dbEngine=sqlalchemy.create_engine('sqlite:///'+str(Data / 'database.db')) 
-conn = dbEngine.connect()
-Base.metadata.create_all(dbEngine)
-SessionClass = sqlalchemy.orm.sessionmaker(bind=dbEngine)
-session_storage = threading.local()
-class ThreadSession:
-    def __call__(self):
-        if not hasattr(session_storage, 'session'):
-            session_storage.session = SessionClass()
-        return session_storage.session
-    def __getattr__(self, name):
-        if not hasattr(session_storage, 'session'):
-            session_storage.session = SessionClass()
-        return getattr(session_storage.session, name)
-session = ThreadSession()
+Data=pathlib.Path('.') / 'data' / 'database.db'
+Data.parent.mkdir(parents=True,exist_ok=True)
+engine=sqlalchemy.ext.asyncio.create_async_engine('sqlite+aiosqlite:///'+str(Data), connect_args={
+        'timeout': 0.5,
+        'check_same_thread': False,
+        'isolation_level': None,
+        }) 
+async def init_models():
+    async with engine.begin() as conn:
+        res = await conn.execute(sqlalchemy.text("PRAGMA journal_mode=WAL2"))
+        await conn.run_sync(Base.metadata.create_all)
+asyncio.run(init_models())
+def new_session():
+    return sqlalchemy.orm.sessionmaker(bind=engine, class_=sqlalchemy.ext.asyncio.AsyncSession, autocommit=False, autoflush=False)()
+#logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
+async def FindSymbol(session,paper,market=None):
+    if 'isin' in paper and paper['isin']:
+        sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin'],marketplace=market).limit(1))).scalars().first()
+    elif 'ticker' in paper and paper['ticker']:
+        sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker=paper['ticker'],marketplace=market))).scalars().first()
+    else: sym = None
+    return sym
+class UpdateCyclic:
+    def __init__(self, papers, market, name, UpdateFunc, delay=0, Waittime=60/3) -> None:
+        self.papers = papers
+        self.market = market
+        self.WaitTime = Waittime
+        self.Delay = delay
+        self.UpdateFunc = UpdateFunc
+    async def run(self):
+        internal_updated = {}
+        internal_delay_mult = {}
+        while True:
+            shuffled_papers = list(self.papers)
+            random.shuffle(shuffled_papers)
+            for paper in shuffled_papers:
+                started = time.time()
+                if not paper['isin'] in internal_delay_mult:
+                    internal_delay_mult[paper['isin']] = 1
+                try:
+                    epaper = paper
+                    if paper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin'])+datetime.timedelta(seconds=self.Delay*internal_delay_mult[paper['isin']]) < datetime.datetime.now()):
+                        res,till = await self.UpdateFunc(epaper,self.market)
+                        if res and till: 
+                            internal_updated[paper['isin']] = till
+                            if internal_delay_mult[paper['isin']] > 5:
+                                internal_delay_mult[paper['isin']] = 4
+                            elif internal_delay_mult[paper['isin']] > 2:
+                                internal_delay_mult[paper['isin']] -= 1
+                        else:
+                            internal_updated[paper['isin']] = datetime.datetime.now()
+                            internal_delay_mult[paper['isin']] += 1
+                        if self.WaitTime-(time.time()-started) > 0:
+                            await asyncio.sleep(self.WaitTime-(time.time()-started))
+                except BaseException as e:
+                    logging.error(str(e))
+            await asyncio.sleep(10)
