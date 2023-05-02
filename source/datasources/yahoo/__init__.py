@@ -83,8 +83,8 @@ async def UpdateTicker(paper,market=None):
                                                     "Close": ohlc_data["close"],
                                                     "Volume": ohlc_data["volume"]
                                                 })
-                                                pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
-                                                pdata["Datetime"] -= gmtoffset_timedelta
+                                                pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s", utc=True)
+                                                #pdata["Datetime"] -= gmtoffset_timedelta
                                                 pdata["Datetime"] = pdata["Datetime"].dt.floor('S')
                                                 pdata = pdata.dropna()
                                                 if pdata["Datetime"].iloc[-1].minute % 15 != 0:
