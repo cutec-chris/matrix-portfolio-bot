@@ -1,4 +1,4 @@
-import database,sqlalchemy,logging,backtrader,asyncio,datetime,random,backtests,aiofiles
+import database,sqlalchemy,logging,backtrader,asyncio,datetime,random,backtests,aiofiles,pandas
 bot = None
 server = None
 datasources = None
