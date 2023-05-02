@@ -365,9 +365,9 @@ async def check_news(depot):
         last_bar = await session.execute(query)
         for row in last_bar:
             last_processed = row.max_id
+    shown_ids = []
     while True:
         try:
-            shown_ids = []
             async with database.new_session() as session:
                 query = sqlalchemy.select(database.NewsEntry).where(database.NewsEntry.id > last_processed)
                 new_news = await session.scalars(query)
@@ -377,6 +377,8 @@ async def check_news(depot):
                     msg = entry.symbol_isin+':'+entry.headline+'<br>'+entry.content
                     await bot.api.send_markdown_message(depot.room, msg)
                     shown_ids.append(entry.source_id)
+                    if entry.id > last_processed:
+                        last_processed = entry.id
         except BaseException as e:
             logging.error('news show:'+str(e))
         await asyncio.sleep(60*2)
