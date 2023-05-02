@@ -288,8 +288,9 @@ async def ChangeDepotStatus(depot,newstatus):
     #if ntext != room.topic:
     #    res = await bot.api.async_client.room_put_state(depot.room,'m.room.topic',{'topic': ntext},'')
     #    room.topic = ntext
+news_task = None
 async def check_depot(depot,fast=False):
-    global lastsend,servers,connection
+    global lastsend,servers,connection,news_task
     last_processed_minute_bar_id = 0
     async with database.new_session() as session:
         query = sqlalchemy.select(sqlalchemy.func.max(database.MinuteBar.id).label("max_id"))
@@ -352,7 +353,8 @@ async def check_depot(depot,fast=False):
         if not updates_running:
             loop = asyncio.get_running_loop()
             updates_running = True
-            loop.create_task(check_news(depot),name='update-news')
+            if not news_task:
+                news_task = loop.create_task(check_news(depot),name='update-news')
             for datasource in datasources:
                 mod_ = datasource['mod']
                 if hasattr(mod_,'StartUpdate'):
