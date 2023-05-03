@@ -83,8 +83,8 @@ async def UpdateTicker(paper,market=None):
                                                     "Close": ohlc_data["close"],
                                                     "Volume": ohlc_data["volume"]
                                                 })
-                                                pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s", utc=True)
-                                                pdata["Datetime"] = pdata["Datetime"].dt.to_pydatetime()
+                                                pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
+                                                #pdata["Datetime"] -= gmtoffset_timedelta
                                                 pdata["Datetime"] = pdata["Datetime"].dt.floor('S')
                                                 pdata = pdata.dropna()
                                                 if pdata["Datetime"].iloc[-1].minute % 15 != 0:
@@ -151,18 +151,4 @@ if __name__ == '__main__':
         "ticker": "^TECDAX",
         "name": "Tech DAX"
     }
-    apaper1 = {
-        "isin": None,
-        "count": 0,
-        "price": 0,
-        "ticker": "^TECDAX",
-        "name": "Tech DAX"
-    }
-    apaper2 = {
-        "isin": None,
-        "count": 0,
-        "price": 0,
-        "ticker": "BTC-USD",
-        "name": "Bitcoin"
-    }
-    asyncio.run(StartUpdate([apaper,apaper1,apaper2],None,''))
+    asyncio.run(StartUpdate([apaper,apaper1],None,''))
