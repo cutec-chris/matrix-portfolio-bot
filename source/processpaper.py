@@ -376,7 +376,16 @@ async def check_news(depot):
                 for entry in new_news.all():
                     if entry.source_id in shown_ids:
                         continue
-                    msg = entry.symbol_isin+':'+entry.headline+'<br>'+entry.content
+                    details = False
+                    for tdepot in servers:
+                        if tdepot.room == depot.room:
+                            for tpaper in tdepot.papers:
+                                if tpaper['isin'] == entry.symbol_isin:
+                                    if tpaper['count']>0: #show only news for papers we own in detail
+                                        details = True
+                    msg = entry.symbol_isin+':'+entry.headline
+                    if details:
+                        msg+='<br>'+entry.content
                     await bot.api.send_markdown_message(depot.room, msg)
                     shown_ids.append(entry.source_id)
                     if entry.id > last_processed:
