@@ -192,7 +192,7 @@ class Symbol(Base):
                 query = query.filter(MinuteBar.date >= start_date)
             if end_date:
                 query = query.filter(MinuteBar.date <= end_date)
-            query = query.group_by('date').order_by('date')
+            query = query.group_by(aggregator_func).order_by(aggregator_func)
             try:
                 result = await session.execute(query)
                 rows = [(row.date, row.open, row.high, row.low, row.close, row.volume) for row in result.all()]
