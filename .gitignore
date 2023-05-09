@@ -5,3 +5,4 @@ test.py
 data.json
 data/*
 source/datasources/onvista/debug/*
+source/datasources/*/config.yaml
