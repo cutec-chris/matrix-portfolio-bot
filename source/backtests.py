@@ -4,6 +4,7 @@ async def run_backtest(cerebro):
     with concurrent.futures.ThreadPoolExecutor() as executor:
         return await loop.run_in_executor(executor, cerebro.run)
 async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.datetime.utcnow()-datetime.timedelta(days=90),end=None,timeframe='15m',data=None,initial_capital=1000,market=None):
+    data_d = None
     if not isinstance(data, pandas.DataFrame):
         async with database.new_session() as session:
             sym = await database.FindSymbol(session,{'ticker': ticker,'isin': isin},market)
@@ -13,6 +14,10 @@ async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.da
                     return None,None
             else: return None
     cerebro = database.BotCerebro(stdstats=False,cheat_on_open=True)
+    if hasattr(Strategy, 'predaysdata'):
+        data_d = await sym.GetData(session,start-datetime.timedelta(days=Strategy.predaysdata),start,timeframe='1d')
+        data_d = data_d.resample(timeframe).interpolate(method='linear')
+        data = pandas.concat([data_d, data]).sort_index()
     cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
     cerebro.broker.setcash(initial_capital)
     cerebro.addsizer(backtrader.sizers.PercentSizer, percents=33.3)
@@ -37,6 +42,10 @@ async def backtest_all(Strategy=None,start=datetime.datetime.utcnow()-datetime.t
             data = await sym.GetData(session,start,end,timeframe)
             if not data.empty:
                 cerebro = database.BotCerebro(stdstats=False,cheat_on_open=True)
+                if hasattr(Strategy, 'predaysdata'):
+                    data_d = await sym.GetData(session,start-datetime.timedelta(days=Strategy.predaysdata),start,timeframe='1d')
+                    data_d = data_d.resample(timeframe).interpolate(method='linear')
+                    data = pandas.concat([data_d, data]).sort_index()
                 cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
                 cerebro.broker.setcash(initial_capital)
                 cerebro.addsizer(backtrader.sizers.PercentSizer, percents=33.3)
