@@ -12,7 +12,7 @@ async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.da
                 data = await sym.GetData(session,start,end,timeframe)
                 if data.empty:
                     return None,None
-            else: return None
+            else: return None,None
     cerebro = database.BotCerebro(stdstats=False,cheat_on_open=True)
     if hasattr(Strategy, 'predaysdata'):
         data_d = await sym.GetData(session,start-datetime.timedelta(days=Strategy.predaysdata),start,timeframe='1d')
