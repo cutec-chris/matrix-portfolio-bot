@@ -183,6 +183,12 @@ async def bot_help(room, message):
         await bot.api.send_text_message(room.room_id, bot_help_message)
 async def main():
     try:
+        def unhandled_exception(loop, context):
+            msg = context.get("exception", context["message"])
+            logging.error(f"Unhandled exception caught: {msg}", file=sys.stderr)
+            os._exit(1)
+        loop = asyncio.get_event_loop()
+        loop.set_exception_handler(unhandled_exception)
         await bot.main()
     except BaseException as e:
         logging.error('bot main fails:'+str(e))
