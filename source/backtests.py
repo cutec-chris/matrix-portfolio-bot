@@ -51,7 +51,6 @@ async def backtest_all(Strategy=None,start=datetime.datetime.utcnow()-datetime.t
                 cerebro = database.BotCerebro(stdstats=False,cheat_on_open=True)
                 if hasattr(Strategy, 'predaysdata'):
                     data_d = await sym.GetData(session,start-datetime.timedelta(days=Strategy.predaysdata),start,timeframe='1d')
-                    data_d = data_d.resample(timeframe).interpolate(method='linear')
                     data = pandas.concat([data_d, data]).sort_index()
                 cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
                 cerebro.broker.setcash(initial_capital)
