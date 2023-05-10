@@ -1,8 +1,8 @@
 import backtrader
 class Strategy(backtrader.Strategy):
     params = (
-        ('fast_sma_period', 12*2),
-        ('slow_sma_period', 26*2),
+        ('fast_sma_period', 12*8),
+        ('slow_sma_period', 26*8),
     )
     def __init__(self):
         self.fast_sma = backtrader.indicators.SimpleMovingAverage(
@@ -21,7 +21,8 @@ class Strategy(backtrader.Strategy):
 if __name__ == "__main__":
     import pathlib,sys;sys.path.append(str(pathlib.Path(__file__).parent.parent.parent))
     import database,datetime,backtests,asyncio,logging
-    logging.basicConfig(level=logging.DEBUG)
-    res,cerebro = asyncio.run(backtests.default_backtest(Strategy,ticker='RWE'))
-    cerebro.plot()
-    print(res)
+    logging.basicConfig(level=logging.INFO)
+    #res,cerebro = asyncio.run(backtests.default_backtest(Strategy,ticker='RWE',market='gettex'))
+    #res,cerebro = asyncio.run(backtests.default_backtest(Strategy,isin='FR0000052292',market='gettex'))
+    #cerebro.plot()
+    asyncio.run(backtests.backtest_all(Strategy,market='gettex'))

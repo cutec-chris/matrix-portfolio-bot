@@ -2,7 +2,11 @@ import backtrader,asyncio,concurrent.futures,database,datetime,pandas,logging,sq
 async def run_backtest(cerebro):
     loop = asyncio.get_event_loop()
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        return await loop.run_in_executor(executor, cerebro.run)
+        try:
+            return await loop.run_in_executor(executor, cerebro.run)
+        except BaseException as e:
+            logging.error('failed to execute Strategy: '+str(e))
+            return False
 async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.datetime.utcnow()-datetime.timedelta(days=90),end=None,timeframe='15m',data=None,initial_capital=1000,market=None):
     data_d = None
     if not isinstance(data, pandas.DataFrame):
@@ -61,8 +65,10 @@ async def backtest_all(Strategy=None,start=datetime.datetime.utcnow()-datetime.t
                 res = await run_backtest(cerebro)
                 sroi = (((cerebro.broker.getvalue() - initial_capital) / initial_capital)*100)
                 roi = (float(data.iloc[-1]['Close'])-float(data.iloc[0]['Close']))
-                annual_returns = res[0].analyzers.annual_return.get_analysis()
-                for year, return_value in annual_returns.items():
-                    ares = return_value*100
+                if res:
+                    annual_returns = res[0].analyzers.annual_return.get_analysis()
+                    for year, return_value in annual_returns.items():
+                        ares = return_value*100
+                else: ares = 0
                 logging.info('%s:roi %.2f s-roi:%.2f a-ret: %.2f' % (sym.isin,roi,sroi,ares))
                 pass
