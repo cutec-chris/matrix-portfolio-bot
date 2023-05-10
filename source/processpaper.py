@@ -261,33 +261,36 @@ async def ProcessStrategy(paper,depot,data):
                         res = True
 async def ChangeDepotStatus(depot,newstatus):
     global servers
-    if newstatus!='':
-        await bot.api.async_client.set_presence('online',newstatus)
-    else:
-        await bot.api.async_client.set_presence('unavailable','')
-    ntext = ''
-    i=0
-    async with database.new_session() as session:
-        for adepot in servers:
-            if adepot.room == depot.room:
-                sumactprice = 0
-                sumprice = 0
-                for paper in adepot.papers:
-                    if paper['count'] > 0:
-                        sym = await database.FindSymbol(session,paper)
-                        if sym:
-                            actprice = await sym.GetActPrice(session,depot.currency)
-                        else: 
-                            actprice = 0
-                        sumactprice += actprice*paper['count']
-                        sumprice += paper['price']
-                        change = (actprice*paper['count'])-paper['price']
-                ntext += '%s (%.2f)\n' % (adepot.name,sumactprice)
-                i+=1
-    room = bot.api.async_client.rooms.get(depot.room)
-    #if ntext != room.topic:
-    #    res = await bot.api.async_client.room_put_state(depot.room,'m.room.topic',{'topic': ntext},'')
-    #    room.topic = ntext
+    try:
+        if newstatus!='':
+            await bot.api.async_client.set_presence('online',newstatus)
+        else:
+            await bot.api.async_client.set_presence('unavailable','')
+        ntext = ''
+        i=0
+        async with database.new_session() as session:
+            for adepot in servers:
+                if adepot.room == depot.room:
+                    sumactprice = 0
+                    sumprice = 0
+                    for paper in adepot.papers:
+                        if paper['count'] > 0:
+                            sym = await database.FindSymbol(session,paper)
+                            if sym:
+                                actprice = await sym.GetActPrice(session,depot.currency)
+                            else: 
+                                actprice = 0
+                            sumactprice += actprice*paper['count']
+                            sumprice += paper['price']
+                            change = (actprice*paper['count'])-paper['price']
+                    ntext += '%s (%.2f)\n' % (adepot.name,sumactprice)
+                    i+=1
+        room = bot.api.async_client.rooms.get(depot.room)
+        #if ntext != room.topic:
+        #    res = await bot.api.async_client.room_put_state(depot.room,'m.room.topic',{'topic': ntext},'')
+        #    room.topic = ntext
+    except BaseException as e:
+        logging.error('ChangeDepotStatus failed: '+str(e))
 news_task = None
 async def check_depot(depot,fast=False):
     global lastsend,servers,connection,news_task
