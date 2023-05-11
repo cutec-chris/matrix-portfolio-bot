@@ -16,10 +16,11 @@ async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.da
                 data = await sym.GetData(session,start,end,timeframe)
                 if data.empty:
                     return None,None
+                if hasattr(Strategy, 'predaysdata') and sym:
+                    data_d = await sym.GetData(session,start-datetime.timedelta(days=Strategy.predaysdata),start,timeframe='1d')
             else: return None,None
     cerebro = database.BotCerebro(stdstats=False,cheat_on_open=True)
-    if hasattr(Strategy, 'predaysdata'):
-        data_d = await sym.GetData(session,start-datetime.timedelta(days=Strategy.predaysdata),start,timeframe='1d')
+    if hasattr(Strategy, 'predaysdata') and data_d:
         timeframe = timeframe.replace('h','H').replace('m','T').replace('d','D')
         business_days = pandas.date_range(start=data_d.index.min(), end=data_d.index.max(), freq='B')
         data_d = data_d[data_d.index.isin(business_days)]

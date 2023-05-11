@@ -259,6 +259,7 @@ async def ProcessStrategy(paper,depot,data):
                         paper['lastcheck'] = orderdate.strftime("%Y-%m-%d %H:%M:%S")
                         await plot_strategy(cerebro,depot)
                         res = True
+    return res
 async def ChangeDepotStatus(depot,newstatus):
     global servers
     try:
