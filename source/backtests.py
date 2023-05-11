@@ -9,6 +9,7 @@ async def run_backtest(cerebro):
             return False
 async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.datetime.utcnow()-datetime.timedelta(days=90),end=None,timeframe='15m',data=None,initial_capital=1000,market=None):
     data_d = None
+    res = False
     if not isinstance(data, pandas.DataFrame):
         async with database.new_session() as session:
             sym = await database.FindSymbol(session,{'ticker': ticker,'isin': isin},market)

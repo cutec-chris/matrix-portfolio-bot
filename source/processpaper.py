@@ -212,6 +212,7 @@ async def plot_strategy(cerebro,depot):
     await bot.api.send_image_message(depot.room,'/tmp/plot.jpeg')
 async def ProcessStrategy(paper,depot,data):
     cerebro = None
+    res = False
     if not isinstance(data, pandas.DataFrame) or data.empty:
         return False
     strategy = 'sma'
