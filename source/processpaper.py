@@ -224,7 +224,7 @@ async def ProcessStrategy(paper,depot,data):
         if st['name'] in strategy:
             logging.info(str(depot.name)+': processing ticker '+paper['ticker']+' till '+str(data.index[-1])+' with '+st['name'])
             try:
-                res,cerebro = await backtests.default_backtest(st['mod'].Strategy,data=data)
+                res,cerebro = await backtests.default_backtest(st['mod'].Strategy,data=data,ticker=paper['ticker'],isin=paper['isin'])
             except BaseException as e:
                 logging.error(str(e))
                 cerebro = None

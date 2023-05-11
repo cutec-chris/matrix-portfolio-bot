@@ -1,4 +1,45 @@
 import backtrader,asyncio,concurrent.futures,database,datetime,pandas,logging,sqlalchemy
+class BotCerebro(backtrader.Cerebro):
+    def __init__(self):
+        super().__init__()
+        self.predaysdata = 0
+    def plot(self, plotter=None, numfigs=1, iplot=True, start=None, end=None, width=16, height=9, dpi=300, tight=True, use=None, **kwargs):
+        if start == None and self.predaysdata:
+            if end == None:
+                start = datetime.datetime.now()-datetime.timedelta(days=self.predaysdata)
+            else:
+                start = end-datetime.timedelta(days=self.predaysdata)
+        return super().plot(plotter, numfigs, iplot, start, end, width, height, dpi, tight, use, **kwargs)
+    def addstrategy(self, strategy, *args, **kwargs):
+        if hasattr(strategy, 'predaysdata'):
+            if strategy.predaysdata > self.predaysdata:
+                self.predaysdata = strategy.predaysdata
+        return super().addstrategy(strategy, *args, **kwargs)
+    def saveplots(cerebro, numfigs=1, iplot=True, start=None, end=None,
+                width=160*4, height=90*4, dpi=100, tight=True, use=None, file_path = '', **kwargs):
+        try:
+            from backtrader import plot
+            if cerebro.p.oldsync:
+                plotter = plot.Plot_OldSync(**kwargs)
+            else:
+                plotter = plot.Plot(**kwargs)
+            import matplotlib
+            matplotlib.use('AGG')
+            figs = []
+            for stratlist in cerebro.runstrats:
+                for si, strat in enumerate(stratlist):
+                    rfig = plotter.plot(strat, figid=si * 100,
+                                        numfigs=numfigs, iplot=iplot,
+                                        start=start, end=end, use=use)
+                    figs.append(rfig)
+
+            for fig in figs:
+                for f in fig:
+                    f.set_size_inches(width / dpi, height / dpi)
+                    f.savefig(file_path, dpi=dpi, bbox_inches='tight')
+            return figs
+        except BaseException as e:
+            logging.warning(str(e))
 async def run_backtest(cerebro):
     loop = asyncio.get_event_loop()
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -9,7 +50,6 @@ async def run_backtest(cerebro):
             return False
 async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.datetime.utcnow()-datetime.timedelta(days=90),end=None,timeframe='15m',data=None,initial_capital=1000,market=None):
     data_d = None
-    res = False
     if not isinstance(data, pandas.DataFrame):
         async with database.new_session() as session:
             sym = await database.FindSymbol(session,{'ticker': ticker,'isin': isin},market)
@@ -17,15 +57,13 @@ async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.da
                 data = await sym.GetData(session,start,end,timeframe)
                 if data.empty:
                     return None,None
-                if hasattr(Strategy, 'predaysdata') and sym:
+                if hasattr(Strategy, 'predaysdata'):
                     data_d = await sym.GetData(session,start-datetime.timedelta(days=Strategy.predaysdata),start,timeframe='1d')
             else: return None,None
-    cerebro = database.BotCerebro(stdstats=False,cheat_on_open=True)
-    if hasattr(Strategy, 'predaysdata') and data_d:
-        timeframe = timeframe.replace('h','H').replace('m','T').replace('d','D')
+    cerebro = BotCerebro(stdstats=False,cheat_on_open=True)
+    if hasattr(Strategy, 'predaysdata'):
         business_days = pandas.date_range(start=data_d.index.min(), end=data_d.index.max(), freq='B')
         data_d = data_d[data_d.index.isin(business_days)]
-        data_d = data_d.resample(timeframe).interpolate(method='linear')
         data = pandas.concat([data_d, data]).sort_index()
     cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
     cerebro.broker.setcash(initial_capital)
@@ -42,7 +80,7 @@ async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.da
     annual_returns = res[0].analyzers.annual_return.get_analysis()
     for year, return_value in annual_returns.items():
         ares = return_value*100
-    logging.info('%s:roi %.2f s-roi:%.2f a-ret: %.2f' % (sym.isin,roi,sroi,ares))
+    logging.info('%s:roi %.2f s-roi:%.2f a-ret: %.2f' % (str(isin)+' ('+str(ticker)+')',roi,sroi,ares))
     return res,cerebro
 async def backtest_all(Strategy=None,start=datetime.datetime.utcnow()-datetime.timedelta(days=90),end=None,timeframe='15m',data=None,initial_capital=1000,market=None):
     async with database.new_session() as session:
@@ -50,10 +88,9 @@ async def backtest_all(Strategy=None,start=datetime.datetime.utcnow()-datetime.t
         for sym in syms:
             data = await sym.GetData(session,start,end,timeframe)
             if not data.empty:
-                cerebro = database.BotCerebro(stdstats=False,cheat_on_open=True)
+                cerebro = BotCerebro(stdstats=False,cheat_on_open=True)
                 if hasattr(Strategy, 'predaysdata'):
                     data_d = await sym.GetData(session,start-datetime.timedelta(days=Strategy.predaysdata),start,timeframe='1d')
-                    data_d = data_d.resample(timeframe).interpolate(method='linear')
                     data = pandas.concat([data_d, data]).sort_index()
                 cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
                 cerebro.broker.setcash(initial_capital)
