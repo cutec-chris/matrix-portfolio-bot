@@ -53,7 +53,7 @@ async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.da
                     data_d = await sym.GetData(session,start-datetime.timedelta(days=Strategy.predaysdata),start,timeframe='1d')
             else: return None,None
     cerebro = BotCerebro(stdstats=False,cheat_on_open=True)
-    if hasattr(Strategy, 'predaysdata'):
+    if hasattr(Strategy, 'predaysdata') and not data_d.empty:
         business_days = pandas.date_range(start=data_d.index.min(), end=data_d.index.max(), freq='B')
         data_d = data_d[data_d.index.isin(business_days)]
         data_d = data_d.resample('12H').interpolate(method='linear')
