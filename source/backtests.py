@@ -64,6 +64,7 @@ async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.da
     if hasattr(Strategy, 'predaysdata'):
         business_days = pandas.date_range(start=data_d.index.min(), end=data_d.index.max(), freq='B')
         data_d = data_d[data_d.index.isin(business_days)]
+        data_d = data_d.resample('12H').interpolate(method='linear')
         data = pandas.concat([data_d, data]).sort_index()
     cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
     cerebro.broker.setcash(initial_capital)
