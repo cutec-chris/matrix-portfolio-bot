@@ -2,19 +2,11 @@ import backtrader,asyncio,concurrent.futures,database,datetime,pandas,logging,sq
 class BotCerebro(backtrader.Cerebro):
     def __init__(self):
         super().__init__()
-        self.predaysdata = 0
+        self.internalstart = None
     def plot(self, plotter=None, numfigs=1, iplot=True, start=None, end=None, width=16, height=9, dpi=300, tight=True, use=None, **kwargs):
-        if start == None and self.predaysdata:
-            if end == None:
-                start = datetime.datetime.now()-datetime.timedelta(days=self.predaysdata)
-            else:
-                start = end-datetime.timedelta(days=self.predaysdata)
+        if start == None and self.internalstart:
+            start = self.internalstart
         return super().plot(plotter, numfigs, iplot, start, end, width, height, dpi, tight, use, **kwargs)
-    def addstrategy(self, strategy, *args, **kwargs):
-        if hasattr(strategy, 'predaysdata'):
-            if strategy.predaysdata > self.predaysdata:
-                self.predaysdata = strategy.predaysdata
-        return super().addstrategy(strategy, *args, **kwargs)
     def saveplots(cerebro, numfigs=1, iplot=True, start=None, end=None,
                 width=160*4, height=90*4, dpi=100, tight=True, use=None, file_path = '', **kwargs):
         try:
@@ -65,6 +57,7 @@ async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.da
         business_days = pandas.date_range(start=data_d.index.min(), end=data_d.index.max(), freq='B')
         data_d = data_d[data_d.index.isin(business_days)]
         data_d = data_d.resample('12H').interpolate(method='linear')
+        cerebro.internalstart = data.index.min()
         data = pandas.concat([data_d, data]).sort_index()
     cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
     cerebro.broker.setcash(initial_capital)
