@@ -1,4 +1,4 @@
 xtb:
-  user: username
+  user: userid
   password: password
   base_url: wss://ws.xtb.com/demo

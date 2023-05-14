@@ -1,67 +1,84 @@
 import os,asyncio,json,websockets,yaml,pathlib,logging
-
+config = None
 with open(pathlib.Path(__file__).parent / "config.yaml", "r") as file:
     config = yaml.safe_load(file)
-API_KEY = config["xtb"]["api_key"]
-SECRET_KEY = config["xtb"]["api_secret"]
-
-async def connect_and_receive_minute_bars(tickers,url):
-    async with websockets.connect(url) as websocket:
+StreamSessionID = None
+async def connect_and_receive_minute_bars(tickers):
+    async with websockets.connect(config['xtb']['base_url']) as websocket:
         # Authentifiziere und abonniere für Minute Bars
-        connect_response = await websocket.recv()
         logging.info('sucessfully connected')
         auth_data = {
-            "action": "auth",
-            "key": API_KEY,
-            "secret": SECRET_KEY
+            "command": "login",
+            "arguments": {
+                "userId": config['xtb']['user'],
+                "password": config['xtb']['password'],
+                "appName": "Portfolio-Managment"
+            }
         }
         await websocket.send(json.dumps(auth_data))
         auth_response = await websocket.recv()
         auth_response_json = json.loads(auth_response)
         auth_success = False
-        for response_item in auth_response_json:
-            if response_item.get("T") == "success" and response_item.get("msg") == "authenticated":
-                auth_success = True
-                break
+        if auth_response_json.get("status") == True:
+            StreamSessionID = auth_response_json.get("streamSessionId")
+            auth_success = True
         if not auth_success:
             return
         logging.info('sucessfully authentificated')
-        subscription_data = {
-            "action": "subscribe",
-            "bars": tickers
-        }
-        await websocket.send(json.dumps(subscription_data))
-        while True:
-            response = await websocket.recv()
-            logging.info(f"< {response}")
+        async with websockets.connect(config['xtb']['base_url']+'Stream') as websocket_s:
+            logging.info('connected to streaming server')
+            await websocket_s.send(json.dumps({
+                "command": "getNews",
+                "streamSessionId": StreamSessionID,
+            }))
+            for ticker in tickers:
+                res = await websocket_s.send(json.dumps({
+                    "command": "getCandles",
+                    "streamSessionId": StreamSessionID,
+                    "symbol": ticker,
+                }))
+                await asyncio.sleep(0.17)
+            logging.info('%d symbols subscribed' % len(tickers))
+            await websocket_s.send(json.dumps({
+                "command": "getBalance",
+                "streamSessionId": StreamSessionID,
+            }))
+            #await websocket_s.send(json.dumps({
+            #    "command": "getKeepAlive",
+            #    "streamSessionId": StreamSessionID,
+            #}))
+            while True:
+                response = await websocket_s.recv()
+                logging.info(f"< {response}")
 
 async def StartUpdate(papers, market, name):
-    tickers = [paper["ticker"] for paper in papers]
-    task = asyncio.create_task(connect_and_receive_minute_bars(tickers,CRYPTO_URL))
-    await task
+    if config:
+        tickers = [paper["ticker"] for paper in papers]
+        task = asyncio.create_task(connect_and_receive_minute_bars(tickers))
+        await task
 
 if __name__ == '__main__':
     logging.root.setLevel(logging.INFO)
     papers = [
         {
             "isin": None,
-            "ticker": "BTC/USD",
+            "ticker": "BITCOIN",
         },
         {
             "isin": None,
-            "ticker": "ETH/USD",
+            "ticker": "ETHERIUM",
         },
         {
             "isin": None,
-            "ticker": "SOL/USD",
+            "ticker": "SOLANA",
         },
         {
             "isin": None,
-            "ticker": "EUR/USD",
+            "ticker": "EURUSD",
         },
         {
             "isin": None,
-            "ticker": "UNI/USD",
+            "ticker": "UNISWAP",
         }
     ]
     asyncio.run(StartUpdate(papers, "market", "name"))
