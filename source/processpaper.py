@@ -293,7 +293,6 @@ async def ChangeDepotStatus(depot,newstatus):
         #    room.topic = ntext
     except BaseException as e:
         logging.error('ChangeDepotStatus failed: '+str(e))
-news_task = None
 async def check_depot(depot,fast=False):
     global lastsend,servers,connection,news_task
     last_processed_minute_bar_id = 0
@@ -358,8 +357,6 @@ async def check_depot(depot,fast=False):
         if not updates_running:
             loop = asyncio.get_running_loop()
             updates_running = True
-            if not news_task:
-                news_task = loop.create_task(check_news(depot),name='update-news')
             for datasource in datasources:
                 mod_ = datasource['mod']
                 if hasattr(mod_,'StartUpdate'):
@@ -398,7 +395,27 @@ async def check_news(depot):
         except BaseException as e:
             logging.error('news show:'+str(e))
         await asyncio.sleep(60*2)
-
+async def check_dates(depot):
+    global lastsend,servers,connection
+    while True:
+        try:
+            async with database.new_session() as session:
+                today = datetime.datetime.now().date()
+                tomorrow = today + datetime.timedelta(days=1)
+                query = sqlalchemy.select(database.EarningsCalendar).where(
+                    sqlalchemy.and_(
+                        database.EarningsCalendar.release_date >= today,
+                        database.EarningsCalendar.release_date <= tomorrow
+                    )
+                )                
+                dates = await session.scalars(query)
+                for entry in dates.all():
+                    msg = entry.symbol_isin+': event '+entry.name+' on '+entry.release_date 
+                    await bot.api.send_markdown_message(room.room_id, msg)
+        except BaseException as e:
+            logging.error('check_dates:'+str(e))
+        seconds_until_6_am = ((datetime.datetime.combine(datetime.datetime.today() + datetime.timedelta(days=1), datetime.time(6)) - datetime.datetime.now()).total_seconds())
+        await asyncio.sleep(seconds_until_6_am)
 def parse_human_readable_duration(duration_str):
     units = {'d': 'days', 'w': 'weeks', 'y': 'years'}
     value = int(duration_str[:-1])

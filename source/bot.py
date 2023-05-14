@@ -126,12 +126,17 @@ try:
             logging.error('Failed to import strategy:'+str(e))
 except BaseException as e:
     logging.error('Failed to read data.json:'+str(e))
+news_task,dates_task = None,None
 @bot.listener.on_startup
 async def startup(room):
-    global loop,servers
+    global loop,servers,news_task,dates_task
     loop = asyncio.get_running_loop()
     for server in servers:
         if server.room == room:
+            if not news_task:
+                news_task = loop.create_task(processpaper.check_news(server),name='update-news')
+            if not dates_task:
+                dates_task = loop.create_task(processpaper.check_dates(server),name='update-dates')
             if not hasattr(server,'market'): setattr(server,'market',None)
             loop.create_task(processpaper.check_depot(server),name='check-depot-'+server.name)
 @bot.listener.on_message_event
