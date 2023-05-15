@@ -30,6 +30,12 @@ async def analyze(room,message,match):
                 for index, row in df.iterrows():
                     avola = ((row['High']-row['Low'])/row['Close'])*100
                     if avola > vola: vola = avola
+                ast = None
+                for st in strategies:
+                    if st['name'] in strategy:
+                        ast = st
+                        strategy = st['name']
+                        break
                 msg = 'Analyse of %s (%s,%s) with %s\n' % (sym.name,sym.isin,sym.ticker,strategy)\
                         +'Open: %.2f Close: %.2f\n' % (float(df.iloc[0]['Open']),float(df.iloc[-1]['Close']))\
                         +'Change: %.2f\n' % (float(df.iloc[-1]['Close'])-float(df.iloc[0]['Close']))\
@@ -45,11 +51,6 @@ async def analyze(room,message,match):
                 roi = calculate_roi(df)
                 for timeframe, value in roi.items():
                     msg += f"ROI for {timeframe}: {value:.2f}%\n"
-                ast = None
-                for st in strategies:
-                    if st['name'] in strategy:
-                        ast = st
-                        break
                 if ast:
                     initial_capital=1000
                     try:
