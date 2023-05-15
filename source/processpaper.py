@@ -157,7 +157,7 @@ async def overview(room,message,match):
                 paper = result['paper']
                 try:
                     if style == 'graphic':
-                        if not (df.empty):
+                        if df and not (df.empty):
                             fpath = '/tmp/%s.jpeg' % paper['isin']
                             async def process_cerebro(df,fpath):
                                 try:
@@ -412,8 +412,8 @@ async def check_dates(depot):
                 )                
                 dates = await session.scalars(query)
                 for entry in dates.all():
-                    msg = entry.symbol_isin+': event '+entry.name+' on '+entry.release_date 
-                    await bot.api.send_markdown_message(room.room_id, msg)
+                    msg = entry.symbol_isin+': event '+entry.name+' on '+str(entry.release_date)
+                    await bot.api.send_markdown_message(depot.room, msg)
         except BaseException as e:
             logging.error('check_dates:'+str(e))
         seconds_until_6_am = ((datetime.datetime.combine(datetime.datetime.today() + datetime.timedelta(days=1), datetime.time(6)) - datetime.datetime.now()).total_seconds())
