@@ -32,7 +32,8 @@ async def analyze(room,message,match):
                     if avola > vola: vola = avola
                 ast = None
                 for st in strategies:
-                    if st['name'] in strategy:
+                    if st['name'] == strategy\
+                    or strategy.startswith(st['name']):
                         ast = st
                         strategy = st['name']
                         break
