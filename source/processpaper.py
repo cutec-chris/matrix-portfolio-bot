@@ -47,7 +47,7 @@ async def analyze(room,message,match):
                     msg += f"ROI for {timeframe}: {value:.2f}%\n"
                 ast = None
                 for st in strategies:
-                    if st['name'] == strategy:
+                    if st['name'] in strategy:
                         ast = st
                         break
                 if ast:
@@ -243,14 +243,14 @@ async def ProcessStrategy(paper,depot,data):
                 if size_sum != 0:
                     if not 'lastreco' in paper: paper['lastreco'] = ''
                     if size_sum > 0:
-                        msg1 = 'strategy %s propose buying %d x %s %s (%s) at %s' % (strategy,round(size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
+                        msg1 = 'strategy %s propose buying %d x %s %s (%s) at %s' % (st['name'],round(size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
                         if hasattr(order,'chance'):
                             msg1 += ' chance %.1f till %s' % (order.chance,oder.chancetarget)
                         msg1 += '\n'
                         msg2 = 'buy %s %d' % (paper['isin'],round(size_sum))
                         if paper['count']>0: return False
                     else:
-                        msg1 = 'strategy %s propose selling %d x %s %s (%s) at %s' % (strategy,round(-size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
+                        msg1 = 'strategy %s propose selling %d x %s %s (%s) at %s' % (st['name'],round(-size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
                         msg2 = 'sell %s %d' % (paper['isin'],round(-size_sum))
                         if paper['count']==0: return False
                     if strategy+':'+msg2 != paper['lastreco']:
