@@ -52,7 +52,9 @@ async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.da
             else: return None,None
     if hasattr(Strategy, 'predaysdata'):
         async with database.new_session() as session:
-            data_d = await sym.GetData(session,start-datetime.timedelta(days=Strategy.predaysdata),start,timeframe='1d')
+            sym = await database.FindSymbol(session,{'ticker': ticker,'isin': isin},market)
+            if sym:
+                data_d = await sym.GetData(session,start-datetime.timedelta(days=Strategy.predaysdata),start,timeframe='1d')
     cerebro = BotCerebro(stdstats=False,cheat_on_open=True)
     if hasattr(Strategy, 'predaysdata') and not data_d.empty:
         business_days = pandas.date_range(start=data_d.index.min(), end=data_d.index.max(), freq='B')
