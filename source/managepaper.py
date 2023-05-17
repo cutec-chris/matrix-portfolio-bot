@@ -48,8 +48,8 @@ async def manage_paper(room,message,match):
                         price = await sym.GetActPrice(session)
             for datasource in datasources:
                 if hasattr(datasource['mod'],'UpdateTicker'):
-                    res,_ = await datasource['mod'].UpdateTicker(paper)
-                    if res: break
+                    res,oldddate = await datasource['mod'].UpdateTicker(paper)
+                    if res or oldddate: break
             if res: datafound = True
             if not datafound:
                 await bot.api.send_text_message(room.room_id, 'no data avalible for symbol in (any) datasource, aborting...')
@@ -73,6 +73,9 @@ async def manage_paper(room,message,match):
                     cash=0,
                 )
                 session.add(db_depot)
+                await session.commit()
+        async with database.new_session() as session,session.begin():
+            db_depot = (await session.scalars(sqlalchemy.select(database.Depot).filter_by(room=depot.room, name=depot.name))).first()
             sym = (await session.scalars(sqlalchemy.select(database.Symbol).filter_by(isin=match.args()[1], marketplace=depot.market))).first()
             db_position = (await session.scalars(sqlalchemy.select(database.Position).filter_by(isin=paper["isin"], depot_id=db_depot.id))).first()
             if not db_position:
@@ -83,41 +86,47 @@ async def manage_paper(room,message,match):
                     price=paper["price"],
                     ticker="",
                 )
-            session.add(db_position)
+                session.add(db_position)
+                await session.commit()
+        async with database.new_session() as session,session.begin():
+            db_depot = (await session.scalars(sqlalchemy.select(database.Depot).filter_by(room=depot.room, name=depot.name))).first()
+            sym = (await session.scalars(sqlalchemy.select(database.Symbol).filter_by(isin=match.args()[1], marketplace=depot.market))).first()
+            db_position = (await session.scalars(sqlalchemy.select(database.Position).filter_by(isin=paper["isin"], depot_id=db_depot.id))).first()
             for paper in depot.papers:
                 if paper['isin'] == match.args()[1] or paper['ticker'] == match.args()[1]:
-                    oldprice = float(paper['price'])
-                    if not count:
-                        count = 0
-                    if not price:
-                        price = oldprice
-                    newprice = price*count
-                    if 'ticker' in paper:
-                        db_position.ticker = paper['ticker']
-                    if match.command("buy"):
-                        paper['price'] = oldprice+newprice
-                        paper['count'] = paper['count']+count
-                        db_position.shares = paper['count']
-                        db_position.price = paper['price']
-                        session.add(db_position)
-                        db_trade = database.Trade(position_id=db_position.id,shares=count, price=price,datetime=datetime.datetime.now())
-                        session.add(db_trade)
-                    elif match.command("sell"):
-                        if newprice>oldprice:
-                            newprice = oldprice
-                        paper['price'] = oldprice-newprice
-                        paper['count'] = paper['count']-count
-                        db_position.shares = paper['count']
-                        db_position.price = paper['price']
-                        session.add(db_position)
-                        db_trade = database.Trade(position_id=db_position.id,shares=-count, price=price,datetime=datetime.datetime.now())
-                        session.add(db_trade)
-                    elif match.command("remove"):
-                        depot.papers.remove(paper)
-                    await save_servers()
-                    await session.commit()
-                    await bot.api.send_text_message(room.room_id, 'ok')
-                    break
+                    async with session.begin_nested():
+                        oldprice = float(paper['price'])
+                        if not count:
+                            count = 0
+                        if not price:
+                            price = oldprice
+                        newprice = price*count
+                        if 'ticker' in paper:
+                            db_position.ticker = paper['ticker']
+                        if match.command("buy"):
+                            paper['price'] = oldprice+newprice
+                            paper['count'] = paper['count']+count
+                            db_position.shares = paper['count']
+                            db_position.price = paper['price']
+                            session.add(db_position)
+                            db_trade = database.Trade(position_id=db_position.id,shares=count, price=price,datetime=datetime.datetime.now())
+                            session.add(db_trade)
+                        elif match.command("sell"):
+                            if newprice>oldprice:
+                                newprice = oldprice
+                            paper['price'] = oldprice-newprice
+                            paper['count'] = paper['count']-count
+                            db_position.shares = paper['count']
+                            db_position.price = paper['price']
+                            session.add(db_position)
+                            db_trade = database.Trade(position_id=db_position.id,shares=-count, price=price,datetime=datetime.datetime.now())
+                            session.add(db_trade)
+                        elif match.command("remove"):
+                            depot.papers.remove(paper)
+                        await save_servers()
+                        await session.commit()
+                        await bot.api.send_text_message(room.room_id, 'ok')
+                        break
 async def show(room,message,match):
     tdepot = None
     msg = ''
