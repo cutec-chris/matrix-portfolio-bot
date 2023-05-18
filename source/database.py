@@ -357,7 +357,7 @@ class NewsEntry(Base):
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
     release_date = sqlalchemy.Column(sqlalchemy.DateTime, nullable=False)
     headline = sqlalchemy.Column(sqlalchemy.String(100))
-    content = sqlalchemy.Column(sqlalchemy.Text, nullable=False)
+    content = sqlalchemy.Column(sqlalchemy.Text)
     category = sqlalchemy.Column(sqlalchemy.String(100))
     source_id = sqlalchemy.Column(sqlalchemy.String(100))
     symbol_isin = sqlalchemy.Column(sqlalchemy.String(50),
@@ -421,6 +421,33 @@ class UpdateCyclic:
         self.WaitTime = Waittime
         self.Delay = delay
         self.UpdateFunc = UpdateFunc
+        self.internal_delay_mult = {}
+    async def calc_delay_func(self,paper):
+        async with new_session() as session:
+            sym = await FindSymbol(session,paper,self.market)
+            if sym:
+                if sym.market == Market.etf:
+                    return 4
+                if paper['count']>0:
+                    return 1
+                ratings = await sym.GetTargetPrice(session)
+                if ratings and ratings[3] < 0:
+                    return 16
+                if ratings and ratings[3] < 0.5:
+                    return 4
+                return 2
+        return None
+    async def get_delay_mult(self,paper,default_mult):
+        if not paper['isin'] in self.internal_delay_mult:
+            res = await self.calc_delay_func(paper)
+            if res:
+                self.internal_delay_mult[paper['isin']] = res
+            else:
+                self.internal_delay_mult[paper['isin']] = default_mult
+        if self.internal_delay_mult[paper['isin']] > default_mult:
+            return self.internal_delay_mult[paper['isin']]
+        else:
+            return default_mult
     async def run(self):
         internal_updated = {}
         internal_delay_mult = {}
@@ -433,7 +460,7 @@ class UpdateCyclic:
                     internal_delay_mult[paper['isin']] = 1
                 try:
                     epaper = paper
-                    if paper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin'])+datetime.timedelta(seconds=self.Delay*internal_delay_mult[paper['isin']]) < datetime.datetime.now()):
+                    if paper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin'])+datetime.timedelta(seconds=self.Delay*await self.get_delay_mult(epaper,internal_delay_mult[paper['isin']])) < datetime.datetime.now()):
                         res,till = await self.UpdateFunc(epaper,self.market)
                         if res and till: 
                             internal_updated[paper['isin']] = till
