@@ -1,6 +1,7 @@
 from init import *
 import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles,random,backtests,os
-import managepaper,processpaper
+import managepaper,processpaper,os
+logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 loop = None
 lastsend = None
 class Portfolio(Config):
@@ -10,7 +11,7 @@ class Portfolio(Config):
 async def tell(room, message):
     try:
         global servers,lastsend
-        logging.info(str(message))
+        logger.info(str(message))
         if not message.body.startswith(prefix) and room.member_count==2:
             message.body = prefix+' '+message.body
         match = botlib.MessageMatch(room, message, bot, prefix)
@@ -80,7 +81,7 @@ async def tell(room, message):
             await bot.api.send_text_message(room.room_id, 'exitting...')
             os._exit(0)
     except BaseException as e:
-        logging.error(str(e), exc_info=True)
+        logger.error(str(e), exc_info=True)
         await bot.api.send_text_message(room,str(e))
     await bot.api.async_client.room_typing(room.room_id,False,0)
 datasources = []
@@ -88,16 +89,16 @@ strategies = []
 connection = None
 try:
     logging.basicConfig(level=logging.INFO)
-    logging.info('starting event loop...')
+    logger.info('starting event loop...')
     loop = asyncio.new_event_loop()
-    logging.info('loading config...')
+    logger.info('loading config...')
     with open('data.json', 'r') as f:
         nservers = json.load(f)
         for server in nservers:
             if not 'papers' in server:
                 server['papers'] = []
             servers.append(Portfolio(server))
-    logging.info('loading (and starting) datasources...')
+    logger.info('loading (and starting) datasources...')
     for folder in (pathlib.Path(__file__).parent / 'datasources').glob('*'):
         try:
             spec = importlib.util.spec_from_file_location(folder.name, str(folder / '__init__.py'))
@@ -109,8 +110,8 @@ try:
                 }
             datasources.append(module)
         except BaseException as e:
-            logging.error(folder.name+':Failed to import datasource:'+str(e))
-    logging.info('loading strategys...')
+            logger.error(folder.name+':Failed to import datasource:'+str(e))
+    logger.info('loading strategys...')
     for folder in (pathlib.Path(__file__).parent / 'strategy').glob('*/*.py'):
         try:
             spec = importlib.util.spec_from_file_location(folder.name, str(folder))
@@ -123,9 +124,9 @@ try:
                 }
             strategies.append(module)
         except BaseException as e:
-            logging.error('Failed to import strategy:'+str(e))
+            logger.error('Failed to import strategy:'+str(e))
 except BaseException as e:
-    logging.error('Failed to read data.json:'+str(e))
+    logger.error('Failed to read data.json:'+str(e))
 news_task,dates_task = None,None
 @bot.listener.on_startup
 async def startup(room):
@@ -190,13 +191,13 @@ async def main():
     try:
         def unhandled_exception(loop, context):
             msg = context.get("exception", context["message"])
-            logging.error(f"Unhandled exception caught: {msg}", file=sys.stderr)
+            logger.error(f"Unhandled exception caught: {msg}", file=sys.stderr)
             os._exit(1)
         loop = asyncio.get_event_loop()
         loop.set_exception_handler(unhandled_exception)
         await bot.main()
     except BaseException as e:
-        logging.error('bot main fails:'+str(e))
+        logger.error('bot main fails:'+str(e))
         os._exit(1)
 processpaper.bot = bot
 processpaper.servers = servers

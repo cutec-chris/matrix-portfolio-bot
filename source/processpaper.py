@@ -1,4 +1,5 @@
 import database,sqlalchemy,logging,backtrader,asyncio,datetime,random,backtests,aiofiles,pandas
+logger = logging.getLogger(__name__)
 bot = None
 server = None
 datasources = None
@@ -57,7 +58,7 @@ async def analyze(room,message,match):
                     try:
                         res,cerebro = await backtests.default_backtest(st['mod'].Strategy,data=df)
                     except BaseException as e:
-                        logging.error(str(e))
+                        logger.error(str(e))
                         cerebro = None
                 if cerebro:
                     msg += 'Statistic ROI: %.2f\n' % (((cerebro.broker.getvalue() - initial_capital) / initial_capital)*100)
@@ -167,7 +168,7 @@ async def overview(room,message,match):
                                     await backtests.run_backtest(cerebro)
                                     cerebro.saveplots(style='line',file_path = fpath,width=32*4, height=16*4,dpi=50,volume=False,grid=False,valuetags=False,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=False)
                                 except BaseException as e:
-                                    logging.warning('failed to process:'+str(e))
+                                    logger.warning('failed to process:'+str(e))
                                     return None
                                 return fpath
                             image_uri = await process_cerebro(df,fpath)
@@ -177,9 +178,9 @@ async def overview(room,message,match):
                                 image_uri = resp.content_uri
                             except BaseException as e:
                                 image_uri = None
-                                logging.warning('failed to upload img:'+str(e))
+                                logger.warning('failed to upload img:'+str(e))
                     result['msg_part'] = result['msg_part'].replace('<img src=""></img>','<img src="' + str(image_uri) + '"></img>')
-                except BaseException as e: logging.warning(str(e))
+                except BaseException as e: logger.warning(str(e))
                 return result
             tasks = []
             for paper in depot.papers:
@@ -224,11 +225,11 @@ async def ProcessStrategy(paper,depot,data):
         strategy = depot.strategy
     for st in strategies:
         if st['name'] in strategy:
-            logging.info(str(depot.name)+': processing ticker '+paper['ticker']+' till '+str(data.index[-1])+' with '+st['name'])
+            logger.info(str(depot.name)+': processing ticker '+paper['ticker']+' till '+str(data.index[-1])+' with '+st['name'])
             try:
                 res,cerebro = await backtests.default_backtest(st['mod'].Strategy,data=data,ticker=paper['ticker'],isin=paper['isin'])
             except BaseException as e:
-                logging.error(str(e))
+                logger.error(str(e))
                 cerebro = None
             if cerebro:
                 size_sum = 0
@@ -294,7 +295,7 @@ async def ChangeDepotStatus(depot,newstatus):
         #    res = await bot.api.async_client.room_put_state(depot.room,'m.room.topic',{'topic': ntext},'')
         #    room.topic = ntext
     except BaseException as e:
-        logging.error('ChangeDepotStatus failed: '+str(e))
+        logger.error('ChangeDepotStatus failed: '+str(e))
 async def check_depot(depot,fast=False):
     global lastsend,servers,connection,news_task
     last_processed_minute_bar_id = 0
@@ -307,7 +308,7 @@ async def check_depot(depot,fast=False):
     check_status = []
     next_minute = datetime.datetime.now()
     while True:
-        logging.info(depot.name+' starting updates '+str(datetime.datetime.now()))
+        logger.info(depot.name+' starting updates '+str(datetime.datetime.now()))
         check_status.append(depot.name)
         TillUpdated = None
         ShouldSave = False
@@ -343,9 +344,9 @@ async def check_depot(depot,fast=False):
                             ShouldSave = ShouldSave or ps
                             await asyncio.sleep(0.1)
                             break
-            logging.info(depot.name+' finished updates '+str(datetime.datetime.now()))
+            logger.info(depot.name+' finished updates '+str(datetime.datetime.now()))
         except BaseException as e:
-            logging.error(depot.name+' '+str(e))
+            logger.error(depot.name+' '+str(e))
         check_status.remove(depot.name)
         if check_status == []:#when we only await UpdateTime we can set Status
             await ChangeDepotStatus(depot,'')
@@ -395,7 +396,7 @@ async def check_news(depot):
                     if entry.id > last_processed:
                         last_processed = entry.id
         except BaseException as e:
-            logging.error('news show:'+str(e))
+            logger.error('news show:'+str(e))
         await asyncio.sleep(60*2)
 async def check_dates(depot):
     global lastsend,servers,connection
@@ -415,7 +416,7 @@ async def check_dates(depot):
                     msg = entry.symbol_isin+': event '+entry.name+' on '+str(entry.release_date)
                     await bot.api.send_markdown_message(depot.room, msg)
         except BaseException as e:
-            logging.error('check_dates:'+str(e))
+            logger.error('check_dates:'+str(e))
         seconds_until_6_am = ((datetime.datetime.combine(datetime.datetime.today() + datetime.timedelta(days=1), datetime.time(6)) - datetime.datetime.now()).total_seconds())
         await asyncio.sleep(seconds_until_6_am)
 def parse_human_readable_duration(duration_str):

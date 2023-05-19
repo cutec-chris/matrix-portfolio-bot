@@ -1,4 +1,5 @@
-import database,sqlalchemy,logging,asyncio,datetime,aiofiles,pandas
+import database,sqlalchemy,logging,asyncio,datetime,aiofiles,pandas,os
+logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 bot = None
 servers = None
 datasources = None

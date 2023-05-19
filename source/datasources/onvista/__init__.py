@@ -1,6 +1,7 @@
 import pathlib,sys;sys.path.append(str(pathlib.Path(__file__).parent.parent.parent))
 import sys,pathlib;sys.path.append(str(pathlib.Path(__file__).parent / 'pyonvista' / 'src'))
 import pyonvista,asyncio,aiohttp,datetime,pytz,time,logging,database,pandas,json,aiofiles,datetime,sqlalchemy,threading,random
+logger = logging.getLogger('onvista')
 async def UpdateTicker(paper,market=None):
     started = time.time()
     updatetime = 0.5
@@ -20,7 +21,7 @@ async def UpdateTicker(paper,market=None):
                     elif 'shortname' in resp:
                         paper['name'] = resp['shortname']
                 else:
-                    logging.warning('paper '+paper['isin']+' not found !')
+                    logger.warning('paper '+paper['isin']+' not found !')
                     return False,None
             if 'ticker' in paper and paper['ticker']:
                 startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
@@ -99,17 +100,17 @@ async def UpdateTicker(paper,market=None):
                                         res = acnt>0
                                         session.add(sym)
                                         if res: 
-                                            logging.info('onvista:'+sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' from '+str(olddate))
+                                            logger.info(sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' from '+str(olddate))
                                             olddate = pdata['Datetime'].iloc[-1]
                                         else:
-                                            logging.info('onvista:'+sym.ticker+' no new data')
+                                            logger.info(sym.ticker+' no new data')
                                         updatetime = 10
                                     except BaseException as e:
-                                        logging.warning('failed writing to db:'+str(e))
+                                        logger.warning('failed writing to db:'+str(e))
                                 startdate += datetime.timedelta(days=7)
             if res: await session.commit()
         except BaseException as e:
-            logging.error('onvista:'+'failed updating ticker %s: %s' % (str(paper['isin']),str(e)), exc_info=True)
+            logger.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)), exc_info=True)
         return res,olddate
 def GetUpdateFrequency():
     return 15*60
@@ -132,7 +133,7 @@ async def SearchPaper(isin):
 async def StartUpdate(papers,market,name):
     await database.UpdateCyclic(papers,market,name,UpdateTicker,15*60,60/12).run()
 if __name__ == '__main__':
-    logging.root.setLevel(logging.INFO)
+    logger.root.setLevel(logger.INFO)
     apaper = {
         "isin": "DE0007037129",
         "count": 0,

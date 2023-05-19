@@ -1,4 +1,5 @@
-import backtrader,asyncio,concurrent.futures,database,datetime,pandas,logging,sqlalchemy
+import backtrader,asyncio,concurrent.futures,database,datetime,pandas,os,logging,sqlalchemy
+logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 class BotCerebro(backtrader.Cerebro):
     def __init__(self):
         super().__init__()
@@ -31,14 +32,14 @@ class BotCerebro(backtrader.Cerebro):
                     f.savefig(file_path, dpi=dpi, bbox_inches='tight')
             return figs
         except BaseException as e:
-            logging.warning(str(e))
+            logger.warning(str(e))
 async def run_backtest(cerebro):
     loop = asyncio.get_event_loop()
     with concurrent.futures.ThreadPoolExecutor() as executor:
         try:
             return await loop.run_in_executor(executor, cerebro.run)
         except BaseException as e:
-            logging.error('failed to execute Strategy: '+str(e))
+            logger.error('failed to execute Strategy: '+str(e))
             return False
 async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.datetime.utcnow()-datetime.timedelta(days=90),end=None,timeframe='15m',data=None,initial_capital=1000,market=None):
     data_d = None
@@ -77,7 +78,7 @@ async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.da
     annual_returns = res[0].analyzers.annual_return.get_analysis()
     for year, return_value in annual_returns.items():
         ares = return_value*100
-    logging.info('%s:roi %.2f s-roi:%.2f a-ret: %.2f' % (str(isin)+' ('+str(ticker)+')',roi,sroi,ares))
+    logger.info('%s:roi %.2f s-roi:%.2f a-ret: %.2f' % (str(isin)+' ('+str(ticker)+')',roi,sroi,ares))
     return res,cerebro
 async def backtest_all(Strategy=None,start=datetime.datetime.utcnow()-datetime.timedelta(days=90),end=None,timeframe='15m',data=None,initial_capital=1000,market=None):
     async with database.new_session() as session:
@@ -106,5 +107,5 @@ async def backtest_all(Strategy=None,start=datetime.datetime.utcnow()-datetime.t
                     for year, return_value in annual_returns.items():
                         ares = return_value*100
                 else: ares = 0
-                logging.info('%s:roi %.2f s-roi:%.2f a-ret: %.2f' % (sym.isin,roi,sroi,ares))
+                logger.info('%s:roi %.2f s-roi:%.2f a-ret: %.2f' % (sym.isin,roi,sroi,ares))
                 pass

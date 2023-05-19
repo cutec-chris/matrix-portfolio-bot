@@ -1,5 +1,6 @@
-import sqlalchemy,pathlib,enum,datetime,pandas,asyncio,backtrader,logging,csv,io,re,threading,sqlalchemy.orm,sqlalchemy.ext.asyncio,random,time
+import sqlalchemy,pathlib,enum,datetime,pandas,asyncio,backtrader,logging,csv,os,io,re,threading,sqlalchemy.orm,sqlalchemy.ext.asyncio,random,time
 Base = sqlalchemy.orm.declarative_base()
+logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 class Depot(Base):
     __tablename__ = 'depot'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
@@ -391,7 +392,7 @@ class BotCerebro(backtrader.Cerebro):
                     f.savefig(file_path, dpi=dpi, bbox_inches='tight')
             return figs
         except BaseException as e:
-            logging.warning(str(e))
+            logger.warning(str(e))
 Data=pathlib.Path('.') / 'data' / 'database.db'
 Data.parent.mkdir(parents=True,exist_ok=True)
 engine=sqlalchemy.ext.asyncio.create_async_engine('sqlite+aiosqlite:///'+str(Data), connect_args={
@@ -406,7 +407,7 @@ async def init_models():
 asyncio.run(init_models())
 def new_session():
     return sqlalchemy.orm.sessionmaker(bind=engine, class_=sqlalchemy.ext.asyncio.AsyncSession, autocommit=False, autoflush=False)()
-#logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
+#logger.getLogger('sqlalchemy.engine').setLevel(logger.INFO)
 async def FindSymbol(session,paper,market=None):
     if 'isin' in paper and paper['isin']:
         sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin'],marketplace=market).limit(1))).scalars().first()
@@ -474,5 +475,5 @@ class UpdateCyclic:
                         if self.WaitTime-(time.time()-started) > 0:
                             await asyncio.sleep(self.WaitTime-(time.time()-started))
                 except BaseException as e:
-                    logging.error(str(e))
+                    logger.error(str(e))
             await asyncio.sleep(10)
