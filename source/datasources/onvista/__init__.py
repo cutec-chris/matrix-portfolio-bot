@@ -2,7 +2,33 @@ import pathlib,sys;sys.path.append(str(pathlib.Path(__file__).parent.parent.pare
 import sys,pathlib;sys.path.append(str(pathlib.Path(__file__).parent / 'pyonvista' / 'src'))
 import pyonvista,asyncio,aiohttp,datetime,pytz,time,logging,database,pandas,json,aiofiles,datetime,sqlalchemy,threading,random
 logger = logging.getLogger('onvista')
+async def DownloadChunc(session,from,to,timeframe,paper,market):
+    client = aiohttp.ClientSession()
+    api = pyonvista.PyOnVista()
+    await api.install_client(client)
+    async with client:
+        i = pyonvista.api.Instrument()
+        i.type=str(sym.market).upper()[7:]
+        i.isin = paper['isin']
+        i.notations = []
+        try:
+            instrument = await api.request_instrument(isin=paper['isin'],instrument=i)
+        except:
+            try:
+                res = await SearchPaper(paper['isin'])
+                sym.market=database.Market[res['type'].lower()]
+                i.type=str(sym.market).upper()[7:]
+                instrument = await api.request_instrument(isin=paper['isin'],instrument=i)
+            except:
+                return False,None
+        t_market = None
+        if market:
+            for m in instrument.notations:
+                if m.market.name == market:
+                    t_market = m
+                    break
 async def UpdateTicker(paper,market=None):
+    return database.UpdateTickerProto(paper,market,DownloadChunc,SearchPaper)
     started = time.time()
     updatetime = 0.5
     res = False
@@ -11,8 +37,7 @@ async def UpdateTicker(paper,market=None):
         return res,olddate
     async with database.new_session() as session:
         try:
-            sym = await database.FindSymbol(session,paper,market)
-            if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
+            if (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
                 resp = await SearchPaper(paper['isin'])
                 if resp:
                     paper['ticker'] = resp['symbol']
@@ -20,14 +45,15 @@ async def UpdateTicker(paper,market=None):
                         paper['name'] = resp['longname']
                     elif 'shortname' in resp:
                         paper['name'] = resp['shortname']
+                    paper['type'] = resp['type'].lower()
                 else:
                     logger.warning('paper '+paper['isin']+' not found !')
                     return False,None
+            sym = await database.FindSymbol(session,paper,market,True)
             if 'ticker' in paper and paper['ticker']:
                 startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
-                if sym == None and resp:
+                if resp:
                     #initial download
-                    sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=database.Market[resp['type'].lower()],marketplace=market,active=True)
                     sym.currency = 'EUR'
                     if market == 'gettex':
                         sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)

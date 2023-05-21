@@ -24,8 +24,7 @@ async def UpdateTicker(paper,market=None):
     olddate = None
     async with database.new_session() as session,session.begin():
         try:
-            sym = await database.FindSymbol(session,paper,None)
-            if sym == None or (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
+            if (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
                 sres = None
                 if 'isin' in paper and paper['isin']:
                     sres = await SearchPaper(paper['isin'])
@@ -40,6 +39,7 @@ async def UpdateTicker(paper,market=None):
                 else:
                     logger.warning('paper '+paper['isin']+' not found !')
                     return False,None
+            sym = await database.FindSymbol(session,paper,market,True)
             if 'ticker' in paper and paper['ticker']:
                 startdate = datetime.datetime.utcnow()-datetime.timedelta(days=365*3)
                 if sym == None and sres:

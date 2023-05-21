@@ -408,7 +408,18 @@ asyncio.run(init_models())
 def new_session():
     return sqlalchemy.orm.sessionmaker(bind=engine, class_=sqlalchemy.ext.asyncio.AsyncSession, autocommit=False, autoflush=False)()
 #logger.getLogger('sqlalchemy.engine').setLevel(logger.INFO)
-async def FindSymbol(session,paper,market=None):
+async def FindSymbol(session,paper,market=None,CreateifNotExists=False):
+    if 'isin' in paper and paper['isin']:
+        sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin'],marketplace=market).limit(1))).scalars().first()
+    elif 'ticker' in paper and paper['ticker']:
+        sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker=paper['ticker'],marketplace=market))).scalars().first()
+    else: sym = None
+    if not sym and CreateifNotExists:
+        async with new_session() as sessionn,sessionn.begin():
+            sym = Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=Market['stock'],marketplace=market,active=True)
+            sym.currency = 'EUR'
+            sessionn.add(sym)
+            sessionn.commit()
     if 'isin' in paper and paper['isin']:
         sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin'],marketplace=market).limit(1))).scalars().first()
     elif 'ticker' in paper and paper['ticker']:
@@ -477,3 +488,30 @@ class UpdateCyclic:
                 except BaseException as e:
                     logger.error(str(e))
             await asyncio.sleep(10)
+async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper):
+    if (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
+        resp = await SearchPaper(paper['isin'])
+        if resp:
+            paper['ticker'] = resp['symbol']
+            if 'longname' in resp:
+                paper['name'] = resp['longname']
+            elif 'shortname' in resp:
+                paper['name'] = resp['shortname']
+            paper['type'] = resp['type'].lower()
+        else:
+            logger.warning('paper '+paper['isin']+' not found !')
+            return False,None
+    async with database.new_session() as session:
+        sym = await FindSymbol(session,paper,market,True)
+        if 'ticker' in paper and paper['ticker']:
+            startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
+            if resp:
+                #initial download
+                sym.currency = 'EUR'
+                if market == 'gettex':
+                    sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)
+                    sym.tradingend = datetime.datetime.now().replace(hour=21,minute=0)
+                else:
+                    sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)
+                    sym.tradingend = datetime.datetime.now().replace(hour=21,minute=0)
+                    session.add(sym)
