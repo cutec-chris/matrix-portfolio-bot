@@ -419,7 +419,7 @@ async def FindSymbol(session,paper,market=None,CreateifNotExists=False):
             sym = Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=Market['stock'],marketplace=market,active=True)
             sym.currency = 'EUR'
             sessionn.add(sym)
-            sessionn.commit()
+            await sessionn.commit()
     if 'isin' in paper and paper['isin']:
         sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin'],marketplace=market).limit(1))).scalars().first()
     elif 'ticker' in paper and paper['ticker']:
