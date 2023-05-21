@@ -488,7 +488,10 @@ class UpdateCyclic:
                 except BaseException as e:
                     logger.error(str(e))
             await asyncio.sleep(10)
-async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper):
+async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,Hours=365,Days=10*365):
+    resp = None
+    res = False
+    olddate = None
     if (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
         resp = await SearchPaper(paper['isin'])
         if resp:
@@ -501,7 +504,7 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper):
         else:
             logger.warning('paper '+paper['isin']+' not found !')
             return False,None
-    async with database.new_session() as session:
+    async with new_session() as session:
         sym = await FindSymbol(session,paper,market,True)
         if 'ticker' in paper and paper['ticker']:
             startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
@@ -515,3 +518,16 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper):
                     sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)
                     sym.tradingend = datetime.datetime.now().replace(hour=21,minute=0)
                     session.add(sym)
+        if sym:
+            result = await session.execute(sqlalchemy.select(MinuteBar, sqlalchemy.func.max(MinuteBar.date)).where(MinuteBar.symbol == sym))
+            date_entry, latest_date = result.fetchone()
+            startdate = latest_date
+            if not latest_date:
+                startdate = datetime.datetime.utcnow()-datetime.timedelta(days=Minutes15)
+            if (not (sym.tradingstart and sym.tradingend))\
+            or ((sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time()) and (datetime.datetime.utcnow().weekday() < 5)):
+                while startdate < datetime.datetime.utcnow():
+                    res,olddate = await DownloadChunc(session,sym,startdate,startdate+datetime.timedelta(days=Minutes15),'15m',paper,market)
+                    startdate += datetime.timedelta(days=Minutes15)
+                await session.commit()
+    return res,olddate

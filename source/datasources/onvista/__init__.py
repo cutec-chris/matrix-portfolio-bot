@@ -2,8 +2,10 @@ import pathlib,sys;sys.path.append(str(pathlib.Path(__file__).parent.parent.pare
 import sys,pathlib;sys.path.append(str(pathlib.Path(__file__).parent / 'pyonvista' / 'src'))
 import pyonvista,asyncio,aiohttp,datetime,pytz,time,logging,database,pandas,json,aiofiles,datetime,sqlalchemy,threading,random
 logger = logging.getLogger('onvista')
-async def DownloadChunc(session,from,to,timeframe,paper,market):
+async def DownloadChunc(session,sym,from_date,to_date,timeframe,paper,market):
     client = aiohttp.ClientSession()
+    res = False
+    olddate = None
     api = pyonvista.PyOnVista()
     await api.install_client(client)
     async with client:
@@ -27,8 +29,47 @@ async def DownloadChunc(session,from,to,timeframe,paper,market):
                 if m.market.name == market:
                     t_market = m
                     break
+        enddate = to_date
+        if enddate>datetime.datetime.utcnow():
+            enddate = None
+        quotes = await api.request_quotes(instrument,notation=t_market,start=from_date.date(),end=enddate)
+        if len(quotes)>0:
+            data = [
+                {
+                    'Datetime': quote.timestamp,
+                    'Open': quote.open,
+                    'High': quote.high,
+                    'Low': quote.low,
+                    'Close': quote.close,
+                    'Volume': quote.volume,
+                    'Pieces': quote.pieces,
+                }
+                for quote in quotes
+            ]
+            updatetime = 5
+            # Erstellen des DataFrames aus der Liste von Dictionaries
+            df = pandas.DataFrame(data)
+            pdata = df.dropna()
+            pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"])
+            gmtoffset = datetime.datetime.now()-datetime.datetime.utcnow()
+            pdata["Datetime"] -= gmtoffset
+            pdata["Datetime"] = pdata["Datetime"].dt.floor('S')
+            try:
+                olddate = await sym.GetActDate(session)
+                acnt = await sym.AppendData(session,pdata)
+                res = acnt>0
+                session.add(sym)
+                if res: 
+                    logger.info(sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' from '+str(olddate))
+                    olddate = pdata['Datetime'].iloc[-1]
+                else:
+                    logger.info(sym.ticker+' no new data')
+                updatetime = 10
+            except BaseException as e:
+                logger.warning('failed writing to db:'+str(e))
+        return res,olddate
 async def UpdateTicker(paper,market=None):
-    return database.UpdateTickerProto(paper,market,DownloadChunc,SearchPaper)
+    return await database.UpdateTickerProto(paper,market,DownloadChunc,SearchPaper)
     started = time.time()
     updatetime = 0.5
     res = False
