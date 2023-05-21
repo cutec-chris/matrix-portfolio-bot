@@ -3,8 +3,7 @@ import asyncio,aiohttp,csv,datetime,pytz,time,threading,concurrent.futures
 import requests,pandas,pathlib,database,sqlalchemy.sql.expression,asyncio,logging,io,random
 logger = logging.getLogger('yahoo')
 UserAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.109 Safari/537.36'
-async def UpdateTicker(paper,market=None):
-    return None,None
+async def DownloadChunc(session,sym,from_date,to_date,timeframe,paper,market):
     def extract_trading_times(metadata):
         try:
             timezone = metadata['regular']['timezone']
@@ -19,105 +18,55 @@ async def UpdateTicker(paper,market=None):
             return start_time, end_time
         except BaseException as e:
             return None,None
-    started = time.time()
-    updatetime = 0.5
     res = False
     olddate = None
-    async with database.new_session() as session,session.begin():
-        try:
-            if (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
-                sres = None
-                if 'isin' in paper and paper['isin']:
-                    sres = await SearchPaper(paper['isin'])
-                if not res and 'ticker' in paper and paper['ticker']:
-                    sres = await SearchPaper(paper['ticker'])
-                if sres:
-                    paper['ticker'] = sres['symbol']
-                    if 'longname' in sres:
-                        paper['name'] = sres['longname']
-                    elif 'shortname' in sres:
-                        paper['name'] = sres['shortname']
-                else:
-                    logger.warning('paper '+paper['isin']+' not found !')
-                    return False,None
-            sym = await database.FindSymbol(session,paper,market,True)
-            if 'ticker' in paper and paper['ticker']:
-                startdate = datetime.datetime.utcnow()-datetime.timedelta(days=365*3)
-                if sym == None and sres:
-                    #initial download
-                    markett = database.Market.stock
-                    if sres['quoteType'] == 'INDEX':
-                        markett = database.Market.index
-                        paper['isin'] = paper['ticker']
-                    async with database.new_session() as sessionn,sessionn.begin():
-                        sym = database.Symbol(isin=paper['isin'],ticker=paper['ticker'],name=paper['name'],market=markett,active=True)
-                        try:
-                            sessionn.add(sym)
-                            sessionn.commit()
-                        except BaseException as e:
-                            logger.warning('failed writing to db:'+str(e))
-                    sym = await database.FindSymbol(session,paper,None)
-                if sym:
-                    result = await session.execute(sqlalchemy.select(database.MinuteBar, sqlalchemy.func.max(database.MinuteBar.date)).where(database.MinuteBar.symbol == sym))
-                    date_entry, latest_date = result.fetchone()
-                    startdate = latest_date
-                    if not startdate:
-                        startdate = datetime.datetime.utcnow()-datetime.timedelta(days=59)
+    from_timestamp = int((from_date - datetime.datetime(1970, 1, 1)).total_seconds())
+    to_timestamp = int((to_date - datetime.datetime(1970, 1, 1)).total_seconds())
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=true&events=history&period1={from_timestamp}&period2={to_timestamp}"
+    async with aiohttp.ClientSession(headers={'User-Agent': UserAgent}) as hsession:
+        async with hsession.get(url) as resp:
+            data = await resp.json()
+            if data["chart"]["result"]:
+                if not sym.tradingstart or not sym.currency:
+                    sym.tradingstart, sym.tradingend = extract_trading_times(data["chart"]["result"][0]['meta']['currentTradingPeriod'])
+                    sym.currency = data["chart"]["result"][0]['meta']['currency']
+                gmtoffset_timedelta = datetime.timedelta(seconds=data["chart"]["result"][0]['meta']['gmtoffset'])
+                ohlc_data = data["chart"]["result"][0]["indicators"]["quote"][0]
+                if len(ohlc_data)>0:
+                    pdata = pandas.DataFrame({
+                        "Datetime": data["chart"]["result"][0]["timestamp"],
+                        "Open": ohlc_data["open"],
+                        "High": ohlc_data["high"],
+                        "Low": ohlc_data["low"],
+                        "Close": ohlc_data["close"],
+                        "Volume": ohlc_data["volume"]
+                    })
+                    pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
+                    #pdata["Datetime"] -= gmtoffset_timedelta
+                    pdata["Datetime"] = pdata["Datetime"].dt.floor('S')
+                    pdata = pdata.dropna()
+                    if pdata["Datetime"].iloc[-1].minute % 15 != 0:
+                        # Entferne die letzte Zeile aus dem DataFrame
+                        pdata = pdata.iloc[:-1]
                     try:
-                        while startdate < datetime.datetime.utcnow():
-                            from_timestamp = int((startdate - datetime.datetime(1970, 1, 1)).total_seconds())
-                            to_timestamp = int(((startdate+datetime.timedelta(days=59)) - datetime.datetime(1970, 1, 1)).total_seconds())
-                            if (not (sym.tradingstart and sym.tradingend))\
-                            or ((sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time()) and (datetime.datetime.utcnow().weekday() < 5)):
-                                url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=true&events=history&period1={from_timestamp}&period2={to_timestamp}"
-                                async with aiohttp.ClientSession(headers={'User-Agent': UserAgent}) as hsession:
-                                    async with hsession.get(url) as resp:
-                                        data = await resp.json()
-                                        if data["chart"]["result"]:
-                                            if not sym.tradingstart or not sym.currency:
-                                                sym.tradingstart, sym.tradingend = extract_trading_times(data["chart"]["result"][0]['meta']['currentTradingPeriod'])
-                                                sym.currency = data["chart"]["result"][0]['meta']['currency']
-                                            gmtoffset_timedelta = datetime.timedelta(seconds=data["chart"]["result"][0]['meta']['gmtoffset'])
-                                            ohlc_data = data["chart"]["result"][0]["indicators"]["quote"][0]
-                                            if len(ohlc_data)>0:
-                                                pdata = pandas.DataFrame({
-                                                    "Datetime": data["chart"]["result"][0]["timestamp"],
-                                                    "Open": ohlc_data["open"],
-                                                    "High": ohlc_data["high"],
-                                                    "Low": ohlc_data["low"],
-                                                    "Close": ohlc_data["close"],
-                                                    "Volume": ohlc_data["volume"]
-                                                })
-                                                pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
-                                                #pdata["Datetime"] -= gmtoffset_timedelta
-                                                pdata["Datetime"] = pdata["Datetime"].dt.floor('S')
-                                                pdata = pdata.dropna()
-                                                if pdata["Datetime"].iloc[-1].minute % 15 != 0:
-                                                    # Entferne die letzte Zeile aus dem DataFrame
-                                                    pdata = pdata.iloc[:-1]
-                                                try:
-                                                    olddate = await sym.GetActDate(session)
-                                                    session.add(sym)
-                                                    acnt = await sym.AppendData(session,pdata)
-                                                    res = res or acnt>0
-                                                    if res: 
-                                                        logger.info(sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' from '+str(olddate))
-                                                        olddate = pdata['Datetime'].iloc[-1]
-                                                    else:
-                                                        logger.info(sym.ticker+' no new data')
-                                                    updatetime = 10
-                                                except BaseException as e:
-                                                    logger.warning('failed writing to db:'+str(e))
-                                                    connection.session.rollback()
-                                            else:
-                                                logger.info(paper['ticker']+' no new data')
-                            startdate += datetime.timedelta(days=59)
-                        if res: await session.commit()
+                        olddate = await sym.GetActDate(session)
+                        session.add(sym)
+                        acnt = await sym.AppendData(session,pdata)
+                        res = res or acnt>0
+                        if res: 
+                            logger.info(sym.ticker+' succesful updated '+str(acnt)+' till '+str(pdata['Datetime'].iloc[-1])+' from '+str(olddate))
+                            olddate = pdata['Datetime'].iloc[-1]
+                        else:
+                            logger.info(sym.ticker+' no new data')
+                        updatetime = 10
                     except BaseException as e:
-                        logger.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
-        except BaseException as e:
-            logger.error('failed updating ticker %s: %s' % (str(paper['isin']),str(e)))
+                        logger.warning('failed writing to db:'+str(e))
+                        connection.session.rollback()
+                else:
+                    logger.info(paper['ticker']+' no new data')
     return res,olddate
+async def UpdateTicker(paper,market=None):
+    return await database.UpdateTickerProto(paper,market,DownloadChunc,SearchPaper)
 def GetUpdateFrequency():
     return 15*60
 async def SearchPaper(isin):
@@ -141,7 +90,7 @@ async def SearchPaper(isin):
 async def StartUpdate(papers,market,name):
     await database.UpdateCyclic(papers,market,name,UpdateTicker,15*60).run()
 if __name__ == '__main__':
-    logger.root.setLevel(logger.DEBUG)
+    logger.root.setLevel(logging.DEBUG)
     apaper = {
         "isin": "DE0007037129",
         "count": 0,
