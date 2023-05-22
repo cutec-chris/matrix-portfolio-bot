@@ -396,7 +396,7 @@ class BotCerebro(backtrader.Cerebro):
 Data=pathlib.Path('.') / 'data' / 'database.db'
 Data.parent.mkdir(parents=True,exist_ok=True)
 engine=sqlalchemy.ext.asyncio.create_async_engine('sqlite+aiosqlite:///'+str(Data), connect_args={
-        'timeout': 0.5,
+        'timeout': 5,
         'check_same_thread': False,
         'isolation_level': None,
         }) 
