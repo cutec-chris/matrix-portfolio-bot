@@ -88,7 +88,7 @@ async def SearchPaper(isin):
                 res = data['quotes'][0]
                 if res['quoteType'] == 'EQUITY':
                     res['type'] = 'stock'
-                elif res['type'] = res['quoteType'].lower()
+            else: res['type'] = res['quoteType'].lower()
                 return res
     return None
 async def StartUpdate(papers,market,name):
