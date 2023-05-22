@@ -89,7 +89,7 @@ async def SearchPaper(isin):
                 if res['quoteType'] == 'EQUITY':
                     res['type'] = 'stock'
             else: res['type'] = res['quoteType'].lower()
-                return res
+            return res
     return None
 async def StartUpdate(papers,market,name):
     await database.UpdateCyclic(papers,market,name,UpdateTicker,15*60).run()
