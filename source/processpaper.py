@@ -113,7 +113,8 @@ async def overview(room,message,match):
                         aprice = await sym.GetActPrice(session,depot.currency)
                         analys = 'Price: %.2f<br>From: %s' % (aprice,str(await sym.GetActDate(session)))+'<br>'
                         chance_price=0
-                        if await sym.GetTargetPrice(session):
+                        ratings = await sym.GetTargetPrice(session)
+                        if ratings:
                             ratings = await sym.GetTargetPrice(session)
                             analys_t = "Target Price: %.2f from %d<br>(%s)<br>Average: %.2f<br>" % ratings
                             analys += f'<font color="{rating_to_color(ratings[3])}">{analys_t}</font>'
@@ -151,6 +152,7 @@ async def overview(room,message,match):
                             "data": df,
                             "msg_part": '<tr><td>' + paper['isin'] + '<br>%.0fx' % paper['count'] + truncate_text(paper['name'],30) +'</td><td>' + analys + '</td><td align=right>' + troi + '</td><td><img src=""></img></td></tr>\n'
                         }
+                        await bot.api.async_client.room_typing(room.room_id,True,timeout=30000) #refresh typing
                         return result
             async def graphics_process(result):
                 image_uri = None
@@ -158,7 +160,7 @@ async def overview(room,message,match):
                 paper = result['paper']
                 try:
                     if style == 'graphic':
-                        if df and not (df.empty):
+                        if not df.empty:
                             fpath = '/tmp/%s.jpeg' % paper['isin']
                             async def process_cerebro(df,fpath):
                                 try:
@@ -179,6 +181,7 @@ async def overview(room,message,match):
                             except BaseException as e:
                                 image_uri = None
                                 logger.warning('failed to upload img:'+str(e))
+                    res = await bot.api.async_client.room_typing(room.room_id,True,timeout=30000) #refresh typing
                     result['msg_part'] = result['msg_part'].replace('<img src=""></img>','<img src="' + str(image_uri) + '"></img>')
                 except BaseException as e: logger.warning(str(e))
                 return result
