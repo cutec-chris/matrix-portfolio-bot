@@ -85,7 +85,11 @@ async def SearchPaper(isin):
         async with session.get(url, headers=headers, params=params) as resp:
             data = await resp.json()
             if 'quotes' in data and len(data['quotes']) > 0:
-                return data['quotes'][0]
+                res = data['quotes'][0]
+                if res['quoteType'] == 'EQUITY':
+                    res['type'] = 'stock'
+                elif res['type'] = res['quoteType'].lower()
+                return res
     return None
 async def StartUpdate(papers,market,name):
     await database.UpdateCyclic(papers,market,name,UpdateTicker,15*60).run()

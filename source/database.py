@@ -492,7 +492,7 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,
     resp = None
     res = False
     olddate = None
-    if (not 'name' in paper) or paper['name'] == None or paper['name'] == paper['ticker']:
+    if (not 'name' in paper) or paper['name'] == None:
         resp = await SearchPaper(paper['isin'])
         if resp:
             paper['ticker'] = resp['symbol']
