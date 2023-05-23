@@ -488,7 +488,9 @@ class UpdateCyclic:
                 except BaseException as e:
                     logger.error(str(e))
             await asyncio.sleep(10)
+db_lock = asyncio.Lock()
 async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,Hours=365,Days=10*365):
+    global db_lock
     resp = None
     res = False
     olddate = None
@@ -520,5 +522,6 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,
                 while startdate < datetime.datetime.utcnow():
                     res,olddate = await DownloadChunc(session,sym,startdate,startdate+datetime.timedelta(days=Minutes15),'15m',paper,market)
                     startdate += datetime.timedelta(days=Minutes15)
-                await session.commit()
+                async with db_lock:
+                    await session.commit()
     return res,olddate
