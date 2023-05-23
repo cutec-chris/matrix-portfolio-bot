@@ -525,7 +525,8 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,
             if not latest_date:
                 startdate = datetime.datetime.utcnow()-datetime.timedelta(days=Minutes15)
             if (not (sym.tradingstart and sym.tradingend))\
-            or ((sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time()) and (datetime.datetime.utcnow().weekday() < 5)):
+            or ((sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time()) and (datetime.datetime.utcnow().weekday() < 5))\
+            or (latest_date and latest_date < datetime.datetime.utcnow()-datetime.timedelta(days=2)):
                 while startdate < datetime.datetime.utcnow():
                     res,olddate = await DownloadChunc(session,sym,startdate,startdate+datetime.timedelta(days=Minutes15),'15m',paper,market)
                     startdate += datetime.timedelta(days=Minutes15)
