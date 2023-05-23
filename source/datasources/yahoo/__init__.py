@@ -20,6 +20,8 @@ async def DownloadChunc(session,sym,from_date,to_date,timeframe,paper,market):
             return None,None
     res = False
     olddate = None
+    if market != None:
+        return res,olddate
     from_timestamp = int((from_date - datetime.datetime(1970, 1, 1)).total_seconds())
     to_timestamp = int((to_date - datetime.datetime(1970, 1, 1)).total_seconds())
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=true&events=history&period1={from_timestamp}&period2={to_timestamp}"

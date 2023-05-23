@@ -508,16 +508,6 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,
         sym = await FindSymbol(session,paper,market,True)
         if 'ticker' in paper and paper['ticker']:
             startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
-            if resp:
-                #initial download
-                sym.currency = 'EUR'
-                if market == 'gettex':
-                    sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)
-                    sym.tradingend = datetime.datetime.now().replace(hour=21,minute=0)
-                else:
-                    sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)
-                    sym.tradingend = datetime.datetime.now().replace(hour=21,minute=0)
-                    session.add(sym)
         if sym:
             result = await session.execute(sqlalchemy.select(MinuteBar, sqlalchemy.func.max(MinuteBar.date)).where(MinuteBar.symbol == sym))
             date_entry, latest_date = result.fetchone()

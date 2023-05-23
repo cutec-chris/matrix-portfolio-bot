@@ -21,6 +21,14 @@ async def DownloadChunc(session,sym,from_date,to_date,timeframe,paper,market):
                 sym.market=database.Market[res['type'].lower()]
                 i.type=str(sym.market).upper()[7:]
                 instrument = await api.request_instrument(isin=paper['isin'],instrument=i)
+                sym.currency = 'EUR'
+                if market == 'gettex':
+                    sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)
+                    sym.tradingend = datetime.datetime.now().replace(hour=21,minute=0)
+                else:
+                    sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)
+                    sym.tradingend = datetime.datetime.now().replace(hour=21,minute=0)
+                session.add(sym)
             except:
                 return False,None
         t_market = None
@@ -29,6 +37,8 @@ async def DownloadChunc(session,sym,from_date,to_date,timeframe,paper,market):
                 if m.market.name == market:
                     t_market = m
                     break
+        if not t_market:
+            return False,olddate
         enddate = to_date
         if enddate>datetime.datetime.utcnow():
             enddate = None
