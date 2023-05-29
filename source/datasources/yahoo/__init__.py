@@ -24,7 +24,7 @@ async def DownloadChunc(session,sym,from_date,to_date,timeframe,paper,market):
         return res,olddate
     from_timestamp = int((from_date - datetime.datetime(1970, 1, 1)).total_seconds())
     to_timestamp = int((to_date - datetime.datetime(1970, 1, 1)).total_seconds())
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval=15m&includePrePost=true&events=history&period1={from_timestamp}&period2={to_timestamp}"
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval={timeframe}&includePrePost=true&events=history&period1={from_timestamp}&period2={to_timestamp}"
     async with aiohttp.ClientSession(headers={'User-Agent': UserAgent}) as hsession:
         async with hsession.get(url) as resp:
             data = await resp.json()
@@ -68,7 +68,7 @@ async def DownloadChunc(session,sym,from_date,to_date,timeframe,paper,market):
                     logger.info(paper['ticker']+' no new data')
     return res,olddate
 async def UpdateTicker(paper,market=None):
-    return await database.UpdateTickerProto(paper,market,DownloadChunc,SearchPaper)
+    return await database.UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,30,730)
 def GetUpdateFrequency():
     return 15*60
 async def SearchPaper(isin):

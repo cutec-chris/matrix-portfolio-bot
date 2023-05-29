@@ -506,6 +506,7 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,
         else:
             logger.warning('paper '+paper['isin']+' not found !')
             return False,None
+    #download from latest date to now
     async with new_session() as session:
         sym = await FindSymbol(session,paper,market,True)
         if 'ticker' in paper and paper['ticker']:
@@ -524,4 +525,19 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,
                     startdate += datetime.timedelta(days=Minutes15)
                 async with db_lock:
                     await session.commit()
+    #download last 5 years if not there
+    async with new_session() as session:
+        sym = await FindSymbol(session,paper,market,True)
+        startdate = datetime.datetime.utcnow()-datetime.timedelta(days=365*5)
+        if sym:
+            result = await session.execute(sqlalchemy.select(MinuteBar, sqlalchemy.func.min(MinuteBar.date)).where(MinuteBar.symbol == sym))
+            date_entry, earliest_date = result.fetchone()
+            enddate = earliest_date
+            while (earliest_date and earliest_date >= startdate):
+                res2,olddate2 = await DownloadChunc(session,sym,earliest_date-datetime.timedelta(days=Hours),earliest_date,'1h',paper,market)
+                if not res2:
+                    break
+                earliest_date -= datetime.timedelta(days=round(Hours/10))
+            async with db_lock:
+                await session.commit()
     return res,olddate
