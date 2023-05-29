@@ -537,8 +537,6 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,
             if todate < datetime.datetime.now()-datetime.timedelta(days=Hours):
                 todate = datetime.datetime.now()-datetime.timedelta(days=Hours)
             res2,olddate2 = await DownloadChunc(session,sym,todate,earliest_date,'1h',paper,market)
-            if not res2:
-                break
             async with db_lock:
                 await session.commit()
     return res,olddate
