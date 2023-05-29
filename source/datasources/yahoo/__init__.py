@@ -111,4 +111,11 @@ if __name__ == '__main__':
         "ticker": "^TECDAX",
         "name": "Tech DAX"
     }
-    asyncio.run(StartUpdate([apaper,apaper1],None,''))
+    apaper2 = {
+        "isin": "LU0252633754",
+        "count": 0,
+        "price": 0,
+        "ticker": "LYY7.DE",
+        "name": "LYY7.DE"
+    }
+    asyncio.run(StartUpdate([apaper2],None,''))
