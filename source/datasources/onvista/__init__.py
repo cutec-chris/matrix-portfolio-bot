@@ -42,7 +42,7 @@ async def DownloadChunc(session,sym,from_date,to_date,timeframe,paper,market):
         enddate = to_date
         if enddate>datetime.datetime.utcnow():
             enddate = None
-        quotes = await api.request_quotes(instrument,notation=t_market,start=from_date.date(),end=enddate)
+        quotes = await api.request_quotes(instrument,notation=t_market,start=from_date.date(),end=enddate,resolution=timeframe)
         if len(quotes)>0:
             data = [
                 {
@@ -79,7 +79,7 @@ async def DownloadChunc(session,sym,from_date,to_date,timeframe,paper,market):
                 logger.warning('failed writing to db:'+str(e))
         return res,olddate
 async def UpdateTicker(paper,market=None):
-    return await database.UpdateTickerProto(paper,market,DownloadChunc,SearchPaper)
+    return await database.UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,30,365)
 async def SearchPaper(isin):
     client = aiohttp.ClientSession()
     try:
@@ -99,7 +99,7 @@ async def SearchPaper(isin):
 async def StartUpdate(papers,market,name):
     await database.UpdateCyclic(papers,market,name,UpdateTicker,15*60,60/12).run()
 if __name__ == '__main__':
-    logger.root.setLevel(logger.INFO)
+    #logger.root.setLevel(logger.INFO)
     apaper = {
         "isin": "DE0007037129",
         "count": 0,
