@@ -526,17 +526,21 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,
                 async with db_lock:
                     await session.commit()
     #download last 5 years if not there
-    async with new_session() as session:
-        sym = await FindSymbol(session,paper,market,True)
-        startdate = datetime.datetime.utcnow()-datetime.timedelta(days=Hours)
-        if sym:
-            result = await session.execute(sqlalchemy.select(MinuteBar, sqlalchemy.func.min(MinuteBar.date)).where(MinuteBar.symbol == sym))
-            date_entry, earliest_date = result.fetchone()
-            enddate = earliest_date
-            todate = earliest_date-datetime.timedelta(days=round(Hours/10))
-            if todate < datetime.datetime.now()-datetime.timedelta(days=Hours):
-                todate = datetime.datetime.now()-datetime.timedelta(days=Hours)
-            res2,olddate2 = await DownloadChunc(session,sym,todate,earliest_date,'1h',paper,market)
-            async with db_lock:
-                await session.commit()
+    try:
+        async with new_session() as session:
+            sym = await FindSymbol(session,paper,market,True)
+            startdate = datetime.datetime.utcnow()-datetime.timedelta(days=Hours)
+            if sym:
+                result = await session.execute(sqlalchemy.select(MinuteBar, sqlalchemy.func.min(MinuteBar.date)).where(MinuteBar.symbol == sym))
+                date_entry, earliest_date = result.fetchone()
+                if earliest_date:
+                    enddate = earliest_date
+                    todate = earliest_date-datetime.timedelta(days=round(Hours/10))
+                    if todate < datetime.datetime.now()-datetime.timedelta(days=Hours):
+                        todate = datetime.datetime.now()-datetime.timedelta(days=Hours)
+                    res2,olddate2 = await DownloadChunc(session,sym,todate,earliest_date,'1h',paper,market)
+                    async with db_lock:
+                        await session.commit()
+    except BaseException as e:
+        logger.error(str(e))
     return res,olddate
