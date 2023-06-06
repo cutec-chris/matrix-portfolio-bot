@@ -197,7 +197,7 @@ async def main():
         loop.set_exception_handler(unhandled_exception)
         await bot.main()
     except BaseException as e:
-        logger.error('bot main fails:'+str(e))
+        logger.error('bot main fails:'+str(e),stack_info=True)
         os._exit(1)
 processpaper.bot = bot
 processpaper.servers = servers

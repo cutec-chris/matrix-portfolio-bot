@@ -1,4 +1,4 @@
-from archlinux:base-20220220.0.48372
+from archlinux:base
 #from docker.io/agners/archlinuxarm
 run sed -i -e 's/#XferCommand = \/usr\/bin\/curl -L -C - -f -o %o %u/XferCommand = \/usr\/bin\/curl -L -C - -f -o %o %u/' /etc/pacman.conf
 #run sed -i -e 's/#XferCommand = \/usr\/bin\/wget --passive-ftp -c -O %o %u/XferCommand = \/usr\/bin\/wget --passive-ftp -c -O %o %u/' /etc/pacman.conf
