@@ -87,7 +87,7 @@ async def tell(room, message):
         and match.command("restart"):
             pf = None
             for server in servers:
-                if server.room == room.room_id and server.name == match.args()[1]:
+                if server.room == room.room_id:
                     pf = server
             if tuser:
                 pf.client = tuser
