@@ -226,6 +226,10 @@ async def ProcessStrategy(paper,depot,data):
         strategy = paper['strategy']
     elif hasattr(depot,'strategy'):
         strategy = depot.strategy
+    if hasattr(depot,'client'):
+        tuser = depot.client
+    else:
+        tuser = 'user'
     for st in strategies:
         if st['name'] in strategy:
             logger.info(str(depot.name)+': processing ticker '+paper['ticker']+' till '+str(data.index[-1])+' with '+st['name'])

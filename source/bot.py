@@ -17,6 +17,9 @@ async def tell(room, message):
         match = botlib.MessageMatch(room, message, bot, prefix)
         if (match.is_not_from_this_bot() and match.prefix()):
             res = await bot.api.async_client.room_typing(room.room_id,True,timeout=30000)
+        tuser = None
+        if match.is_not_from_this_bot() and room.member_count==2:
+            tuser = message.from
         if (match.is_not_from_this_bot() and match.prefix())\
         and (match.command("buy",case_sensitive=False)\
         or match.command("sell",case_sensitive=False)\
@@ -58,6 +61,8 @@ async def tell(room, message):
                 pf.taxCostPercent = float(match.args()[2])
             servers.append(pf)
             loop.create_task(processpaper.check_depot(pf),name='check-depot-'+pf.name)
+            if tuser:
+                pf.client = tuser
             await save_servers()
             await bot.api.send_text_message(room.room_id, 'ok')
         elif (match.is_not_from_this_bot() and match.prefix())\
@@ -74,11 +79,16 @@ async def tell(room, message):
                         set_target = apaper
                         break
             if set_target:
+                if tuser:
+                    pf.client = tuser
                 await save_servers()
                 await bot.api.send_text_message(room.room_id, 'ok')
         elif (match.is_not_from_this_bot() and match.prefix())\
         and match.command("restart"):
             await bot.api.send_text_message(room.room_id, 'exitting...')
+            if tuser:
+                pf.client = tuser
+                await save_servers()
             os._exit(0)
     except BaseException as e:
         logger.error(str(e), exc_info=True)
