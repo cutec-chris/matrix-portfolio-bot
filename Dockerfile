@@ -7,7 +7,8 @@ RUN mkdir /bot
 RUN mkdir /bot/source
 RUN mkdir /data
 COPY source/* /bot/source/
-RUN pip3 install -r /bot/source/requirements.txt
-RUN pip3 install git+https://github.com/ranaroussi/yfinance.git@dev
+RUN python3 -m venv /opt/venv
+RUN /opt/venv/bin/pip3 install -r /bot/source/requirements.txt
+RUN /opt/venv/bin/pip3 install git+https://github.com/ranaroussi/yfinance.git@dev
 WORKDIR /data/
-CMD [ "python3", "/bot/source/bot.py" ]
+CMD [ "/opt/venv/bin/python3", "/bot/source/bot.py" ]
