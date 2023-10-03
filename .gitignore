@@ -7,3 +7,4 @@ data/*
 source/datasources/onvista/debug/*
 source/datasources/*/config.yaml
 source/datasources/xtb/xAPIConnector.py
+.venv/*

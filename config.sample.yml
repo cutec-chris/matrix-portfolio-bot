@@ -2,4 +2,9 @@ server:
   url: "https://matrix.org"
   user: portfolio
   password: botpassword
-  prefix: pf
+  prefix: "portfolio:"
+sqlserver:
+  connstr: "sqlite+aiosqlite:///./data/database.db"
+  #connstr: "mysql+aiomysql://user:password@host:port/dbname"
+datasources:
+  updateall: False

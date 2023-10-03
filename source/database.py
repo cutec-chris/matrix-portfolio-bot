@@ -1,4 +1,5 @@
 import sqlalchemy,pathlib,enum,datetime,pandas,asyncio,backtrader,logging,csv,os,io,re,threading,sqlalchemy.orm,sqlalchemy.ext.asyncio,random,time
+from init import *
 Base = sqlalchemy.orm.declarative_base()
 logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 class Depot(Base):
@@ -145,7 +146,7 @@ class Symbol(Base):
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
     ticker = sqlalchemy.Column(sqlalchemy.String(50), nullable=False)
     isin = sqlalchemy.Column(sqlalchemy.String(50), nullable=False)
-    marketplace = sqlalchemy.Column(sqlalchemy.String, nullable=True)
+    marketplace = sqlalchemy.Column(sqlalchemy.String(200), nullable=True)
     name = sqlalchemy.Column(sqlalchemy.String(200), nullable=False)
     market = sqlalchemy.Column(sqlalchemy.Enum(Market), nullable=False)
     active = sqlalchemy.Column(sqlalchemy.Boolean, nullable=False)
@@ -340,9 +341,13 @@ class AnalystRating(Base):
     rating = sqlalchemy.Column(sqlalchemy.String(200),nullable=True)
     ratingcount = sqlalchemy.Column(sqlalchemy.Integer,nullable=True)
     symbol_isin = sqlalchemy.Column(sqlalchemy.String(50),
-                sqlalchemy.ForeignKey('symbol.isin'),
                 nullable=False)
-    symbol = sqlalchemy.orm.relationship('Symbol', backref='analyst_ratings')
+    symbol = sqlalchemy.orm.relationship(
+        'Symbol',
+        backref='analyst_ratings',
+        primaryjoin='Symbol.isin == AnalystRating.symbol_isin',
+        foreign_keys=symbol_isin,
+    )
 class EarningsCalendar(Base):
     __tablename__ = 'earnings_calendar'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
@@ -350,21 +355,29 @@ class EarningsCalendar(Base):
     name = sqlalchemy.Column(sqlalchemy.String(100), nullable=False)
     estimated_eps = sqlalchemy.Column(sqlalchemy.Float, nullable=True)
     symbol_isin = sqlalchemy.Column(sqlalchemy.String(50),
-                sqlalchemy.ForeignKey('symbol.isin'),
                 nullable=False)
-    symbol = sqlalchemy.orm.relationship('Symbol', backref='earnings_calendar_entries')
+    symbol = sqlalchemy.orm.relationship(
+        'Symbol',
+        backref='earnings_calendars',
+        primaryjoin='Symbol.isin == EarningsCalendar.symbol_isin',
+        foreign_keys=symbol_isin,
+    )
 class NewsEntry(Base):
     __tablename__ = 'news'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
     release_date = sqlalchemy.Column(sqlalchemy.DateTime, nullable=False)
-    headline = sqlalchemy.Column(sqlalchemy.String(100))
+    headline = sqlalchemy.Column(sqlalchemy.String(200))
     content = sqlalchemy.Column(sqlalchemy.Text)
     category = sqlalchemy.Column(sqlalchemy.String(100))
     source_id = sqlalchemy.Column(sqlalchemy.String(100))
     symbol_isin = sqlalchemy.Column(sqlalchemy.String(50),
-                sqlalchemy.ForeignKey('symbol.isin'),
                 nullable=False)
-    symbol = sqlalchemy.orm.relationship('Symbol', backref='news_entries')
+    symbol = sqlalchemy.orm.relationship(
+        'Symbol',
+        backref='news',
+        primaryjoin='Symbol.isin == NewsEntry.symbol_isin',
+        foreign_keys=symbol_isin,
+    )
 class BotCerebro(backtrader.Cerebro):
     def __init__(self):
         super().__init__()
@@ -393,16 +406,24 @@ class BotCerebro(backtrader.Cerebro):
             return figs
         except BaseException as e:
             logger.warning(str(e))
-Data=pathlib.Path('.') / 'data' / 'database.db'
-Data.parent.mkdir(parents=True,exist_ok=True)
-engine=sqlalchemy.ext.asyncio.create_async_engine('sqlite+aiosqlite:///'+str(Data), connect_args={
+if config['sqlserver']['connstr']:
+    ConnStr = config['sqlserver']['connstr']
+    connect_args={
+        }
+else:
+    Data = pathlib.Path('.') / 'data' / 'database.db'
+    Data.parent.mkdir(parents=True,exist_ok=True)
+    connect_args={
         'timeout': 5,
         'check_same_thread': False,
         'isolation_level': None,
-        }) 
+        }
+    ConnStr='sqlite+aiosqlite:///'+str(Data)
+engine=sqlalchemy.ext.asyncio.create_async_engine(ConnStr, connect_args=connect_args) 
 async def init_models():
     async with engine.begin() as conn:
-        res = await conn.execute(sqlalchemy.text("PRAGMA journal_mode=WAL2"))
+        if 'sqlite' in ConnStr:
+            res = await conn.execute(sqlalchemy.text("PRAGMA journal_mode=WAL2"))
         await conn.run_sync(Base.metadata.create_all)
 asyncio.run(init_models())
 def new_session():
