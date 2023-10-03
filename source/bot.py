@@ -78,9 +78,9 @@ async def tell(room, message):
                         apaper[match.args()[2]] = match.args()[3]
                         set_target = apaper
                         break
-            if set_target:
-                if tuser:
-                    pf.client = tuser
+                if set_target:
+                    if tuser:
+                        server.client = tuser
                 await save_servers()
                 await bot.api.send_text_message(room.room_id, 'ok')
         elif (match.is_not_from_this_bot() and match.prefix())\
