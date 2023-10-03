@@ -146,6 +146,7 @@ news_task,dates_task = None,None
 async def startup(room):
     global loop,servers,news_task,dates_task
     loop = asyncio.get_running_loop()
+    await database.Init(loop)
     for server in servers:
         if server.room == room:
             if not news_task:

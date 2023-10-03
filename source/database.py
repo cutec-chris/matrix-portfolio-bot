@@ -1,4 +1,4 @@
-import sqlalchemy,pathlib,enum,datetime,pandas,asyncio,backtrader,logging,csv,os,io,re,threading,sqlalchemy.orm,sqlalchemy.ext.asyncio,random,time
+import sqlalchemy,pathlib,enum,datetime,pandas,asyncio,backtrader,logging,csv,os,io,re,sqlalchemy.orm,sqlalchemy.ext.asyncio,random,time
 from init import *
 Base = sqlalchemy.orm.declarative_base()
 logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
@@ -412,26 +412,30 @@ class BotCerebro(backtrader.Cerebro):
             return figs
         except BaseException as e:
             logger.warning(str(e))
-if config['sqlserver'] and config['sqlserver']['connstr']:
-    ConnStr = config['sqlserver']['connstr']
-    connect_args={
-        }
-else:
-    Data = pathlib.Path('.') / 'data' / 'database.db'
-    Data.parent.mkdir(parents=True,exist_ok=True)
-    connect_args={
-        'timeout': 5,
-        'check_same_thread': False,
-        'isolation_level': None,
-        }
-    ConnStr='sqlite+aiosqlite:///'+str(Data)
-engine=sqlalchemy.ext.asyncio.create_async_engine(ConnStr, connect_args=connect_args) 
-async def init_models():
-    async with engine.begin() as conn:
-        if 'sqlite' in ConnStr:
-            res = await conn.execute(sqlalchemy.text("PRAGMA journal_mode=WAL2"))
-        await conn.run_sync(Base.metadata.create_all)
-asyncio.run(init_models())
+engine = None
+async def Init(loop):
+    global engine
+    if engine: return
+    if config['sqlserver'] and config['sqlserver']['connstr']:
+        ConnStr = config['sqlserver']['connstr']
+        connect_args={
+            }
+    else:
+        Data = pathlib.Path('.') / 'data' / 'database.db'
+        Data.parent.mkdir(parents=True,exist_ok=True)
+        connect_args={
+            'timeout': 5,
+            'check_same_thread': False,
+            'isolation_level': None,
+            }
+        ConnStr='sqlite+aiosqlite:///'+str(Data)
+    engine=sqlalchemy.ext.asyncio.create_async_engine(ConnStr, connect_args=connect_args) 
+    async def init_models():
+        async with engine.begin() as conn:
+            if 'sqlite' in ConnStr:
+                res = await conn.execute(sqlalchemy.text("PRAGMA journal_mode=WAL2"))
+            await conn.run_sync(Base.metadata.create_all)
+    await init_models()
 def new_session():
     return sqlalchemy.orm.sessionmaker(bind=engine, class_=sqlalchemy.ext.asyncio.AsyncSession, autocommit=False, autoflush=False)()
 #logger.getLogger('sqlalchemy.engine').setLevel(logger.INFO)

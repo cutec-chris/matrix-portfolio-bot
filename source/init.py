@@ -18,7 +18,8 @@ class FailsafeBot(botlib.Bot):
     async def main(self):
         try:
             await super().main()
-        except: pass
+        except BaseException as e: 
+            logging.error(str(e))
         while True:
             logging.error('Server disconnected, reconnecting ...')
             await asyncio.sleep(1)

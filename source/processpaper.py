@@ -376,10 +376,13 @@ async def check_news(depot):
     global lastsend,servers,connection
     last_processed = 0
     async with database.new_session() as session:
-        query = sqlalchemy.select(sqlalchemy.func.max(database.NewsEntry.id).label("max_id"))
-        last_bar = await session.execute(query)
-        for row in last_bar:
-            last_processed = row.max_id
+        try:
+            query = sqlalchemy.select(sqlalchemy.func.max(database.NewsEntry.id).label("max_id"))
+            last_bar = await session.execute(query)
+            for row in last_bar:
+                last_processed = row.max_id
+        except BaseException as e:
+            logging.error(str(e))
     shown_ids = []
     while True:
         try:
