@@ -253,14 +253,14 @@ async def ProcessStrategy(paper,depot,data):
                 if size_sum != 0:
                     if not 'lastreco' in paper: paper['lastreco'] = ''
                     if size_sum > 0:
-                        msg1 = '@%s strategy %s propose buying %d x %s %s (%s) at %s' % (tuser,st['name'],round(size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
+                        msg1 = '%s strategy %s propose buying %d x %s %s (%s) at %s' % (tuser,st['name'],round(size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
                         if hasattr(order,'chance'):
                             msg1 += ' chance %.1f till %s' % (order.chance,oder.chancetarget)
                         msg1 += '\n'
                         msg2 = 'buy %s %d' % (paper['isin'],round(size_sum))
                         if paper['count']>0: return False
                     else:
-                        msg1 = '@%s strategy %s propose selling %d x %s %s (%s) at %s' % (tuser,st['name'],round(-size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
+                        msg1 = '%s strategy %s propose selling %d x %s %s (%s) at %s' % (tuser,st['name'],round(-size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
                         msg2 = 'sell %s %d' % (paper['isin'],round(-size_sum))
                         if paper['count']==0: return False
                     if strategy+':'+msg2 != paper['lastreco']:

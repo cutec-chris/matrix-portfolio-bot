@@ -19,7 +19,7 @@ async def tell(room, message):
             res = await bot.api.async_client.room_typing(room.room_id,True,timeout=30000)
         tuser = None
         if match.is_not_from_this_bot() and room.member_count==2:
-            tuser = message.from
+            tuser = message.sender
         if (match.is_not_from_this_bot() and match.prefix())\
         and (match.command("buy",case_sensitive=False)\
         or match.command("sell",case_sensitive=False)\
