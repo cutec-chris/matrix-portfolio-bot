@@ -169,9 +169,15 @@ class Symbol(Base):
         if timeframe == '15m':
             aggregator_func = None
         elif timeframe == '1h':
-            aggregator_func = sqlalchemy.func.strftime('%Y-%m-%d %H:00:00', MinuteBar.date)
+            if 'sqlite' in ConnStr:
+                aggregator_func = sqlalchemy.func.strftime('%Y-%m-%d %H:00:00', MinuteBar.date)
+            else:
+                aggregator_func = sqlalchemy.func.date_format(MinuteBar.date, '%Y-%m-%d %H:00:00')
         elif timeframe == '1d':
-            aggregator_func = sqlalchemy.func.strftime('%Y-%m-%d', MinuteBar.date)
+            if 'sqlite' in ConnStr:
+                aggregator_func = sqlalchemy.func.strftime('%Y-%m-%d', MinuteBar.date)
+            else:
+                aggregator_func = sqlalchemy.func.date_format(MinuteBar.date, '%Y-%m-%d')
         else:
             raise ValueError(f'Unsupported timeframe: {timeframe}')
         query = sqlalchemy.select(MinuteBar)
@@ -406,7 +412,7 @@ class BotCerebro(backtrader.Cerebro):
             return figs
         except BaseException as e:
             logger.warning(str(e))
-if config['sqlserver']['connstr']:
+if config['sqlserver'] and config['sqlserver']['connstr']:
     ConnStr = config['sqlserver']['connstr']
     connect_args={
         }
