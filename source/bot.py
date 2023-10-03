@@ -85,10 +85,14 @@ async def tell(room, message):
                 await bot.api.send_text_message(room.room_id, 'ok')
         elif (match.is_not_from_this_bot() and match.prefix())\
         and match.command("restart"):
-            await bot.api.send_text_message(room.room_id, 'exitting...')
+            pf = None
+            for server in servers:
+                if server.room == room.room_id and server.name == match.args()[1]:
+                    pf = server
             if tuser:
                 pf.client = tuser
                 await save_servers()
+            await bot.api.send_text_message(room.room_id, 'exitting...')
             os._exit(0)
     except BaseException as e:
         logger.error(str(e), exc_info=True)
