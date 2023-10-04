@@ -271,11 +271,11 @@ async def ProcessStrategy(paper,depot,data):
                         msg2 = 'sell %s %d' % (paper['isin'],round(-size_sum))
                         if paper['count']==0: return False
                     if strategy+':'+msg2 != paper['lastreco']:
-                        await bot.api.send_text_message(depot.room,msg1)
-                        await bot.api.send_text_message(depot.room,msg2)
                         paper['lastreco'] = strategy+':'+msg2
                         paper['lastcheck'] = orderdate.strftime("%Y-%m-%d %H:%M:%S")
                         await plot_strategy(cerebro,depot)
+                        await bot.api.send_text_message(depot.room,msg1)
+                        await bot.api.send_text_message(depot.room,msg2)
                         res = True
     return res
 async def ChangeDepotStatus(depot,newstatus):
