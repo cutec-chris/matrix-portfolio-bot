@@ -166,6 +166,7 @@ class Symbol(Base):
             res += 1
         return res
     async def GetData(self,session, start_date=None, end_date=None, timeframe='15m'):
+        global ConnStr
         if timeframe == '15m':
             aggregator_func = None
         elif timeframe == '1h':
@@ -318,11 +319,11 @@ class Symbol(Base):
 class MinuteBar(Base):
     __tablename__ = 'minute_bar'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
-    date = sqlalchemy.Column(sqlalchemy.DateTime, nullable=False)
+    date = sqlalchemy.Column(sqlalchemy.DateTime, nullable=False, index=True)
     open = sqlalchemy.Column(sqlalchemy.Float)
     high = sqlalchemy.Column(sqlalchemy.Float)
     low = sqlalchemy.Column(sqlalchemy.Float)
-    close = sqlalchemy.Column(sqlalchemy.Float)
+    close = sqlalchemy.Column(sqlalchemy.Float, index=True)
     volume = sqlalchemy.Column(sqlalchemy.Float)
     symbol_id = sqlalchemy.Column(sqlalchemy.Integer,
                 sqlalchemy.ForeignKey('symbol.id',
@@ -414,7 +415,7 @@ class BotCerebro(backtrader.Cerebro):
             logger.warning(str(e))
 engine = None
 async def Init(loop):
-    global engine
+    global engine,ConnStr
     if engine: return
     if config['sqlserver'] and config['sqlserver']['connstr']:
         ConnStr = config['sqlserver']['connstr']
