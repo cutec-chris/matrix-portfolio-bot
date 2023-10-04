@@ -1,4 +1,4 @@
-import database,sqlalchemy,logging,backtrader,asyncio,datetime,random,backtests,aiofiles,pandas
+import database,sqlalchemy,logging,backtrader,asyncio,datetime,random,backtests,aiofiles,pandas,PIL
 logger = logging.getLogger(__name__)
 bot = None
 server = None
@@ -155,6 +155,12 @@ async def overview(room,message,match):
                         await bot.api.async_client.room_typing(room.room_id,True,timeout=30000) #refresh typing
                         return result
             async def graphics_process(result):
+                def crop_image(image_path, output_path,crop_left=30, crop_right=30):
+                    with PIL.Image.open(image_path) as img:
+                        width, height = img.size
+                        new_width = width - crop_left - crop_right
+                        img_cropped = img.crop((crop_left, 0, new_width, height))
+                        img_cropped.save(output_path)
                 image_uri = None
                 df = result['data']
                 paper = result['paper']
@@ -169,6 +175,7 @@ async def overview(room,message,match):
                                     cerebro.adddata(cdata)
                                     await backtests.run_backtest(cerebro)
                                     cerebro.saveplots(style='line',file_path = fpath,width=32*4, height=16*4,dpi=50,volume=False,grid=False,valuetags=False,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=False)
+                                    crop_image(fpath,fpath,5,20)
                                 except BaseException as e:
                                     logger.warning('failed to process:'+str(e))
                                     return None

@@ -16,8 +16,9 @@ class BotCerebro(backtrader.Cerebro):
                 plotter = plot.Plot_OldSync(**kwargs)
             else:
                 plotter = plot.Plot(**kwargs)
-            import matplotlib
+            import matplotlib,matplotlib.pyplot
             matplotlib.use('AGG')
+            matplotlib.pyplot.close('all')
             figs = []
             for stratlist in cerebro.runstrats:
                 for si, strat in enumerate(stratlist):
@@ -25,7 +26,6 @@ class BotCerebro(backtrader.Cerebro):
                                         numfigs=numfigs, iplot=iplot,
                                         start=start, end=end, use=use)
                     figs.append(rfig)
-
             for fig in figs:
                 for f in fig:
                     f.set_size_inches(width / dpi, height / dpi)
