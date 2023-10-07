@@ -4,8 +4,11 @@ RUN mkdir /bot
 RUN mkdir /bot/source
 RUN mkdir /data
 COPY source/* /bot/source/
+ENV VIRTUAL_ENV=/opt/venv
+RUN python3 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN python3 -m venv --system-site-packages /opt/venv
-RUN . /opt/venv/bin/activate && pip3 install -r /bot/source/requirements.txt
-RUN . /opt/venv/bin/activate && pip3 install git+https://github.com/ranaroussi/yfinance.git@dev
+RUN pip3 install -r /bot/source/requirements.txt
+RUN pip3 install git+https://github.com/ranaroussi/yfinance.git@dev
 WORKDIR /data/
-CMD . /opt/venv/bin/activate && exec python /bot/source/bot.py" ]
+CMD ["python3","/bot/source/bot.py"]
