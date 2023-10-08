@@ -268,6 +268,7 @@ class Symbol(Base):
         total_rating = 0
         rating_weight = {'strong buy': 2, 'buy': 1, 'hold': 0, 'sell': -1, 'strong sell': -2}
         seen_ratings = set()
+        rc = 0
         for rating in analyst_ratings:
             if start_date <= rating.date <= end_date:
                 rating_key = (rating.name, rating.rating)
@@ -430,7 +431,7 @@ async def Init(loop):
             'isolation_level': None,
             }
         ConnStr='sqlite+aiosqlite:///'+str(Data)
-    engine=sqlalchemy.ext.asyncio.create_async_engine(ConnStr, connect_args=connect_args, pool_size=20, max_overflow=40) 
+    engine=sqlalchemy.ext.asyncio.create_async_engine(ConnStr, connect_args=connect_args,pool_size=50, max_overflow=60,pool_recycle=3600) 
     async def init_models():
         async with engine.begin() as conn:
             if 'sqlite' in ConnStr:

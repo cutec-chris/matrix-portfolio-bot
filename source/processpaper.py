@@ -102,58 +102,60 @@ async def overview(room,message,match):
             except BaseException as e:
                 trange = parse_human_readable_duration('33d')
             count = 0
+            semaphore = asyncio.Semaphore(5)
             async def overview_process(paper, depot, trange, style, bot):
-                async with database.new_session() as session:
-                    if not 'ticker' in paper: paper['ticker'] = ''
-                    if not 'name' in paper: paper['name'] = paper['ticker']
-                    sym = await database.FindSymbol(session,paper,depot.market)
-                    if sym:
-                        df = await sym.GetDataHourly(session,datetime.datetime.utcnow()-trange)
-                        await asyncio.sleep(0.05)
-                        aprice = await sym.GetActPrice(session,depot.currency)
-                        analys = 'Price: %.2f<br>From: %s' % (aprice,str(await sym.GetActDate(session)))+'<br>'
-                        chance_price=0
-                        ratings = await sym.GetTargetPrice(session)
-                        if ratings:
+                async with semaphore:
+                    async with database.new_session() as session:
+                        if not 'ticker' in paper: paper['ticker'] = ''
+                        if not 'name' in paper: paper['name'] = paper['ticker']
+                        sym = await database.FindSymbol(session,paper,depot.market)
+                        if sym:
+                            df = await sym.GetDataHourly(session,datetime.datetime.utcnow()-trange)
+                            await asyncio.sleep(0.05)
+                            aprice = await sym.GetActPrice(session,depot.currency)
+                            analys = 'Price: %.2f<br>From: %s' % (aprice,str(await sym.GetActDate(session)))+'<br>'
+                            chance_price=0
                             ratings = await sym.GetTargetPrice(session)
-                            analys_t = "Target Price: %.2f from %d<br>(%s)<br>Average: %.2f<br>" % ratings
-                            analys += f'<font color="{rating_to_color(ratings[3])}">{analys_t}</font>'
-                            chance_price=((ratings[0]-aprice)/aprice)
-                            analys += "Chance: %.2f %% in 1y<br>" % round(chance_price*100,1)
-                        else: ratings = (0,0,'',0)
-                        if await sym.GetFairPrice(session):
-                            analys += "Fair Price: %.2f from %d<br>(%s)<br>" % (await sym.GetFairPrice(session))
-                        roi = calculate_roi(df)
-                        def weighted_roi_sum(roi_dict):
-                            weights = {
-                                "1 hour": 0.5,
-                                "1 day": 1,
-                                "1 month": 0.7,
-                                "1 year": 0.2,
-                                "all": 0.1,
+                            if ratings:
+                                ratings = await sym.GetTargetPrice(session)
+                                analys_t = "Target Price: %.2f from %d<br>(%s)<br>Average: %.2f<br>" % ratings
+                                analys += f'<font color="{rating_to_color(ratings[3])}">{analys_t}</font>'
+                                chance_price=((ratings[0]-aprice)/aprice)
+                                analys += "Chance: %.2f %% in 1y<br>" % round(chance_price*100,1)
+                            else: ratings = (0,0,'',0)
+                            if await sym.GetFairPrice(session):
+                                analys += "Fair Price: %.2f from %d<br>(%s)<br>" % (await sym.GetFairPrice(session))
+                            roi = calculate_roi(df)
+                            def weighted_roi_sum(roi_dict):
+                                weights = {
+                                    "1 hour": 0.5,
+                                    "1 day": 1,
+                                    "1 month": 0.7,
+                                    "1 year": 0.2,
+                                    "all": 0.1,
+                                }
+                                weighted_sum = 0
+                                for key, value in roi_dict.items():
+                                    if key in weights:
+                                        weighted_sum += value * weights[key]
+                                return weighted_sum
+                            try: roi_x = weighted_roi_sum(roi)/100
+                            except: roi_x = 0
+                            troi = ''
+                            for timeframe, value in roi.items():
+                                troi_t = f"ROI for {timeframe}: {value:.2f}%\n<br>"
+                                troi += f'<font color="{rating_to_color(value,-10,10)}">{troi_t}</font>'
+                            result = {
+                                "paper": paper,
+                                "roi": roi_x,  # Berechneter ROI
+                                "chance": chance_price,
+                                "sort": ((ratings[3]+chance_price+roi_x)/3),
+                                "rating": ratings[3],
+                                "data": df,
+                                "msg_part": '<tr><td>' + paper['isin'] + '<br>%.0fx' % paper['count'] + truncate_text(paper['name'],30) +'</td><td>' + analys + '</td><td align=right>' + troi + '</td><td><img src=""></img></td></tr>\n'
                             }
-                            weighted_sum = 0
-                            for key, value in roi_dict.items():
-                                if key in weights:
-                                    weighted_sum += value * weights[key]
-                            return weighted_sum
-                        try: roi_x = weighted_roi_sum(roi)/100
-                        except: roi_x = 0
-                        troi = ''
-                        for timeframe, value in roi.items():
-                            troi_t = f"ROI for {timeframe}: {value:.2f}%\n<br>"
-                            troi += f'<font color="{rating_to_color(value,-10,10)}">{troi_t}</font>'
-                        result = {
-                            "paper": paper,
-                            "roi": roi_x,  # Berechneter ROI
-                            "chance": chance_price,
-                            "sort": ((ratings[3]+chance_price+roi_x)/3),
-                            "rating": ratings[3],
-                            "data": df,
-                            "msg_part": '<tr><td>' + paper['isin'] + '<br>%.0fx' % paper['count'] + truncate_text(paper['name'],30) +'</td><td>' + analys + '</td><td align=right>' + troi + '</td><td><img src=""></img></td></tr>\n'
-                        }
-                        await bot.api.async_client.room_typing(room.room_id,True,timeout=30000) #refresh typing
-                        return result
+                            await bot.api.async_client.room_typing(room.room_id,True,timeout=30000) #refresh typing
+                            return result
             async def graphics_process(result):
                 def crop_image(image_path, output_path,crop_left=30, crop_right=30):
                     with PIL.Image.open(image_path) as img:
@@ -193,11 +195,11 @@ async def overview(room,message,match):
                 except BaseException as e: logger.warning(str(e))
                 return result
             tasks = []
+            results = []
             for paper in depot.papers:
-                task = asyncio.create_task(overview_process(paper, depot, trange, style, bot),name='overview-'+paper['ticker'])
-                tasks.append(task)
+                result = await overview_process(paper, depot, trange, style, bot)
                 count += 1
-            results = await asyncio.gather(*tasks)
+                results.append(result)
             filtered_results = list(filter(None, results))  # Filtere `None` Werte aus der Liste
             sorted_results = sorted(filtered_results, key=lambda x: x['sort'], reverse=False)  # Nach ROI sortieren
             def chunks(lst, n):
@@ -465,8 +467,14 @@ def calculate_roi(df):
             last_close_idx -= 1
         if first_close_idx >= len(df) or df.index[first_close_idx] > first_time:
             first_close_idx -= 1
-        first_close = df.iloc[first_close_idx]['Close']
-        last_close = df.iloc[last_close_idx]['Close']
+        if 0 <= first_close_idx < len(df):
+            first_close = df.iloc[first_close_idx]['Close']
+        else:
+            return roi
+        if 0 <= last_close_idx < len(df):
+            last_close = df.iloc[last_close_idx]['Close']
+        else:
+            return roi
         roi[label] = (last_close - first_close) / first_close * 100
     return roi
 def rating_to_color(rating, min_rating=-2, max_rating=2):
