@@ -102,7 +102,7 @@ async def overview(room,message,match):
             except BaseException as e:
                 trange = parse_human_readable_duration('33d')
             count = 0
-            semaphore = asyncio.Semaphore(5)
+            semaphore = asyncio.Semaphore(10)
             async def overview_process(paper, depot, trange, style, bot):
                 async with semaphore:
                     async with database.new_session() as session:
@@ -197,15 +197,16 @@ async def overview(room,message,match):
             tasks = []
             results = []
             for paper in depot.papers:
-                result = await overview_process(paper, depot, trange, style, bot)
+                task = asyncio.create_task(overview_process(paper, depot, trange, style, bot),name='overview-'+paper['ticker'])
+                tasks.append(task)
                 count += 1
-                results.append(result)
+            results = await asyncio.gather(*tasks)
             filtered_results = list(filter(None, results))  # Filtere `None` Werte aus der Liste
             sorted_results = sorted(filtered_results, key=lambda x: x['sort'], reverse=False)  # Nach ROI sortieren
             def chunks(lst, n):
                 for i in range(0, len(lst), n):
                     yield lst[i:i + n]
-            for chunk in chunks(sorted_results, 25):
+            for chunk in chunks(sorted_results, 10):
                 chunk_tasks = []
                 for result in chunk:
                     ctask = asyncio.create_task(graphics_process(result),name='overview-graphic-'+paper['ticker'])
