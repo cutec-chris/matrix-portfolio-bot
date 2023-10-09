@@ -42,6 +42,7 @@ async def run_backtest(cerebro):
             logger.error('failed to execute Strategy: '+str(e))
             return False
 async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.datetime.utcnow()-datetime.timedelta(days=90),end=None,timeframe='15m',data=None,initial_capital=1000,market=None):
+    await database.Init(asyncio.get_running_loop())
     data_d = None
     if not isinstance(data, pandas.DataFrame):
         async with database.new_session() as session:
