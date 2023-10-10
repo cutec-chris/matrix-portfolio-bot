@@ -21,18 +21,20 @@ async def manage_paper(room,message,match):
         found = False
         async with database.new_session() as session:
             for paper in depot.papers:
-                if paper['isin'] == match.args()[1]\
-                or paper['ticker'] == match.args()[1]:
-                    found = True
-                    if not price:
-                        sym = await database.FindSymbol(session,paper)
-                        if sym: 
-                            price = await sym.GetActPrice(session)
-                        else:
-                            price = 0
-                    if not count:
-                        count = paper['count']
-                    break
+                try:
+                    if paper['isin'] == match.args()[1]\
+                    or paper['ticker'] == match.args()[1]:
+                        found = True
+                        if not price:
+                            sym = await database.FindSymbol(session,paper)
+                            if sym: 
+                                price = await sym.GetActPrice(session)
+                            else:
+                                price = 0
+                        if not count:
+                            count = paper['count']
+                        break
+                except: pass
         if not found:
             paper ={
                 'isin': match.args()[1],
@@ -52,6 +54,9 @@ async def manage_paper(room,message,match):
                     res,oldddate = await datasource['mod'].UpdateTicker(paper)
                     if res or oldddate: break
             if res: datafound = True
+            if not datafound:
+                sym = await database.FindSymbol(session,paper)
+                if sym: datafound = True
             if not datafound:
                 await bot.api.send_text_message(room.room_id, 'no data avalible for symbol in (any) datasource, aborting...')
                 return
