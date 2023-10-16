@@ -7,3 +7,4 @@ aiosqlite
 aiomysql
 websockets
 matplotlib
+scipy
