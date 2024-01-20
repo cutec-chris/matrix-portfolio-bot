@@ -102,7 +102,7 @@ datasources = []
 strategies = []
 connection = None
 try:
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO,format='%(asctime)s:%(levelname)s:%(message)s', datefmt="%Y-%m-%d %H:%M:%S")
     logger.info('starting event loop...')
     loop = asyncio.new_event_loop()
     logger.info('loading config...')
@@ -192,6 +192,13 @@ async def bot_help(room, message):
                         strategy: per depot/paper
                         datasource: per depot
                         market: per depot
+            create-order:
+                command: order type isin/ticker params
+                description: create an special order 
+                    type: 
+                        iplan (Investment plan) params: price day(in month) [depot]
+                        limit (Limit order) params: limit count [depot]
+                        tsl (Trailing Stop Loss) params: initial_stop trailing_perc [depot]
             help:
                 command: help, ?, h
                 description: display help command
