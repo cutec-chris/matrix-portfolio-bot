@@ -41,7 +41,7 @@ async def run_backtest(cerebro):
         except BaseException as e:
             logger.error('failed to execute Strategy: '+str(e))
             return False
-async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.datetime.utcnow()-datetime.timedelta(days=90),end=None,timeframe='15m',data=None,initial_capital=1000,market=None):
+async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.datetime.utcnow()-datetime.timedelta(days=90),end=None,timeframe='15m',data=None,initial_capital=1000,market=None,depot=None):
     await database.Init(asyncio.get_running_loop())
     data_d = None
     if not isinstance(data, pandas.DataFrame):
@@ -79,7 +79,10 @@ async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.da
     annual_returns = res[0].analyzers.annual_return.get_analysis()
     for year, return_value in annual_returns.items():
         ares = return_value*100
-    logger.info('%s:roi %.2f s-roi:%.2f a-ret: %.2f' % (str(isin)+' ('+str(ticker)+')',roi,sroi,ares))
+    loge = '%s:roi %.2f s-roi:%.2f a-ret: %.2f' % (str(isin)+' ('+str(ticker)+')',roi,sroi,ares)
+    if depot:
+        loge = '%s:%s' % (depot,loge)
+    logger.info()
     return res,cerebro
 async def backtest_all(Strategy=None,start=datetime.datetime.utcnow()-datetime.timedelta(days=90),end=None,timeframe='15m',data=None,initial_capital=1000,market=None):
     async with database.new_session() as session:

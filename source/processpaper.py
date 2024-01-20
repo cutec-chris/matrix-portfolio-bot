@@ -227,60 +227,66 @@ async def plot_strategy(cerebro,depot):
     cerebro.saveplots(style='line',file_path = '/tmp/plot.jpeg',volume=True,grid=True,valuetags=True,linevalues=False,legendind=False,subtxtsize=4,plotlinelabels=True)
     await bot.api.send_image_message(depot.room,'/tmp/plot.jpeg')
 async def ProcessStrategy(paper,depot,data):
+    async def process_one_st(paper,depot,data,st):
+        res = False
+        logger.debug(str(depot.name)+': processing ticker '+paper['ticker']+' till '+str(data.index[-1])+' with '+st['name'])
+        try:
+            res,cerebro = await backtests.default_backtest(st['mod'].Strategy,data=data,ticker=paper['ticker'],isin=paper['isin'],depot=depot.name)
+        except BaseException as e:
+            logger.error(str(e))
+            cerebro = None
+        if cerebro:
+            size_sum = 0
+            price_sum = 0
+            checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
+            if 'lastcheck' in paper: checkfrom = datetime.datetime.strptime(paper['lastcheck'], "%Y-%m-%d %H:%M:%S")
+            orderdate = datetime.datetime.now()
+            for order in cerebro._broker.orders:
+                if order.status == 4:
+                    if order.executed.dt: orderdate = backtrader.num2date(order.executed.dt)
+                    if orderdate > checkfrom:
+                        size_sum = order.size
+            if size_sum != 0:
+                if not 'lastreco' in paper: paper['lastreco'] = ''
+                if size_sum > 0:
+                    msg1 = '%s strategy %s propose buying %d x %s %s (%s) at %s' % (tuser,st['name'],round(size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
+                    if hasattr(order,'chance'):
+                        msg1 += ' chance %.1f till %s' % (order.chance,oder.chancetarget)
+                    msg1 += '\n'
+                    msg2 = 'buy %s %d' % (paper['isin'],round(size_sum))
+                    if paper['count']>0: 
+                        return False
+                else:
+                    msg1 = '%s strategy %s propose selling %d x %s %s (%s) at %s' % (tuser,st['name'],round(-size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
+                    msg2 = 'sell %s %d' % (paper['isin'],round(-size_sum))
+                    if paper['count']==0: return False
+                if strategy+':'+msg2 != paper['lastreco']:
+                    paper['lastreco'] = strategy+':'+msg2
+                    paper['lastcheck'] = orderdate.strftime("%Y-%m-%d %H:%M:%S")
+                    await plot_strategy(cerebro,depot)
+                    await bot.api.send_text_message(depot.room,msg1)
+                    await bot.api.send_text_message(depot.room,msg2)
+                    res = True
+        return res
     cerebro = None
     res = False
     if not isinstance(data, pandas.DataFrame) or data.empty:
         return False
-    strategy = 'sma'
+    strategy = ',sma,'
     if 'strategy' in paper:
-        strategy = paper['strategy']
+        strategy = ','+paper['strategy']+','
     elif hasattr(depot,'strategy'):
-        strategy = depot.strategy
+        strategy = ','+depot.strategy+','
     if hasattr(depot,'client'):
         tuser = depot.client
     else:
         tuser = 'user'
+    tasks = []
     for st in strategies:
-        if st['name'] in strategy:
-            logger.info(str(depot.name)+': processing ticker '+paper['ticker']+' till '+str(data.index[-1])+' with '+st['name'])
-            try:
-                res,cerebro = await backtests.default_backtest(st['mod'].Strategy,data=data,ticker=paper['ticker'],isin=paper['isin'])
-            except BaseException as e:
-                logger.error(str(e))
-                cerebro = None
-            if cerebro:
-                size_sum = 0
-                price_sum = 0
-                checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
-                if 'lastcheck' in paper: checkfrom = datetime.datetime.strptime(paper['lastcheck'], "%Y-%m-%d %H:%M:%S")
-                orderdate = datetime.datetime.now()
-                for order in cerebro._broker.orders:
-                    if order.status == 4:
-                        if order.executed.dt: orderdate = backtrader.num2date(order.executed.dt)
-                        if orderdate > checkfrom:
-                            size_sum = order.size
-                            #print(order.isbuy(),order.size,orderdate)
-                if size_sum != 0:
-                    if not 'lastreco' in paper: paper['lastreco'] = ''
-                    if size_sum > 0:
-                        msg1 = '%s strategy %s propose buying %d x %s %s (%s) at %s' % (tuser,st['name'],round(size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
-                        if hasattr(order,'chance'):
-                            msg1 += ' chance %.1f till %s' % (order.chance,oder.chancetarget)
-                        msg1 += '\n'
-                        msg2 = 'buy %s %d' % (paper['isin'],round(size_sum))
-                        if paper['count']>0: return False
-                    else:
-                        msg1 = '%s strategy %s propose selling %d x %s %s (%s) at %s' % (tuser,st['name'],round(-size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
-                        msg2 = 'sell %s %d' % (paper['isin'],round(-size_sum))
-                        if paper['count']==0: return False
-                    if strategy+':'+msg2 != paper['lastreco']:
-                        paper['lastreco'] = strategy+':'+msg2
-                        paper['lastcheck'] = orderdate.strftime("%Y-%m-%d %H:%M:%S")
-                        await plot_strategy(cerebro,depot)
-                        await bot.api.send_text_message(depot.room,msg1)
-                        await bot.api.send_text_message(depot.room,msg2)
-                        res = True
-    return res
+        if ','+st['name']+',' in strategy:
+            tasks.append(process_one_st(paper,depot,data,st))
+    ares = await asyncio.gather(*tasks)
+    return True
 async def ChangeDepotStatus(depot,newstatus):
     global servers
     try:
@@ -326,7 +332,7 @@ async def check_depot(depot,fast=False):
     check_status = []
     next_minute = datetime.datetime.now()
     while True:
-        logger.info(depot.name+' starting updates '+str(datetime.datetime.now()))
+        logger.debug(depot.name+' starting updates '+str(datetime.datetime.now()))
         check_status.append(depot.name)
         TillUpdated = None
         ShouldSave = False
@@ -362,7 +368,7 @@ async def check_depot(depot,fast=False):
                             ShouldSave = ShouldSave or ps
                             await asyncio.sleep(0.1)
                             break
-            logger.info(depot.name+' finished updates '+str(datetime.datetime.now()))
+            logger.debug(depot.name+' finished updates '+str(datetime.datetime.now()))
         except BaseException as e:
             logger.error(depot.name+' '+str(e))
         check_status.remove(depot.name)
@@ -421,20 +427,34 @@ async def check_news(depot):
         await asyncio.sleep(60*2)
 async def check_dates(depot):
     global lastsend,servers,connection
+    if hasattr(depot,'client'):
+        tuser = depot.client
+    else:
+        tuser = 'user'
     while True:
         try:
             async with database.new_session() as session:
                 today = datetime.datetime.now().date()
-                tomorrow = today + datetime.timedelta(days=1)
+                tomorrow = today + datetime.timedelta(days=2)
                 query = sqlalchemy.select(database.EarningsCalendar).where(
                     sqlalchemy.and_(
                         database.EarningsCalendar.release_date >= today,
                         database.EarningsCalendar.release_date <= tomorrow
                     )
                 )                
-                dates = await session.scalars(query)
-                for entry in dates.all():
-                    msg = entry.symbol_isin+': event '+entry.name+' on '+str(entry.release_date)
+                dates = await session.execute(query)
+                firstmsg = True
+                for entry in dates:
+                    earnings_calendar = entry[0]
+                    try:
+                        sym = await database.FindSymbol(session,{'isin':earnings_calendar.symbol_isin},market=depot.market)
+                        ticker = ' ('+sym.ticker+','+sym.name+')'
+                    except:
+                        ticker = ''
+                    msg = earnings_calendar.symbol_isin+ticker+': event '+earnings_calendar.name+' on '+str(earnings_calendar.release_date)
+                    if firstmsg:
+                        msg = tuser+' '+msg
+                        firstmsg = False
                     await bot.api.send_markdown_message(depot.room, msg)
         except BaseException as e:
             logger.error('check_dates:'+str(e))
