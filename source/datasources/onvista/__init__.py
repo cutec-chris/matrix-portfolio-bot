@@ -97,7 +97,7 @@ async def SearchPaper(isin):
     except BaseException as e: pass
     return None
 async def StartUpdate(papers,market,name):
-    await database.UpdateCyclic(papers,market,name,UpdateTicker,15*60,60/12).run()
+    await database.UpdateCyclic(papers,market,name,UpdateTicker,60*60,60/30).run()
 if __name__ == '__main__':
     #logger.root.setLevel(logger.INFO)
     apaper = {
