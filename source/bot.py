@@ -213,7 +213,7 @@ async def main():
     try:
         def unhandled_exception(loop, context):
             msg = context.get("exception", context["message"])
-            logger.error(f"Unhandled exception caught: {msg}", file=sys.stderr)
+            logger.error(f"Unhandled exception caught: {msg}")
             os._exit(1)
         loop = asyncio.get_event_loop()
         loop.set_exception_handler(unhandled_exception)

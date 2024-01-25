@@ -82,7 +82,7 @@ async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.da
     loge = '%s:roi %.2f s-roi:%.2f a-ret: %.2f' % (str(isin)+' ('+str(ticker)+')',roi,sroi,ares)
     if depot:
         loge = '%s:%s' % (depot,loge)
-    logger.info()
+    logger.info(loge)
     return res,cerebro
 async def backtest_all(Strategy=None,start=datetime.datetime.utcnow()-datetime.timedelta(days=90),end=None,timeframe='15m',data=None,initial_capital=1000,market=None):
     async with database.new_session() as session:
