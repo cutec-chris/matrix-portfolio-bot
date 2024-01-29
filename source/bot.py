@@ -1,6 +1,6 @@
 from init import *
 import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles,random,backtests,os
-import managepaper,processpaper,os
+import managepaper,processpaper,os,traceback
 logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 loop = None
 lastsend = None
@@ -214,6 +214,8 @@ async def main():
         def unhandled_exception(loop, context):
             msg = context.get("exception", context["message"])
             logger.error(f"Unhandled exception caught: {msg}")
+            traceback_str = traceback.format_exc()
+            logger.error(f"Stack trace:\n{traceback_str}")
             os._exit(1)
         loop = asyncio.get_event_loop()
         loop.set_exception_handler(unhandled_exception)
