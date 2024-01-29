@@ -284,7 +284,9 @@ async def ProcessStrategy(paper,depot,data):
     tasks = []
     for st in strategies:
         if ','+st['name']+',' in strategy:
-            tasks.append(process_one_st(paper,depot,data,st))
+            nt = process_one_st(paper,depot,data,st)
+            nt.set_name('sim:'+paper['ticker']+' w:'+st['name']) 
+            tasks.append(nt)
     ares = await asyncio.gather(*tasks)
     return True
 async def ChangeDepotStatus(depot,newstatus):
