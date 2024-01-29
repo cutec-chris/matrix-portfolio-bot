@@ -1,4 +1,0 @@
-alpaca:
-  api_key: your_alpaca_api_key
-  api_secret: your_alpaca_secret_key
-  base_url: https://paper-api.alpaca.markets
