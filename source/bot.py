@@ -147,6 +147,7 @@ async def startup(room):
     global loop,servers,news_task,dates_task
     loop = asyncio.get_running_loop()
     await database.Init(loop)
+    loop.create_task(restart_task())
     for server in servers:
         if server.room == room:
             if not news_task:
@@ -232,4 +233,9 @@ managepaper.servers = servers
 managepaper.datasources = datasources
 managepaper.strategies = strategies
 managepaper.save_servers = save_servers
+async def restart_task():
+    shutdown_time = datetime.now().replace(hour=7, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    time_until_shutdown = (shutdown_time - datetime.now()).total_seconds()
+    await asyncio.sleep(time_until_shutdown)
+    os._exit(1)
 asyncio.run(main())
