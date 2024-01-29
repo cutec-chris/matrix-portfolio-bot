@@ -234,8 +234,8 @@ managepaper.datasources = datasources
 managepaper.strategies = strategies
 managepaper.save_servers = save_servers
 async def restart_task():
-    shutdown_time = datetime.now().replace(hour=7, minute=0, second=0, microsecond=0) + timedelta(days=1)
-    time_until_shutdown = (shutdown_time - datetime.now()).total_seconds()
+    shutdown_time = datetime.datetime.now().replace(hour=7, minute=0, second=0, microsecond=0) + datetime.timedelta(days=1)
+    time_until_shutdown = (shutdown_time - datetime.datetime.now()).total_seconds()
     await asyncio.sleep(time_until_shutdown)
     os._exit(1)
 asyncio.run(main())
