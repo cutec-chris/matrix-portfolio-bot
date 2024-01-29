@@ -35,7 +35,7 @@ class BotCerebro(backtrader.Cerebro):
             logger.warning(str(e))
 async def run_backtest(cerebro):
     loop = asyncio.get_event_loop()
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
         try:
             return await loop.run_in_executor(executor, cerebro.run)
         except BaseException as e:

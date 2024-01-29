@@ -150,9 +150,9 @@ async def startup(room):
     for server in servers:
         if server.room == room:
             if not news_task:
-                news_task = loop.create_task(processpaper.check_news(server),name='update-news')
+                news_task = loop.create_task(processpaper.check_news(server),name='update-news-'+server.name)
             if not dates_task:
-                dates_task = loop.create_task(processpaper.check_dates(server),name='update-dates')
+                dates_task = loop.create_task(processpaper.check_dates(server),name='update-dates-'+server.name)
             if not hasattr(server,'market'): setattr(server,'market',None)
             loop.create_task(processpaper.check_depot(server),name='check-depot-'+server.name)
 @bot.listener.on_message_event
@@ -214,8 +214,7 @@ async def main():
         def unhandled_exception(loop, context):
             msg = context.get("exception", context["message"])
             logger.error(f"Unhandled exception caught: {msg}")
-            traceback_str = traceback.format_exc()
-            logger.error(f"Stack trace:\n{traceback_str}")
+            loop.default_exception_handler(context)
             os._exit(1)
         loop = asyncio.get_event_loop()
         loop.set_exception_handler(unhandled_exception)
