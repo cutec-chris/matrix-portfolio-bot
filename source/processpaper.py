@@ -231,7 +231,7 @@ async def ProcessStrategy(paper,depot,data):
         res = False
         logger.debug(str(depot.name)+': processing ticker '+paper['ticker']+' till '+str(data.index[-1])+' with '+st['name'])
         try:
-            res,cerebro = await backtests.default_backtest(st['mod'].Strategy,data=data,ticker=paper['ticker'],isin=paper['isin'],depot=depot.name+'(%s)' % st['name'])
+            res,cerebro = await backtests.default_backtest(st['mod'].Strategy,data=data,ticker=paper['ticker'],isin=paper['isin'],depot=depot.name,strategyname=st['name'])
         except BaseException as e:
             logger.error(str(e))
             cerebro = None
