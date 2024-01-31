@@ -98,6 +98,35 @@ async def tell(room, message):
         logger.error(str(e), exc_info=True)
         await bot.api.send_text_message(room,str(e))
     await bot.api.async_client.room_typing(room.room_id,False,0)
+async def reactto(room,rereaction,msg_id):
+    mcontent={
+        "msgtype": "m.text",#or m.notice seems to be shown more transparent
+        "body": f"Reaction: {rereaction}",
+        }
+    mcontent['m.relates_to'] = {
+        "m.in_reply_to": {
+            "event_id": msg_id,
+            "rel_type":'m.annotation',
+            "key": rereaction,
+        }}
+    await bot.api.async_client.room_send(room_id=room.room_id,
+                                        message_type="m.room.message",
+                                        content=mcontent)
+@bot.listener.on_reaction_event
+async def handle_reaction(room, event, reaction):
+    msg_id = event.source['content']['m.relates_to']['event_id']
+    events = await get_room_events(bot.api.async_client,room.room_id,50)
+    original_event = None
+    for event in events:
+        if event.event_id == msg_id:
+            original_event = event
+            break
+    if not original_event:
+        return
+    if reaction == '👍️':
+        tell(room,original_event.body)
+    else:
+        await reactto(room,'👀',msg_id)
 datasources = []
 strategies = []
 connection = None
