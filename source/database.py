@@ -374,7 +374,7 @@ class NewsEntry(Base):
     __tablename__ = 'news'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
     release_date = sqlalchemy.Column(sqlalchemy.DateTime, nullable=False, index=True)
-    headline = sqlalchemy.Column(sqlalchemy.String(200))
+    headline = sqlalchemy.Column(sqlalchemy.String(400))
     content = sqlalchemy.Column(sqlalchemy.Text)
     category = sqlalchemy.Column(sqlalchemy.String(100))
     source_id = sqlalchemy.Column(sqlalchemy.String(100))
