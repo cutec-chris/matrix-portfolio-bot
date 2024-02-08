@@ -545,8 +545,8 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,
         if 'ticker' in paper and paper['ticker']:
             startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
         if sym:
-            result = await session.execute(sqlalchemy.select(MinuteBar, sqlalchemy.func.max(MinuteBar.date)).where(MinuteBar.symbol == sym))
-            date_entry, latest_date = result.fetchone()
+            result = await session.execute(sqlalchemy.select(sqlalchemy.func.max(MinuteBar.date)).where(MinuteBar.symbol == sym))
+            latest_date = result.fetchone()[0]
             startdate = latest_date
             if not latest_date:
                 startdate = datetime.datetime.utcnow()-datetime.timedelta(days=Minutes15)
