@@ -115,7 +115,7 @@ async def manage_paper(room,message,match):
                             db_position.shares = paper['count']
                             db_position.price = paper['price']
                             session.add(db_position)
-                            db_trade = database.Trade(position_id=db_position.id,shares=count, price=price,datetime=datetime.datetime.now())
+                            db_trade = database.Trade(position_id=db_position.id,shares=count, price=price,datetime=datetime.datetime.now(tz=datetime.timezone.utc))
                             session.add(db_trade)
                         elif match.command("sell"):
                             if newprice>oldprice:
@@ -125,7 +125,7 @@ async def manage_paper(room,message,match):
                             db_position.shares = paper['count']
                             db_position.price = paper['price']
                             session.add(db_position)
-                            db_trade = database.Trade(position_id=db_position.id,shares=-count, price=price,datetime=datetime.datetime.now())
+                            db_trade = database.Trade(position_id=db_position.id,shares=-count, price=price,datetime=datetime.datetime.now(tz=datetime.timezone.utc))
                             session.add(db_trade)
                         elif match.command("remove"):
                             depot.papers.remove(paper)

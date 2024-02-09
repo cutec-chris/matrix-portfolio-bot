@@ -397,7 +397,8 @@ async def check_news(depot):
             query = sqlalchemy.select(sqlalchemy.func.max(database.NewsEntry.id).label("max_id"))
             last_bar = await session.execute(query)
             for row in last_bar:
-                last_processed = row.max_id
+                if row.max_id:
+                    last_processed = row.max_id
         except BaseException as e:
             logging.error(str(e))
     shown_ids = []
@@ -435,7 +436,7 @@ async def check_dates(depot):
     while True:
         try:
             async with database.new_session() as session:
-                today = datetime.datetime.now().date()
+                today = datetime.datetime.now(tz=datetime.timezone.utc).date()
                 tomorrow = today + datetime.timedelta(days=2)
                 query = sqlalchemy.select(database.EarningsCalendar).where(
                     sqlalchemy.and_(

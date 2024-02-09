@@ -26,7 +26,7 @@ class Trade(Base):
     __tablename__ = 'trade'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
     position_id = sqlalchemy.Column(sqlalchemy.Integer, sqlalchemy.ForeignKey('position.id'), nullable=False)
-    datetime = sqlalchemy.Column(sqlalchemy.DateTime, nullable=False)
+    datetime = sqlalchemy.Column(sqlalchemy.DateTime(timezone=True), nullable=False)
     shares = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
     price = sqlalchemy.Column(sqlalchemy.Float, nullable=False)
     position = sqlalchemy.orm.relationship("Position", backref="trades")
@@ -150,8 +150,8 @@ class Symbol(Base):
     name = sqlalchemy.Column(sqlalchemy.String(200), nullable=False)
     market = sqlalchemy.Column(sqlalchemy.Enum(Market), nullable=False)
     active = sqlalchemy.Column(sqlalchemy.Boolean, nullable=False)
-    tradingstart = sqlalchemy.Column(sqlalchemy.DateTime)
-    tradingend = sqlalchemy.Column(sqlalchemy.DateTime)
+    tradingstart = sqlalchemy.Column(sqlalchemy.DateTime(timezone=True))
+    tradingend = sqlalchemy.Column(sqlalchemy.DateTime(timezone=True))
     currency = sqlalchemy.Column(sqlalchemy.String(5), nullable=False)
     async def AppendData(self,session, df):
         res = 0
@@ -257,9 +257,9 @@ class Symbol(Base):
             return 0
     async def GetTargetPrice(self,session, start_date=None, end_date=None):
         if start_date is None:
-            start_date = datetime.datetime.now() - datetime.timedelta(days=90)
+            start_date = datetime.datetime.now(tz=datetime.timezone.utc) - datetime.timedelta(days=90)
         if end_date is None:
-            end_date = datetime.datetime.now()
+            end_date = datetime.datetime.now(tz=datetime.timezone.utc)
         total_price_target = 0
         count = 0
         analyst_ratings = await session.execute(sqlalchemy.select(AnalystRating).filter_by(symbol_isin=self.isin))
@@ -295,9 +295,9 @@ class Symbol(Base):
         return average_target_price, count, rating_count_str, average_rating
     async def GetFairPrice(self,session, start_date=None, end_date=None):
         if start_date is None:
-            start_date = datetime.datetime.now() - datetime.timedelta(days=90)
+            start_date = datetime.datetime.now(tz=datetime.timezone.utc) - datetime.timedelta(days=90)
         if end_date is None:
-            end_date = datetime.datetime.now()
+            end_date = datetime.datetime.now(tz=datetime.timezone.utc)
         total_price_target = 0
         count = 0
         rating_count = {}
@@ -320,7 +320,7 @@ class Symbol(Base):
 class MinuteBar(Base):
     __tablename__ = 'minute_bar'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
-    date = sqlalchemy.Column(sqlalchemy.DateTime, nullable=False, index=True)
+    date = sqlalchemy.Column(sqlalchemy.DateTime(timezone=True), nullable=False, index=True)
     open = sqlalchemy.Column(sqlalchemy.Float)
     high = sqlalchemy.Column(sqlalchemy.Float)
     low = sqlalchemy.Column(sqlalchemy.Float)
@@ -342,7 +342,7 @@ class Rating(enum.Enum):
 class AnalystRating(Base):
     __tablename__ = 'analyst_rating'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
-    date = sqlalchemy.Column(sqlalchemy.DateTime, nullable=False)
+    date = sqlalchemy.Column(sqlalchemy.DateTime(timezone=True), nullable=False)
     name = sqlalchemy.Column(sqlalchemy.String(200), nullable=True)
     target_price = sqlalchemy.Column(sqlalchemy.Float)
     fair_price = sqlalchemy.Column(sqlalchemy.Float)
@@ -373,7 +373,7 @@ class EarningsCalendar(Base):
 class NewsEntry(Base):
     __tablename__ = 'news'
     id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True, autoincrement=True)
-    release_date = sqlalchemy.Column(sqlalchemy.DateTime, nullable=False, index=True)
+    release_date = sqlalchemy.Column(sqlalchemy.DateTime(timezone=True), nullable=False, index=True)
     headline = sqlalchemy.Column(sqlalchemy.String(400))
     content = sqlalchemy.Column(sqlalchemy.Text)
     category = sqlalchemy.Column(sqlalchemy.String(100))
@@ -549,11 +549,11 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,
             latest_date = result.fetchone()[0]
             startdate = latest_date
             if not latest_date:
-                startdate = datetime.datetime.utcnow()-datetime.timedelta(days=Minutes15)
+                startdate = datetime.datetime.now(tz=datetime.timezone.utc)-datetime.timedelta(days=Minutes15)
             if (not (sym.tradingstart and sym.tradingend))\
-            or ((sym.tradingstart.time() <= datetime.datetime.utcnow().time() <= sym.tradingend.time()) and (datetime.datetime.utcnow().weekday() < 5))\
-            or (latest_date and latest_date < datetime.datetime.utcnow()-datetime.timedelta(days=2)):
-                while startdate < datetime.datetime.utcnow():
+            or ((sym.tradingstart.time() <= datetime.datetime.now(tz=datetime.timezone.utc).time() <= sym.tradingend.time()) and (datetime.datetime.now(tz=datetime.timezone.utc).weekday() < 5))\
+            or (latest_date and latest_date < datetime.datetime.now(tz=datetime.timezone.utc)-datetime.timedelta(days=2)):
+                while startdate < datetime.datetime.now(tz=datetime.timezone.utc):
                     res,olddate = await DownloadChunc(session,sym,startdate,startdate+datetime.timedelta(days=Minutes15),'15m',paper,market)
                     startdate += datetime.timedelta(days=Minutes15)
                 async with db_lock:
@@ -564,13 +564,13 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,
             sym = await FindSymbol(session,paper,market,True)
             startdate = datetime.datetime.utcnow()-datetime.timedelta(days=Hours)
             if sym:
-                result = await session.execute(sqlalchemy.select(MinuteBar, sqlalchemy.func.min(MinuteBar.date)).where(MinuteBar.symbol == sym))
-                date_entry, earliest_date = result.fetchone()
+                result = await session.execute(sqlalchemy.select(sqlalchemy.func.min(MinuteBar.date)).where(MinuteBar.symbol == sym))
+                earliest_date = result.fetchone()[0]
                 if earliest_date:
                     enddate = earliest_date
                     todate = earliest_date-datetime.timedelta(days=round(Hours/10))
-                    if todate < datetime.datetime.now()-datetime.timedelta(days=Hours):
-                        todate = datetime.datetime.now()-datetime.timedelta(days=Hours)
+                    if todate < datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(days=Hours):
+                        todate = datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(days=Hours)
                     res2,olddate2 = await DownloadChunc(session,sym,todate,earliest_date,'1h',paper,market)
                     async with db_lock:
                         await session.commit()
