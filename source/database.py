@@ -238,7 +238,8 @@ class Symbol(Base):
     async def GetDataHourly(self,session, start_date=None, end_date=None, TargetCurrency=None):
         return await self.GetConvertedData(session,start_date,end_date, TargetCurrency, timeframe='1h')
     async def GetActPrice(self,session, TargetCurrency=None):
-        last_minute_bar = (await session.execute(sqlalchemy.select(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()))).scalars().first()
+        stmt = sqlalchemy.select(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc())
+        last_minute_bar = (await session.execute(stmt)).scalars().first()
         if TargetCurrency and (TargetCurrency != self.currency):
             excs = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker='%s%s=X' % (TargetCurrency,self.currency)))).scalars().first()
             if excs:
@@ -250,7 +251,9 @@ class Symbol(Base):
         else:
             return 0
     async def GetActDate(self,session):
-        last_minute_bar = (await session.execute(sqlalchemy.select(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc()))).scalars().first()
+        stmt = sqlalchemy.select(MinuteBar).filter_by(symbol=self).order_by(MinuteBar.date.desc())
+        #print(stmt)
+        last_minute_bar = (await session.execute(stmt)).scalars().first()
         if last_minute_bar:
             return last_minute_bar.date
         else:
