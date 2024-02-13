@@ -172,11 +172,15 @@ class Symbol(Base):
         elif timeframe == '1h':
             if 'sqlite' in ConnStr:
                 aggregator_func = sqlalchemy.func.strftime('%Y-%m-%d %H:00:00', MinuteBar.date)
+            elif 'postgres' in ConnStr:
+                aggregator_func = sqlalchemy.func.to_char(MinuteBar.date, 'YYYY-MM-DD HH24:00:00')
             else:
                 aggregator_func = sqlalchemy.func.date_format(MinuteBar.date, '%Y-%m-%d %H:00:00')
         elif timeframe == '1d':
             if 'sqlite' in ConnStr:
                 aggregator_func = sqlalchemy.func.strftime('%Y-%m-%d', MinuteBar.date)
+            elif 'postgres' in ConnStr:
+                aggregator_func = sqlalchemy.func.to_char(MinuteBar.date, 'YYYY-MM-DD')
             else:
                 aggregator_func = sqlalchemy.func.date_format(MinuteBar.date, '%Y-%m-%d')
         else:
@@ -434,7 +438,7 @@ async def Init(loop):
             'isolation_level': None,
             }
         ConnStr='sqlite+aiosqlite:///'+str(Data)
-    engine=sqlalchemy.ext.asyncio.create_async_engine(ConnStr, connect_args=connect_args,pool_size=50, max_overflow=60,pool_recycle=3600) 
+    engine=sqlalchemy.ext.asyncio.create_async_engine(ConnStr, connect_args=connect_args,pool_size=50, max_overflow=60,pool_recycle=3600,echo=True) 
     async def init_models():
         async with engine.begin() as conn:
             if 'sqlite' in ConnStr:
@@ -446,9 +450,11 @@ def new_session():
 #logger.getLogger('sqlalchemy.engine').setLevel(logger.INFO)
 async def FindSymbol(session,paper,market=None,CreateifNotExists=False):
     if 'isin' in paper and paper['isin']:
-        sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin'],marketplace=market).limit(1))).scalars().first()
+        stmt = sqlalchemy.select(Symbol).filter_by(isin=paper['isin'],marketplace=market).limit(1)
+        sym = (await session.execute(stmt)).scalars().first()
     elif 'ticker' in paper and paper['ticker']:
-        sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker=paper['ticker'],marketplace=market))).scalars().first()
+        stmt = sqlalchemy.select(Symbol).filter_by(ticker=paper['ticker'],marketplace=market)
+        sym = (await session.execute(stmt)).scalars().first()
     else: sym = None
     if not sym and CreateifNotExists:
         async with new_session() as sessionn,sessionn.begin():
@@ -459,7 +465,8 @@ async def FindSymbol(session,paper,market=None,CreateifNotExists=False):
     if 'isin' in paper and paper['isin']:
         sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(isin=paper['isin'],marketplace=market).limit(1))).scalars().first()
     elif 'ticker' in paper and paper['ticker']:
-        sym = (await session.execute(sqlalchemy.select(Symbol).filter_by(ticker=paper['ticker'],marketplace=market))).scalars().first()
+        stmt = sqlalchemy.select(Symbol).filter_by(ticker=paper['ticker'],marketplace=market)
+        sym = (await session.execute(stmt)).scalars().first()
     else: sym = None
     return sym
 class UpdateCyclic:
