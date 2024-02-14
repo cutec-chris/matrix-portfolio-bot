@@ -173,14 +173,14 @@ class Symbol(Base):
             if 'sqlite' in ConnStr:
                 aggregator_func = sqlalchemy.func.strftime('%Y-%m-%d %H:00:00', MinuteBar.date)
             elif 'postgres' in ConnStr:
-                aggregator_func = sqlalchemy.func.to_char(MinuteBar.date, 'YYYY-MM-DD HH24:00:00')
+                aggregator_func = 'hour'
             else:
                 aggregator_func = sqlalchemy.func.date_format(MinuteBar.date, '%Y-%m-%d %H:00:00')
         elif timeframe == '1d':
             if 'sqlite' in ConnStr:
                 aggregator_func = sqlalchemy.func.strftime('%Y-%m-%d', MinuteBar.date)
             elif 'postgres' in ConnStr:
-                aggregator_func = sqlalchemy.func.to_char(MinuteBar.date, 'YYYY-MM-DD')
+                aggregator_func = 'day'
             else:
                 aggregator_func = sqlalchemy.func.date_format(MinuteBar.date, '%Y-%m-%d')
         else:
@@ -193,19 +193,40 @@ class Symbol(Base):
             query = query.filter(MinuteBar.date <= end_date)
         query = query.order_by(MinuteBar.date)
         if timeframe != '15m':
-            query = sqlalchemy.select(
-                aggregator_func.label('date'),
-                sqlalchemy.func.min(MinuteBar.low).label('low'),
-                sqlalchemy.func.max(MinuteBar.high).label('high'),
-                sqlalchemy.func.first_value(MinuteBar.open).over(order_by=MinuteBar.date).label('open'),
-                sqlalchemy.func.last_value(MinuteBar.close).over(order_by=MinuteBar.date).label('close'),
-                sqlalchemy.func.sum(MinuteBar.volume).label('volume')
-            ).filter_by(symbol=self)
-            if start_date:
-                query = query.filter(MinuteBar.date >= start_date)
-            if end_date:
-                query = query.filter(MinuteBar.date <= end_date)
-            query = query.group_by(aggregator_func).order_by(aggregator_func)
+            if 'postgres' in ConnStr:
+                raw_sql_w = f"(symbol_id = {self.id})"
+                if start_date:
+                    raw_sql_w += f" AND date >= '{start_date}'"
+                if end_date:
+                    raw_sql_w += f" AND date <= '{end_date}'"
+                raw_sql = f"""
+                    SELECT distinct symbol_id, date_trunc('{aggregator_func}', date) as date,
+                        min(low) OVER w as low,
+                        max(high) OVER w as high,
+                        first_value(open) OVER w as open,
+                        last_value(close) OVER w as close,
+                        sum(volume) OVER w as volume
+                    FROM minute_bar
+                    WHERE {raw_sql_w}
+                    WINDOW w AS (PARTITION BY symbol_id, date_trunc('{aggregator_func}', date) ORDER BY date 
+                                ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
+                    order by date_trunc('{aggregator_func}', date)
+                    """
+                query = sqlalchemy.text(raw_sql)
+            else:
+                query = sqlalchemy.select(
+                    aggregator_func.label('date'),
+                    sqlalchemy.func.min(MinuteBar.low).label('low'),
+                    sqlalchemy.func.max(MinuteBar.high).label('high'),
+                    sqlalchemy.func.first_value(MinuteBar.open).over(order_by=MinuteBar.date).label('open'),
+                    sqlalchemy.func.last_value(MinuteBar.close).over(order_by=MinuteBar.date).label('close'),
+                    sqlalchemy.func.sum(MinuteBar.volume).label('volume')
+                ).filter_by(symbol=self)
+                if start_date:
+                    query = query.filter(MinuteBar.date >= start_date)
+                if end_date:
+                    query = query.filter(MinuteBar.date <= end_date)
+                query = query.group_by(aggregator_func).order_by(aggregator_func)
             try:
                 result = await session.execute(query)
                 rows = [(row.date, row.open, row.high, row.low, row.close, row.volume) for row in result.all()]
