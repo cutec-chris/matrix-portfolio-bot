@@ -5,7 +5,7 @@ server:
   prefix: "portfolio:"
 sqlserver:
   connstr: "sqlite+aiosqlite:///./data/database.db"
-  connstr: "postgresql+asyncpg://scott:tiger@localhost/test"
+  #connstr: "postgresql+asyncpg://user:password@host/dbname"
   #connstr: "mysql+aiomysql://user:password@host:port/dbname"
 datasources:
   updateall: False
