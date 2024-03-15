@@ -8,3 +8,4 @@ aiomysql
 websockets
 matplotlib
 scipy
+asyncpg
