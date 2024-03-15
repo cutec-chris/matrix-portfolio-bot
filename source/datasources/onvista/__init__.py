@@ -23,11 +23,11 @@ async def DownloadChunc(session,sym,from_date,to_date,timeframe,paper,market):
                 instrument = await api.request_instrument(isin=paper['isin'],instrument=i)
                 sym.currency = 'EUR'
                 if market == 'gettex':
-                    sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)
-                    sym.tradingend = datetime.datetime.now().replace(hour=21,minute=0)
+                    sym.tradingstart = datetime.datetime.now(tz=datetime.timezone.utc).replace(hour=7,minute=0)
+                    sym.tradingend = datetime.datetime.now(tz=datetime.timezone.utc).replace(hour=21,minute=0)
                 else:
-                    sym.tradingstart = datetime.datetime.now().replace(hour=7,minute=0)
-                    sym.tradingend = datetime.datetime.now().replace(hour=21,minute=0)
+                    sym.tradingstart = datetime.datetime.now(tz=datetime.timezone.utc).replace(hour=7,minute=0)
+                    sym.tradingend = datetime.datetime.now(tz=datetime.timezone.utc).replace(hour=21,minute=0)
                 session.add(sym)
             except:
                 return False,None
@@ -40,7 +40,7 @@ async def DownloadChunc(session,sym,from_date,to_date,timeframe,paper,market):
         if not t_market:
             return False,olddate
         enddate = to_date
-        if enddate>datetime.datetime.utcnow():
+        if enddate>datetime.datetime.now(tz=datetime.timezone.utc):
             enddate = None
         quotes = await api.request_quotes(instrument,notation=t_market,start=from_date.date(),end=enddate,resolution=timeframe)
         if len(quotes)>0:
@@ -60,7 +60,7 @@ async def DownloadChunc(session,sym,from_date,to_date,timeframe,paper,market):
             # Erstellen des DataFrames aus der Liste von Dictionaries
             df = pandas.DataFrame(data)
             pdata = df.dropna()
-            pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"])
+            pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"],utc=True)
             gmtoffset = datetime.datetime.now()-datetime.datetime.utcnow()
             pdata["Datetime"] -= gmtoffset
             pdata["Datetime"] = pdata["Datetime"].dt.floor('S')

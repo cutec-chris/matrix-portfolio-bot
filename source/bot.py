@@ -266,5 +266,6 @@ async def restart_task():
     shutdown_time = datetime.datetime.now().replace(hour=7, minute=0, second=0, microsecond=0) + datetime.timedelta(days=1)
     time_until_shutdown = (shutdown_time - datetime.datetime.now()).total_seconds()
     await asyncio.sleep(time_until_shutdown)
+    logger.warning('planned shutting down')
     os._exit(1)
 asyncio.run(main())
