@@ -459,7 +459,7 @@ async def Init(loop):
             'isolation_level': None,
             }
         ConnStr='sqlite+aiosqlite:///'+str(Data)
-    engine=sqlalchemy.ext.asyncio.create_async_engine(ConnStr, connect_args=connect_args,pool_size=50, max_overflow=60,pool_recycle=3600,echo=True) 
+    engine=sqlalchemy.ext.asyncio.create_async_engine(ConnStr, connect_args=connect_args,pool_size=50, max_overflow=60,pool_recycle=3600)#,echo=True) 
     async def init_models():
         async with engine.begin() as conn:
             if 'sqlite' in ConnStr:

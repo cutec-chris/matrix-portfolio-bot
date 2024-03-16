@@ -45,7 +45,7 @@ async def DownloadChunc(session,sym,from_date,to_date,timeframe,paper,market):
                     })
                     pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
                     #pdata["Datetime"] -= gmtoffset_timedelta
-                    pdata["Datetime"] = pdata["Datetime"].dt.floor('S')
+                    pdata["Datetime"] = pdata["Datetime"].dt.floor('s')
                     pdata = pdata.dropna()
                     if pdata["Datetime"].iloc[-1].minute % 15 != 0:
                         # Entferne die letzte Zeile aus dem DataFrame
