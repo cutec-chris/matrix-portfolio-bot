@@ -22,8 +22,8 @@ async def DownloadChunc(session,sym,from_date,to_date,timeframe,paper,market):
     olddate = None
     if market != None:
         return res,olddate
-    from_timestamp = int((from_date - datetime.datetime(1970, 1, 1)).total_seconds())
-    to_timestamp = int((to_date - datetime.datetime(1970, 1, 1)).total_seconds())
+    from_timestamp = int((from_date - datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)).total_seconds())
+    to_timestamp = int((to_date - datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)).total_seconds())
     url = f"https://query1.finance.yahoo.com/v8/finance/chart/{paper['ticker']}?interval={timeframe}&includePrePost=true&events=history&period1={from_timestamp}&period2={to_timestamp}"
     async with aiohttp.ClientSession(headers={'User-Agent': UserAgent}) as hsession:
         async with hsession.get(url) as resp:
@@ -43,7 +43,7 @@ async def DownloadChunc(session,sym,from_date,to_date,timeframe,paper,market):
                         "Close": ohlc_data["close"],
                         "Volume": ohlc_data["volume"]
                     })
-                    pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s")
+                    pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"], unit="s",utc=True)
                     #pdata["Datetime"] -= gmtoffset_timedelta
                     pdata["Datetime"] = pdata["Datetime"].dt.floor('s')
                     pdata = pdata.dropna()

@@ -550,7 +550,7 @@ class UpdateCyclic:
                         if self.WaitTime-(time.time()-started) > 0:
                             await asyncio.sleep(self.WaitTime-(time.time()-started))
                 except BaseException as e:
-                    logger.error(str(e))
+                    logger.error(str(e),stack_info=True)
             await asyncio.sleep(10)
 db_lock = asyncio.Lock()
 async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,Hours=365,Days=10*365):
@@ -574,7 +574,7 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,
     async with new_session() as session:
         sym = await FindSymbol(session,paper,market,True)
         if 'ticker' in paper and paper['ticker']:
-            startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
+            startdate = datetime.datetime.now(tz=datetime.timezone.utc)-datetime.timedelta(days=30)
         if sym:
             result = await session.execute(sqlalchemy.select(sqlalchemy.func.max(MinuteBar.date)).where(MinuteBar.symbol == sym))
             latest_date = result.fetchone()[0]
