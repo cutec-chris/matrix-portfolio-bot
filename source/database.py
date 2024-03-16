@@ -593,7 +593,7 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,
     try:
         async with new_session() as session:
             sym = await FindSymbol(session,paper,market,True)
-            startdate = datetime.datetime.utcnow()-datetime.timedelta(days=Hours)
+            startdate = datetime.datetime.now(tz=datetime.timezone.utc)-datetime.timedelta(days=Hours)
             if sym:
                 result = await session.execute(sqlalchemy.select(sqlalchemy.func.min(MinuteBar.date)).where(MinuteBar.symbol == sym))
                 earliest_date = result.fetchone()[0]
