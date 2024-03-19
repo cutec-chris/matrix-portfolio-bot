@@ -536,7 +536,7 @@ class UpdateCyclic:
                     internal_delay_mult[paper['isin']] = 1
                 try:
                     epaper = paper
-                    if paper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin'])+datetime.timedelta(seconds=self.Delay*await self.get_delay_mult(epaper,internal_delay_mult[paper['isin']])) < datetime.datetime.now()):
+                    if paper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin'])+datetime.timedelta(seconds=self.Delay*await self.get_delay_mult(epaper,internal_delay_mult[paper['isin']])) < datetime.datetime.now(tz=datetime.timezone.utc)):
                         res,till = await self.UpdateFunc(epaper,self.market)
                         if res and till: 
                             internal_updated[paper['isin']] = till
@@ -545,7 +545,7 @@ class UpdateCyclic:
                             elif internal_delay_mult[paper['isin']] > 2:
                                 internal_delay_mult[paper['isin']] -= 1
                         else:
-                            internal_updated[paper['isin']] = datetime.datetime.now()
+                            internal_updated[paper['isin']] = datetime.datetime.now(tz=datetime.timezone.utc)
                             internal_delay_mult[paper['isin']] += 1
                         if self.WaitTime-(time.time()-started) > 0:
                             await asyncio.sleep(self.WaitTime-(time.time()-started))
