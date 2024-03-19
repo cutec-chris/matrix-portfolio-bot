@@ -182,14 +182,17 @@ async def overview(room,message,match):
                                     logger.warning('failed to process:'+str(e))
                                     return None
                                 return fpath
-                            image_uri = await process_cerebro(df,fpath)
-                            try:
-                                async with aiofiles.open(image_uri, 'rb') as tmpf:
-                                    resp, maybe_keys = await bot.api.async_client.upload(tmpf,content_type='image/jpeg')
-                                image_uri = resp.content_uri
-                            except BaseException as e:
-                                image_uri = None
-                                logger.warning('failed to upload img:'+str(e))
+                            image_source = await process_cerebro(df,fpath)
+                            for retry in range(15):
+                                try:
+                                    async with aiofiles.open(image_source, 'rb') as tmpf:
+                                        resp, maybe_keys = await bot.api.async_client.upload(tmpf,content_type='image/jpeg')
+                                    image_uri = resp.content_uri
+                                    break
+                                except BaseException as e:
+                                    image_uri = None
+                                    logger.warning('failed to upload img retry  '+str(retry)+':'+str(e))
+                                    await asyncio.sleep(1)
                     res = await bot.api.async_client.room_typing(room.room_id,True,timeout=30000) #refresh typing
                     result['msg_part'] = result['msg_part'].replace('<img src=""></img>','<img src="' + str(image_uri) + '"></img>')
                 except BaseException as e: logger.warning(str(e))
