@@ -536,8 +536,12 @@ class UpdateCyclic:
                     internal_delay_mult[paper['isin']] = 1
                 try:
                     epaper = paper
-                    if paper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin'])+datetime.timedelta(seconds=self.Delay*await self.get_delay_mult(epaper,internal_delay_mult[paper['isin']])) < datetime.datetime.now(tz=datetime.timezone.utc)):
-                        res,till = await self.UpdateFunc(epaper,self.market)
+                    if paper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin']).replace(tzinfo=datetime.timezone.utc) +datetime.timedelta(seconds=self.Delay*await self.get_delay_mult(epaper,internal_delay_mult[paper['isin']])) < datetime.datetime.now(tz=datetime.timezone.utc)):
+                        try:
+                            res,till = await self.UpdateFunc(epaper,self.market)
+                        except BaseException as e:
+                            logger.error(str(e),stack_info=True)
+                            res = False
                         if res and till: 
                             internal_updated[paper['isin']] = till
                             if internal_delay_mult[paper['isin']] > 5:
