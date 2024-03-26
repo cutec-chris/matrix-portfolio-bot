@@ -1,5 +1,5 @@
 from init import *
-import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles,random,backtests,os
+import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles,aiohttp,aiohttp.web,random,backtests,os
 import managepaper,processpaper,os,traceback
 logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 loop = None
@@ -239,6 +239,13 @@ async def bot_help(room, message):
     or match.command("?") 
     or match.command("h")):
         await bot.api.send_text_message(room.room_id, bot_help_message)
+async def status_handler(request):
+    global loop,servers,news_task,dates_task
+    if news_task.done()\
+    or dates_task.done():
+        return aiohttp.web.HTTPServerError(text='Tasks not running')
+    else:
+        return aiohttp.web.Response(text="OK")
 async def main():
     try:
         def unhandled_exception(loop, context):
@@ -248,6 +255,13 @@ async def main():
             os._exit(1)
         loop = asyncio.get_event_loop()
         loop.set_exception_handler(unhandled_exception)
+        app = aiohttp.web.Application()
+        app.add_routes([aiohttp.web.get('/status', status_handler)])
+        runner = aiohttp.web.AppRunner(app)
+        await runner.setup()
+        site = aiohttp.web.TCPSite(runner,port=9998)    
+        await site.start()
+        await bot.main()
         await bot.main()
     except BaseException as e:
         logger.error('bot main fails:'+str(e),stack_info=True)
