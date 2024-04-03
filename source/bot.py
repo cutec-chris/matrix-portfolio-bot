@@ -240,12 +240,20 @@ async def bot_help(room, message):
     or match.command("h")):
         await bot.api.send_text_message(room.room_id, bot_help_message)
 async def status_handler(request):
-    global loop,servers,news_task,dates_task
-    if news_task.done()\
-    or dates_task.done():
-        return aiohttp.web.HTTPServerError(text='Tasks not running')
-    else:
+    try:
+        global loop,servers,news_task,dates_task
+        if news_task.done()\
+        or dates_task.done():
+            res = False
+        else:
+            res = True
+    except:
+        res = False
+    if res:
         return aiohttp.web.Response(text="OK")
+    else:
+        os._exit(2)
+        return aiohttp.web.HTTPServerError(text='Tasks not running')
 async def main():
     try:
         def unhandled_exception(loop, context):
@@ -276,8 +284,11 @@ managepaper.servers = servers
 managepaper.datasources = datasources
 managepaper.strategies = strategies
 managepaper.save_servers = save_servers
-async def restart_task():
-    shutdown_time = datetime.datetime.now().replace(hour=7, minute=0, second=0, microsecond=0) + datetime.timedelta(days=1)
+async def restart_task(pshutdown_time = None):
+    if pshutdown_time:
+        shutdown_time = pshutdown_time
+    else:
+        shutdown_time = datetime.datetime.now().replace(hour=7, minute=0, second=0, microsecond=0) + datetime.timedelta(days=1)
     time_until_shutdown = (shutdown_time - datetime.datetime.now()).total_seconds()
     await asyncio.sleep(time_until_shutdown)
     logger.warning('planned shutting down')
