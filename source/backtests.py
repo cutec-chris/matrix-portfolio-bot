@@ -61,7 +61,7 @@ async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.da
     if hasattr(Strategy, 'predaysdata') and isinstance(data_d, pandas.DataFrame) and not data_d.empty:
         business_days = pandas.date_range(start=data_d.index.min(), end=data_d.index.max(), freq='B')
         data_d = data_d[data_d.index.isin(business_days)]
-        data_d = data_d.resample('12H').interpolate(method='linear')
+        data_d = data_d.resample('12h').interpolate(method='linear')
         cerebro.internalstart = data.index.min()
         data = pandas.concat([data_d, data]).sort_index()
     cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
