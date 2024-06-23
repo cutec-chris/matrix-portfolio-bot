@@ -1,3 +1,4 @@
+import pathlib,sys;sys.path.append(str(pathlib.Path(__file__).parent.parent.parent))
 import os,asyncio,json,websockets,yaml,pathlib,logging,database
 logger = logging.getLogger('xtb')
 config = None
