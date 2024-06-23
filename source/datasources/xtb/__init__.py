@@ -144,39 +144,40 @@ async def DoConnect():
     if not auth_success:
         return False
     return True
-        logger.info('sucessfully authentificated')
-        async with websockets.connect(config['xtb']['base_url']+'Stream') as websocket_s:
-            logger.info('connected to streaming server')
-            await websocket_s.send(json.dumps({
-                "command": "getNews",
+    """
+    logger.info('sucessfully authentificated')
+    async with websockets.connect(config['xtb']['base_url']+'Stream') as websocket_s:
+        logger.info('connected to streaming server')
+        await websocket_s.send(json.dumps({
+            "command": "getNews",
+            "streamSessionId": StreamSessionID,
+        }))
+        for ticker in tickers:
+            candle_data = {
+                "command": "getCandles",
                 "streamSessionId": StreamSessionID,
-            }))
-            for ticker in tickers:
-                candle_data = {
-                    "command": "getCandles",
-                    "streamSessionId": StreamSessionID,
-                    "symbol": ticker,
-                }
-                await websocket_s.send(json.dumps(candle_data))
-                await asyncio.sleep(0.2)
-            logger.info('%d symbols subscribed' % len(tickers))
-            await websocket_s.send(json.dumps({
-                "command": "getBalance",
-                "streamSessionId": StreamSessionID,
-            }))
-            await websocket_s.send(json.dumps({
-                "command": "getTrades",
-                "streamSessionId": StreamSessionID,
-            }))
-            
-            #await websocket_s.send(json.dumps({
-            #    "command": "getKeepAlive",
-            #    "streamSessionId": StreamSessionID,
-            #}))
-            while True:
-                response = await websocket_s.recv()
-                logger.info(f"< {response}")
-
+                "symbol": ticker,
+            }
+            await websocket_s.send(json.dumps(candle_data))
+            await asyncio.sleep(0.2)
+        logger.info('%d symbols subscribed' % len(tickers))
+        await websocket_s.send(json.dumps({
+            "command": "getBalance",
+            "streamSessionId": StreamSessionID,
+        }))
+        await websocket_s.send(json.dumps({
+            "command": "getTrades",
+            "streamSessionId": StreamSessionID,
+        }))
+        
+        #await websocket_s.send(json.dumps({
+        #    "command": "getKeepAlive",
+        #    "streamSessionId": StreamSessionID,
+        #}))
+        while True:
+            response = await websocket_s.recv()
+            logger.info(f"< {response}")
+    """
 async def StartUpdate(papers, market, name):
     if config:
         if await DoConnect():

@@ -1,9 +1,6 @@
 from init import *
 import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles,aiohttp,aiohttp.web,random,backtests,os
 import managepaper,processpaper,os,traceback
-logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
-loop = None
-lastsend = None
 class Portfolio(Config):
     def __init__(self, room, **kwargs) -> None:
         super().__init__(room, **kwargs)
@@ -16,7 +13,7 @@ async def tell(room, message):
             message.body = prefix+' '+message.body
         match = botlib.MessageMatch(room, message, bot, prefix)
         if (match.is_not_from_this_bot() and match.prefix()):
-            res = await bot.api.async_client.room_typing(room.room_id,True,timeout=30000)
+            await bot.api.async_client.room_typing(room.room_id,True,timeout=30000)
         tuser = None
         if match.is_not_from_this_bot() and room.member_count==2:
             tuser = message.sender
@@ -26,7 +23,7 @@ async def tell(room, message):
         or match.command("remove",case_sensitive=False)\
         or match.command("add",case_sensitive=False)):
             return await managepaper.manage_paper(room,message,match)
-        elif (match.is_not_from_this_bot() and match.prefix())\
+        if (match.is_not_from_this_bot() and match.prefix())\
         and match.command("analyze",case_sensitive=False):
             return await processpaper.analyze(room,message,match)
         elif (match.is_not_from_this_bot() and match.prefix())\
@@ -130,6 +127,10 @@ async def handle_reaction(room, event, reaction):
 datasources = []
 strategies = []
 connection = None
+logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
+loop = None
+lastsend = None
+servers = None
 try:
     logging.basicConfig(level=logging.INFO,format='%(asctime)s:%(levelname)s:%(message)s', datefmt="%Y-%m-%d %H:%M:%S")
     logger.info('starting event loop...')
