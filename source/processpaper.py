@@ -24,9 +24,9 @@ async def analyze(room,message,match):
             sym = await database.FindSymbol(session,{'isin':match.args()[1]},market=depot.market)
             if sym:
                 if sym.currency and sym.currency != depot.currency:
-                    df = await sym.GetConvertedData(session,datetime.datetime.utcnow()-trange,None,depot.currency)
+                    df = await sym.GetConvertedData(session,datetime.datetime.now(datetime.UTC)-trange,None,depot.currency)
                 else:
-                    df = await sym.GetData(session,datetime.datetime.utcnow()-trange)
+                    df = await sym.GetData(session,datetime.datetime.now(datetime.UTC)-trange)
                 vola = 0.0
                 for index, row in df.iterrows():
                     avola = ((row['High']-row['Low'])/row['Close'])*100
@@ -62,7 +62,7 @@ async def analyze(room,message,match):
                         cerebro = None
                 if cerebro:
                     msg += 'Statistic ROI: %.2f\n' % (((cerebro.broker.getvalue() - initial_capital) / initial_capital)*100)
-                    checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
+                    checkfrom = datetime.datetime.now(datetime.UTC)-datetime.timedelta(days=30*3)
                     amsg = None
                     for order in cerebro._broker.orders:
                         if order.status == 4:
@@ -110,7 +110,7 @@ async def overview(room,message,match):
                         if not 'name' in paper: paper['name'] = paper['ticker']
                         sym = await database.FindSymbol(session,paper,depot.market)
                         if sym:
-                            df = await sym.GetDataHourly(session,datetime.datetime.utcnow()-trange)
+                            df = await sym.GetDataHourly(session,datetime.datetime.now(datetime.UTC)-trange)
                             await asyncio.sleep(0.05)
                             aprice = await sym.GetActPrice(session,depot.currency)
                             analys = 'Price: %.2f<br>From: %s' % (aprice,str(await sym.GetActDate(session)))+'<br>'
@@ -241,7 +241,7 @@ async def ProcessStrategy(paper,depot,data):
         if cerebro:
             size_sum = 0
             price_sum = 0
-            checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
+            checkfrom = datetime.datetime.now(datetime.UTC)-datetime.timedelta(days=30*3)
             if 'lastcheck' in paper: checkfrom = datetime.datetime.strptime(paper['lastcheck'], "%Y-%m-%d %H:%M:%S")
             orderdate = datetime.datetime.now()
             for order in cerebro._broker.orders:
@@ -371,9 +371,9 @@ async def check_depot(depot,fast=False):
                         if paper['isin'] == sym.isin and sym.marketplace == targetmarket:
                             #Process strategy
                             if sym.currency and sym.currency != depot.currency:
-                                df = await sym.GetConvertedData(session,(TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
+                                df = await sym.GetConvertedData(session,(TillUpdated or datetime.datetime.now(datetime.UTC))-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
                             else:
-                                df = await sym.GetData(session,(TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
+                                df = await sym.GetData(session,(TillUpdated or datetime.datetime.now(datetime.UTC))-datetime.timedelta(days=30*3),TillUpdated)
                             await asyncio.sleep(0.1)
                             ps = await ProcessStrategy(paper,depot,df)
                             ShouldSave = ShouldSave or ps
