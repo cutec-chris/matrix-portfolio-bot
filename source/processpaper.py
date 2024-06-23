@@ -350,6 +350,7 @@ async def check_depot(depot,fast=False):
         await ChangeDepotStatus(depot,'updating '+" ".join(check_status))
         next_minute = (next_minute + datetime.timedelta(minutes=1)).replace(second=0, microsecond=0)
         try:
+            #check all papers with new MinuteBars
             async with database.new_session() as session:
                 query = sqlalchemy.select(database.MinuteBar.symbol_id, sqlalchemy.func.max(database.MinuteBar.id).label("max_id")).where(database.MinuteBar.id > last_processed_minute_bar_id).group_by(database.MinuteBar.symbol_id)
                 new_bars = await session.execute(query)
@@ -379,6 +380,7 @@ async def check_depot(depot,fast=False):
                             ShouldSave = ShouldSave or ps
                             await asyncio.sleep(0.1)
                             break
+                
             logger.debug(depot.name+' finished updates '+str(datetime.datetime.now()))
         except BaseException as e:
             logger.error(depot.name+' '+str(e))
