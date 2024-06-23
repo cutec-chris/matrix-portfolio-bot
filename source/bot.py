@@ -267,8 +267,11 @@ async def main():
         app.add_routes([aiohttp.web.get('/status', status_handler)])
         runner = aiohttp.web.AppRunner(app, access_log=None)
         await runner.setup()
-        site = aiohttp.web.TCPSite(runner,port=9998)    
-        await site.start()
+        try:
+            site = aiohttp.web.TCPSite(runner,port=9998)    
+            await site.start()
+        except BaseException as e:
+            logging.warning('failed to start healthcheck: '+str(e))
         await bot.main()
         await bot.main()
     except BaseException as e:
