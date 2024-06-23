@@ -130,7 +130,7 @@ connection = None
 logger = logging.getLogger(os.path.splitext(os.path.basename(__file__))[0])
 loop = None
 lastsend = None
-servers = None
+servers = []
 try:
     logging.basicConfig(level=logging.INFO,format='%(asctime)s:%(levelname)s:%(message)s', datefmt="%Y-%m-%d %H:%M:%S")
     logger.info('starting event loop...')
