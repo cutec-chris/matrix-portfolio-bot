@@ -557,11 +557,12 @@ class UpdateCyclic:
                     logger.error(str(e),stack_info=True)
             await asyncio.sleep(10)
 db_lock = asyncio.Lock()
-async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,Hours=365,Days=10*365,TradingTimesOffset=2):
+async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,Hours=365,Days=10*365):
     global db_lock
     resp = None
     res = False
     olddate = None
+    TradingTimesOffset=2
     if (not 'name' in paper) or paper['name'] == None:
         resp = await SearchPaper(paper['isin'])
         if resp:
@@ -586,7 +587,7 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,
             if not latest_date:
                 startdate = datetime.datetime.now(tz=datetime.timezone.utc)-datetime.timedelta(days=Minutes15)
             if (not (sym.tradingstart and sym.tradingend))\
-            or (((sym.tradingstart.time()-datetime.timedelta(hours=TradingTimesOffset)) <= datetime.datetime.now(tz=datetime.timezone.utc).time() <= (sym.tradingend.time()+datetime.timedelta(hours=TradingTimesOffset))) and (datetime.datetime.now(tz=datetime.timezone.utc).weekday() < 5))\
+            or (((sym.tradingstart-datetime.timedelta(hours=TradingTimesOffset)).time() <= datetime.datetime.now(tz=datetime.timezone.utc).time() <= (sym.tradingend+datetime.timedelta(hours=TradingTimesOffset)).time()) and (datetime.datetime.now(tz=datetime.timezone.utc).weekday() < 5))\
             or (latest_date and latest_date < datetime.datetime.now(tz=datetime.timezone.utc)-datetime.timedelta(days=2)):
                 while startdate < datetime.datetime.now(tz=datetime.timezone.utc):
                     res,olddate = await DownloadChunc(session,sym,startdate,startdate+datetime.timedelta(days=Minutes15),'15m',paper,market)
