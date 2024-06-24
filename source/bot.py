@@ -248,7 +248,7 @@ async def status_handler(request):
             res = False
         else:
             res = True
-    except:
+    except BaseException as e:
         res = False
     if res:
         return aiohttp.web.Response(text="OK")
@@ -264,16 +264,15 @@ async def main():
             os._exit(1)
         loop = asyncio.get_event_loop()
         loop.set_exception_handler(unhandled_exception)
-        app = aiohttp.web.Application()
-        app.add_routes([aiohttp.web.get('/status', status_handler)])
-        runner = aiohttp.web.AppRunner(app, access_log=None)
-        await runner.setup()
         try:
+            app = aiohttp.web.Application()
+            app.add_routes([aiohttp.web.get('/status', status_handler)])
+            runner = aiohttp.web.AppRunner(app, access_log=None)
+            await runner.setup()
             site = aiohttp.web.TCPSite(runner,port=9998)    
             await site.start()
         except BaseException as e:
             logging.warning('failed to start healthcheck: '+str(e))
-        await bot.main()
         await bot.main()
     except BaseException as e:
         logger.error('bot main fails:'+str(e),stack_info=True)
