@@ -62,7 +62,7 @@ async def analyze(room,message,match):
                         cerebro = None
                 if cerebro:
                     msg += 'Statistic ROI: %.2f\n' % (((cerebro.broker.getvalue() - initial_capital) / initial_capital)*100)
-                    checkfrom = datetime.datetime.now(datetime.UTC)-datetime.timedelta(days=30*3)
+                    checkfrom = datetime.datetime.now(tz=datetime.timezone.utc).replace(tzinfo=None)-datetime.timedelta(days=30*3)
                     amsg = None
                     for order in cerebro._broker.orders:
                         if order.status == 4:
