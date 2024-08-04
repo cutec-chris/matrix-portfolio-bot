@@ -367,6 +367,7 @@ async def check_depot(depot,fast=False):
                 random.shuffle(shuffled_papers)
                 targetmarket = None
                 if hasattr(depot,'market'): targetmarket = depot.market
+                #check updated papers
                 for sym in symbols:
                     for paper in shuffled_papers:
                         if paper['isin'] == sym.isin and sym.marketplace == targetmarket:
@@ -380,7 +381,24 @@ async def check_depot(depot,fast=False):
                             ShouldSave = ShouldSave or ps
                             await asyncio.sleep(0.1)
                             break
-                
+                if symbols == []:
+                    #check all papers longer as 1d not checked
+                    for paper in shuffled_papers:
+                        sym = await database.FindSymbol(session,paper,market=depot.market)
+                        if sym.marketplace == targetmarket:
+                            checkfrom = datetime.datetime.now(datetime.UTC)-datetime.timedelta(days=30*3)
+                            if 'lastcheck' in paper: checkfrom = datetime.datetime.strptime(paper['lastcheck'], "%Y-%m-%d %H:%M:%S")
+                            if checkfrom.date() < datetime.datetime.now(datetime.UTC).date():
+                                #Process strategy
+                                if sym.currency and sym.currency != depot.currency:
+                                    df = await sym.GetConvertedData(session,(TillUpdated or datetime.datetime.now(datetime.UTC))-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
+                                else:
+                                    df = await sym.GetData(session,(TillUpdated or datetime.datetime.now(datetime.UTC))-datetime.timedelta(days=30*3),TillUpdated)
+                                await asyncio.sleep(0.1)
+                                ps = await ProcessStrategy(paper,depot,df)
+                                ShouldSave = ShouldSave or ps
+                                await asyncio.sleep(0.1)
+                                break
             logger.debug(depot.name+' finished updates '+str(datetime.datetime.now()))
         except BaseException as e:
             logger.error(depot.name+' '+str(e))
