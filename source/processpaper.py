@@ -257,12 +257,11 @@ async def ProcessStrategy(paper,depot,data):
                         msg1 += ' chance %.1f till %s' % (order.chance,oder.chancetarget)
                     msg1 += '\n'
                     msg2 = 'buy %s %d' % (paper['isin'],round(size_sum))
-                    if paper['count']>0: 
-                        return False
+                    #if paper['count']>0: return False
                 else:
                     msg1 = 'strategy %s propose selling %d x %s %s (%s) at %s' % (st['name'],round(-size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
                     msg2 = 'sell %s %d' % (paper['isin'],round(-size_sum))
-                    if paper['count']==0: return False
+                    #if paper['count']==0: return False
                 if strategy+':'+msg2 != paper['lastreco']:
                     paper['lastreco'] = strategy+':'+msg2
                     paper['lastcheck'] = orderdate.strftime("%Y-%m-%d %H:%M:%S")
