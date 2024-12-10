@@ -269,13 +269,7 @@ async def ProcessStrategy(paper,depot,data):
                     await bot.api.send_text_message(depot.room,tuser+' '+msg1)
                     await bot.api.send_text_message(depot.room,msg2)
                     res = True
-                else:
-                    paper['lastreco'] = strategy+':'+msg2
-                    paper['lastcheck'] = orderdate.strftime("%Y-%m-%d %H:%M:%S")
-                    await plot_strategy(cerebro,depot)
-                    await bot.api.send_text_message(depot.room,tuser+' '+msg1)
-                    await bot.api.send_text_message(depot.room,msg2)
-                    res = True
+                paper['lastcheckwo'] = orderdate.strftime("%Y-%m-%d %H:%M:%S")
         return res
     cerebro = None
     res = False
@@ -381,12 +375,13 @@ async def check_depot(depot,fast=False):
                             await asyncio.sleep(0.1)
                             break
                 if symbols == []:
-                    #check all papers longer as 1d not checked
+                    logger.debug(depot.name+' checking long not updated '+str(datetime.datetime.now()))
+                    #check one paper longer as 1d not checked
                     for paper in shuffled_papers:
                         sym = await database.FindSymbol(session,paper,market=depot.market)
                         if sym.marketplace == targetmarket:
                             checkfrom = datetime.datetime.now(datetime.UTC)-datetime.timedelta(days=30*3)
-                            if 'lastcheck' in paper: checkfrom = datetime.datetime.strptime(paper['lastcheck'], "%Y-%m-%d %H:%M:%S")
+                            if 'lastcheckwo' in paper: checkfrom = datetime.datetime.strptime(paper['lastcheckwo'], "%Y-%m-%d %H:%M:%S")
                             if checkfrom.date() < datetime.datetime.now(datetime.UTC).date():
                                 #Process strategy
                                 if sym.currency and sym.currency != depot.currency:
@@ -396,7 +391,9 @@ async def check_depot(depot,fast=False):
                                 await asyncio.sleep(0.1)
                                 ps = await ProcessStrategy(paper,depot,df)
                                 ShouldSave = ShouldSave or ps
-                                await asyncio.sleep(0.1)
+                                if ShouldSave: 
+                                    await save_servers()
+                                await asyncio.sleep(120)
                                 break
             logger.debug(depot.name+' finished updates '+str(datetime.datetime.now()))
         except BaseException as e:
