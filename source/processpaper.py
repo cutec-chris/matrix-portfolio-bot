@@ -393,7 +393,6 @@ async def check_depot(depot,fast=False):
                                 ShouldSave = ShouldSave or ps
                                 if ShouldSave: 
                                     await save_servers()
-                                await asyncio.sleep(120)
                                 break
             logger.debug(depot.name+' finished updates '+str(datetime.datetime.now()))
         except BaseException as e:
