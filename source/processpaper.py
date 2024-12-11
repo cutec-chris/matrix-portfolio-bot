@@ -269,7 +269,8 @@ async def ProcessStrategy(paper,depot,data):
                     await bot.api.send_text_message(depot.room,tuser+' '+msg1)
                     await bot.api.send_text_message(depot.room,msg2)
                     res = True
-                paper['lastcheckwo'] = orderdate.strftime("%Y-%m-%d %H:%M:%S")
+            paper['lastcheckwo'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            res = True
         return res
     cerebro = None
     res = False
@@ -372,8 +373,10 @@ async def check_depot(depot,fast=False):
                             await asyncio.sleep(0.1)
                             ps = await ProcessStrategy(paper,depot,df)
                             ShouldSave = ShouldSave or ps
+                            if ShouldSave: 
+                                await save_servers()
                             await asyncio.sleep(0.1)
-                            break
+                            #break
                 if symbols == []:
                     logger.debug(depot.name+' checking long not updated '+str(datetime.datetime.now()))
                     #check one paper longer as 1d not checked
