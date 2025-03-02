@@ -504,7 +504,7 @@ class UpdateCyclic:
             if sym:
                 if sym.market == Market.etf:
                     return 4
-                if paper['count']>0:
+                if 'count' in paper and paper['count']>0:
                     return 1
                 ratings = await sym.GetTargetPrice(session)
                 if ratings and ratings[3] < 0:

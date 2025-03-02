@@ -241,7 +241,7 @@ async def ProcessStrategy(paper,depot,data):
         if cerebro:
             size_sum = 0
             price_sum = 0
-            checkfrom = datetime.datetime.now(datetime.UTC)-datetime.timedelta(days=30*3)
+            checkfrom = datetime.datetime.now()-datetime.timedelta(days=30*3)
             if 'lastcheck' in paper: checkfrom = datetime.datetime.strptime(paper['lastcheck'], "%Y-%m-%d %H:%M:%S")
             orderdate = datetime.datetime.now()
             for order in cerebro._broker.orders:
