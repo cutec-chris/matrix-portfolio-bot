@@ -256,6 +256,7 @@ async def status_handler(request):
         return aiohttp.web.HTTPServerError(text='Tasks not running')
 async def main():
     try:
+        logging.getLogger("nio.responses").setLevel(logging.ERROR)
         def unhandled_exception(loop, context):
             msg = context.get("exception", context["message"])
             logger.error(f"Unhandled exception caught: {msg}")
