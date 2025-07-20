@@ -24,9 +24,9 @@ async def analyze(room,message,match):
             sym = await database.FindSymbol(session,{'isin':match.args()[1]},market=depot.market)
             if sym:
                 if sym.currency and sym.currency != depot.currency:
-                    df = await sym.GetConvertedData(session,datetime.datetime.utcnow()-trange,None,depot.currency)
+                    df = await sym.GetConvertedData(session,datetime.datetime.now(datetime.UTC)-trange,None,depot.currency)
                 else:
-                    df = await sym.GetData(session,datetime.datetime.utcnow()-trange)
+                    df = await sym.GetData(session,datetime.datetime.now(datetime.UTC)-trange)
                 vola = 0.0
                 for index, row in df.iterrows():
                     avola = ((row['High']-row['Low'])/row['Close'])*100
@@ -62,7 +62,7 @@ async def analyze(room,message,match):
                         cerebro = None
                 if cerebro:
                     msg += 'Statistic ROI: %.2f\n' % (((cerebro.broker.getvalue() - initial_capital) / initial_capital)*100)
-                    checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
+                    checkfrom = datetime.datetime.now(tz=datetime.timezone.utc).replace(tzinfo=None)-datetime.timedelta(days=30*3)
                     amsg = None
                     for order in cerebro._broker.orders:
                         if order.status == 4:
@@ -110,7 +110,7 @@ async def overview(room,message,match):
                         if not 'name' in paper: paper['name'] = paper['ticker']
                         sym = await database.FindSymbol(session,paper,depot.market)
                         if sym:
-                            df = await sym.GetDataHourly(session,datetime.datetime.utcnow()-trange)
+                            df = await sym.GetDataHourly(session,datetime.datetime.now(datetime.UTC)-trange)
                             await asyncio.sleep(0.05)
                             aprice = await sym.GetActPrice(session,depot.currency)
                             analys = 'Price: %.2f<br>From: %s' % (aprice,str(await sym.GetActDate(session)))+'<br>'
@@ -182,14 +182,17 @@ async def overview(room,message,match):
                                     logger.warning('failed to process:'+str(e))
                                     return None
                                 return fpath
-                            image_uri = await process_cerebro(df,fpath)
-                            try:
-                                async with aiofiles.open(image_uri, 'rb') as tmpf:
-                                    resp, maybe_keys = await bot.api.async_client.upload(tmpf,content_type='image/jpeg')
-                                image_uri = resp.content_uri
-                            except BaseException as e:
-                                image_uri = None
-                                logger.warning('failed to upload img:'+str(e))
+                            image_source = await process_cerebro(df,fpath)
+                            for retry in range(15):
+                                try:
+                                    async with aiofiles.open(image_source, 'rb') as tmpf:
+                                        resp, maybe_keys = await bot.api.async_client.upload(tmpf,content_type='image/jpeg')
+                                    image_uri = resp.content_uri
+                                    break
+                                except BaseException as e:
+                                    image_uri = None
+                                    logger.warning('failed to upload img retry  '+str(retry)+':'+str(e))
+                                    await asyncio.sleep(1)
                     res = await bot.api.async_client.room_typing(room.room_id,True,timeout=30000) #refresh typing
                     result['msg_part'] = result['msg_part'].replace('<img src=""></img>','<img src="' + str(image_uri) + '"></img>')
                 except BaseException as e: logger.warning(str(e))
@@ -238,7 +241,7 @@ async def ProcessStrategy(paper,depot,data):
         if cerebro:
             size_sum = 0
             price_sum = 0
-            checkfrom = datetime.datetime.utcnow()-datetime.timedelta(days=30*3)
+            checkfrom = datetime.datetime.now()-datetime.timedelta(days=30*3)
             if 'lastcheck' in paper: checkfrom = datetime.datetime.strptime(paper['lastcheck'], "%Y-%m-%d %H:%M:%S")
             orderdate = datetime.datetime.now()
             for order in cerebro._broker.orders:
@@ -249,24 +252,25 @@ async def ProcessStrategy(paper,depot,data):
             if size_sum != 0:
                 if not 'lastreco' in paper: paper['lastreco'] = ''
                 if size_sum > 0:
-                    msg1 = '%s strategy %s propose buying %d x %s %s (%s) at %s' % (tuser,st['name'],round(size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
+                    msg1 = 'strategy %s propose buying %d x %s %s (%s) at %s' % (st['name'],round(size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
                     if hasattr(order,'chance'):
                         msg1 += ' chance %.1f till %s' % (order.chance,oder.chancetarget)
                     msg1 += '\n'
                     msg2 = 'buy %s %d' % (paper['isin'],round(size_sum))
-                    if paper['count']>0: 
-                        return False
+                    #if paper['count']>0: return False
                 else:
-                    msg1 = '%s strategy %s propose selling %d x %s %s (%s) at %s' % (tuser,st['name'],round(-size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
+                    msg1 = 'strategy %s propose selling %d x %s %s (%s) at %s' % (st['name'],round(-size_sum),paper['isin'],paper['name'],paper['ticker'],orderdate)
                     msg2 = 'sell %s %d' % (paper['isin'],round(-size_sum))
-                    if paper['count']==0: return False
+                    #if paper['count']==0: return False
                 if strategy+':'+msg2 != paper['lastreco']:
                     paper['lastreco'] = strategy+':'+msg2
                     paper['lastcheck'] = orderdate.strftime("%Y-%m-%d %H:%M:%S")
                     await plot_strategy(cerebro,depot)
-                    await bot.api.send_text_message(depot.room,msg1)
+                    await bot.api.send_text_message(depot.room,tuser+' '+msg1)
                     await bot.api.send_text_message(depot.room,msg2)
                     res = True
+            paper['lastcheckwo'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            res = True
         return res
     cerebro = None
     res = False
@@ -340,6 +344,7 @@ async def check_depot(depot,fast=False):
         await ChangeDepotStatus(depot,'updating '+" ".join(check_status))
         next_minute = (next_minute + datetime.timedelta(minutes=1)).replace(second=0, microsecond=0)
         try:
+            #check all papers with new MinuteBars
             async with database.new_session() as session:
                 query = sqlalchemy.select(database.MinuteBar.symbol_id, sqlalchemy.func.max(database.MinuteBar.id).label("max_id")).where(database.MinuteBar.id > last_processed_minute_bar_id).group_by(database.MinuteBar.symbol_id)
                 new_bars = await session.execute(query)
@@ -356,19 +361,42 @@ async def check_depot(depot,fast=False):
                 random.shuffle(shuffled_papers)
                 targetmarket = None
                 if hasattr(depot,'market'): targetmarket = depot.market
+                #check updated papers
                 for sym in symbols:
                     for paper in shuffled_papers:
                         if paper['isin'] == sym.isin and sym.marketplace == targetmarket:
                             #Process strategy
                             if sym.currency and sym.currency != depot.currency:
-                                df = await sym.GetConvertedData(session,(TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
+                                df = await sym.GetConvertedData(session,(TillUpdated or datetime.datetime.now(datetime.UTC))-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
                             else:
-                                df = await sym.GetData(session,(TillUpdated or datetime.datetime.utcnow())-datetime.timedelta(days=30*3),TillUpdated)
+                                df = await sym.GetData(session,(TillUpdated or datetime.datetime.now(datetime.UTC))-datetime.timedelta(days=30*3),TillUpdated)
                             await asyncio.sleep(0.1)
                             ps = await ProcessStrategy(paper,depot,df)
                             ShouldSave = ShouldSave or ps
+                            if ShouldSave: 
+                                await save_servers()
                             await asyncio.sleep(0.1)
-                            break
+                            #break
+                if symbols == []:
+                    logger.debug(depot.name+' checking long not updated '+str(datetime.datetime.now()))
+                    #check one paper longer as 1d not checked
+                    for paper in shuffled_papers:
+                        sym = await database.FindSymbol(session,paper,market=depot.market)
+                        if sym.marketplace == targetmarket:
+                            checkfrom = datetime.datetime.now(datetime.UTC)-datetime.timedelta(days=30*3)
+                            if 'lastcheckwo' in paper: checkfrom = datetime.datetime.strptime(paper['lastcheckwo'], "%Y-%m-%d %H:%M:%S")
+                            if checkfrom.date() < datetime.datetime.now(datetime.UTC).date():
+                                #Process strategy
+                                if sym.currency and sym.currency != depot.currency:
+                                    df = await sym.GetConvertedData(session,(TillUpdated or datetime.datetime.now(datetime.UTC))-datetime.timedelta(days=30*3),TillUpdated,depot.currency)
+                                else:
+                                    df = await sym.GetData(session,(TillUpdated or datetime.datetime.now(datetime.UTC))-datetime.timedelta(days=30*3),TillUpdated)
+                                await asyncio.sleep(0.1)
+                                ps = await ProcessStrategy(paper,depot,df)
+                                ShouldSave = ShouldSave or ps
+                                if ShouldSave: 
+                                    await save_servers()
+                                break
             logger.debug(depot.name+' finished updates '+str(datetime.datetime.now()))
         except BaseException as e:
             logger.error(depot.name+' '+str(e))

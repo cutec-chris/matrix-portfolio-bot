@@ -61,9 +61,9 @@ async def DownloadChunc(session,sym,from_date,to_date,timeframe,paper,market):
             df = pandas.DataFrame(data)
             pdata = df.dropna()
             pdata["Datetime"] = pandas.to_datetime(pdata["Datetime"],utc=True)
-            gmtoffset = datetime.datetime.now()-datetime.datetime.utcnow()
-            pdata["Datetime"] -= gmtoffset
-            pdata["Datetime"] = pdata["Datetime"].dt.floor('S')
+            #gmtoffset = datetime.datetime.now()-datetime.datetime.utcnow()
+            #pdata["Datetime"] -= gmtoffset
+            pdata["Datetime"] = pdata["Datetime"].dt.floor('s')
             try:
                 olddate = await sym.GetActDate(session)
                 acnt = await sym.AppendData(session,pdata)

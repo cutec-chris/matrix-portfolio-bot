@@ -461,7 +461,7 @@ async def Init(loop):
             'isolation_level': None,
             }
         ConnStr='sqlite+aiosqlite:///'+str(Data)
-    engine=sqlalchemy.ext.asyncio.create_async_engine(ConnStr, connect_args=connect_args,pool_size=50, max_overflow=60,pool_recycle=3600,echo=False) 
+    engine=sqlalchemy.ext.asyncio.create_async_engine(ConnStr, connect_args=connect_args,pool_size=50, max_overflow=60,pool_recycle=3600)#,echo=False) 
     async def init_models():
         async with engine.begin() as conn:
             if 'sqlite' in ConnStr:
@@ -506,7 +506,7 @@ class UpdateCyclic:
             if sym:
                 if sym.market == Market.etf:
                     return 4
-                if paper['count']>0:
+                if 'count' in paper and paper['count']>0:
                     return 1
                 ratings = await sym.GetTargetPrice(session)
                 if ratings and ratings[3] < 0:
@@ -538,8 +538,12 @@ class UpdateCyclic:
                     internal_delay_mult[paper['isin']] = 1
                 try:
                     epaper = paper
-                    if paper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin'])+datetime.timedelta(seconds=self.Delay*await self.get_delay_mult(epaper,internal_delay_mult[paper['isin']])) < datetime.datetime.now()):
-                        res,till = await self.UpdateFunc(epaper,self.market)
+                    if paper and (not internal_updated.get(epaper['isin']) or internal_updated.get(epaper['isin']).replace(tzinfo=datetime.timezone.utc) +datetime.timedelta(seconds=self.Delay*await self.get_delay_mult(epaper,internal_delay_mult[paper['isin']])) < datetime.datetime.now(tz=datetime.timezone.utc)):
+                        try:
+                            res,till = await self.UpdateFunc(epaper,self.market)
+                        except BaseException as e:
+                            logger.error(str(e),stack_info=True)
+                            res = False
                         if res and till: 
                             internal_updated[paper['isin']] = till
                             if internal_delay_mult[paper['isin']] > 5:
@@ -547,12 +551,12 @@ class UpdateCyclic:
                             elif internal_delay_mult[paper['isin']] > 2:
                                 internal_delay_mult[paper['isin']] -= 1
                         else:
-                            internal_updated[paper['isin']] = datetime.datetime.now()
+                            internal_updated[paper['isin']] = datetime.datetime.now(tz=datetime.timezone.utc)
                             internal_delay_mult[paper['isin']] += 1
                         if self.WaitTime-(time.time()-started) > 0:
                             await asyncio.sleep(self.WaitTime-(time.time()-started))
                 except BaseException as e:
-                    logger.error(str(e))
+                    logger.error(str(e),stack_info=True)
             await asyncio.sleep(10)
 db_lock = asyncio.Lock()
 async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,Hours=365,Days=10*365):
@@ -560,6 +564,7 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,
     resp = None
     res = False
     olddate = None
+    TradingTimesOffset=2
     if (not 'name' in paper) or paper['name'] == None:
         resp = await SearchPaper(paper['isin'])
         if resp:
@@ -576,7 +581,7 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,
     async with new_session() as session:
         sym = await FindSymbol(session,paper,market,True)
         if 'ticker' in paper and paper['ticker']:
-            startdate = datetime.datetime.utcnow()-datetime.timedelta(days=30)
+            startdate = datetime.datetime.now(tz=datetime.timezone.utc)-datetime.timedelta(days=30)
         if sym:
             result = await session.execute(sqlalchemy.select(sqlalchemy.func.max(MinuteBar.date)).where(MinuteBar.symbol == sym))
             latest_date = result.fetchone()[0]
@@ -584,7 +589,7 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,
             if not latest_date:
                 startdate = datetime.datetime.now(tz=datetime.timezone.utc)-datetime.timedelta(days=Minutes15)
             if (not (sym.tradingstart and sym.tradingend))\
-            or ((sym.tradingstart.time() <= datetime.datetime.now(tz=datetime.timezone.utc).time() <= sym.tradingend.time()) and (datetime.datetime.now(tz=datetime.timezone.utc).weekday() < 5))\
+            or (((sym.tradingstart-datetime.timedelta(hours=TradingTimesOffset)).time() <= datetime.datetime.now(tz=datetime.timezone.utc).time() <= (sym.tradingend+datetime.timedelta(hours=TradingTimesOffset)).time()) and (datetime.datetime.now(tz=datetime.timezone.utc).weekday() < 5))\
             or (latest_date and latest_date < datetime.datetime.now(tz=datetime.timezone.utc)-datetime.timedelta(days=2)):
                 while startdate < datetime.datetime.now(tz=datetime.timezone.utc):
                     res,olddate = await DownloadChunc(session,sym,startdate,startdate+datetime.timedelta(days=Minutes15),'15m',paper,market)
@@ -593,7 +598,7 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,
     try:
         async with new_session() as session:
             sym = await FindSymbol(session,paper,market,True)
-            startdate = datetime.datetime.utcnow()-datetime.timedelta(days=Hours)
+            startdate = datetime.datetime.now(tz=datetime.timezone.utc)-datetime.timedelta(days=Hours)
             if sym:
                 result = await session.execute(sqlalchemy.select(sqlalchemy.func.min(MinuteBar.date)).where(MinuteBar.symbol == sym))
                 earliest_date = result.fetchone()[0]
