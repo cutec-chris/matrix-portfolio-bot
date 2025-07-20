@@ -163,6 +163,8 @@ class Symbol(Base):
                 continue
             # Add new data if it doesn't exist
             session.add(MinuteBar(date=date, open=row["Open"], high=row["High"], low=row["Low"], close=row["Close"], volume=row["Volume"], symbol=self))
+            async with db_lock:
+                await session.commit()
             res += 1
         return res
     async def GetData(self,session, start_date=None, end_date=None, timeframe='15m'):
@@ -459,7 +461,7 @@ async def Init(loop):
             'isolation_level': None,
             }
         ConnStr='sqlite+aiosqlite:///'+str(Data)
-    engine=sqlalchemy.ext.asyncio.create_async_engine(ConnStr, connect_args=connect_args,pool_size=50, max_overflow=60,pool_recycle=3600,echo=True) 
+    engine=sqlalchemy.ext.asyncio.create_async_engine(ConnStr, connect_args=connect_args,pool_size=50, max_overflow=60,pool_recycle=3600,echo=False) 
     async def init_models():
         async with engine.begin() as conn:
             if 'sqlite' in ConnStr:
@@ -587,8 +589,6 @@ async def UpdateTickerProto(paper,market,DownloadChunc,SearchPaper,Minutes15=30,
                 while startdate < datetime.datetime.now(tz=datetime.timezone.utc):
                     res,olddate = await DownloadChunc(session,sym,startdate,startdate+datetime.timedelta(days=Minutes15),'15m',paper,market)
                     startdate += datetime.timedelta(days=Minutes15)
-                async with db_lock:
-                    await session.commit()
     #download last 5 years if not there
     try:
         async with new_session() as session:
