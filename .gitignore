@@ -9,3 +9,4 @@ source/datasources/*/config.yaml
 source/datasources/xtb/xAPIConnector.py
 .venv/*
 .vscode/*
+.aider*

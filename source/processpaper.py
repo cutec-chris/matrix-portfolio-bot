@@ -311,7 +311,7 @@ async def ChangeDepotStatus(depot,newstatus):
                             sym = await database.FindSymbol(session,paper)
                             if sym:
                                 actprice = await sym.GetActPrice(session,depot.currency)
-                            else: 
+                            else:
                                 actprice = 0
                             sumactprice += actprice*paper['count']
                             sumprice += paper['price']
@@ -373,7 +373,7 @@ async def check_depot(depot,fast=False):
                             await asyncio.sleep(0.1)
                             ps = await ProcessStrategy(paper,depot,df)
                             ShouldSave = ShouldSave or ps
-                            if ShouldSave: 
+                            if ShouldSave:
                                 await save_servers()
                             await asyncio.sleep(0.1)
                             #break
@@ -394,7 +394,7 @@ async def check_depot(depot,fast=False):
                                 await asyncio.sleep(0.1)
                                 ps = await ProcessStrategy(paper,depot,df)
                                 ShouldSave = ShouldSave or ps
-                                if ShouldSave: 
+                                if ShouldSave:
                                     await save_servers()
                                 break
             logger.debug(depot.name+' finished updates '+str(datetime.datetime.now()))
@@ -405,7 +405,7 @@ async def check_depot(depot,fast=False):
             await ChangeDepotStatus(depot,'')
         else:
             await ChangeDepotStatus(depot,'updating '+" ".join(check_status))
-        if ShouldSave: 
+        if ShouldSave:
             await save_servers()
         wait_time = (next_minute - datetime.datetime.now()).total_seconds()
         if wait_time<0: wait_time = 1
@@ -471,7 +471,7 @@ async def check_dates(depot):
                         database.EarningsCalendar.release_date >= today,
                         database.EarningsCalendar.release_date <= tomorrow
                     )
-                )                
+                )
                 dates = await session.execute(query)
                 firstmsg = True
                 for entry in dates:
@@ -501,9 +501,9 @@ def parse_human_readable_duration(duration_str):
     kwargs = {units[unit]: value}
     return datetime.timedelta(**kwargs)
 def calculate_roi(df):
-    timeframes = [('1 hour', datetime.timedelta(hours=1)), 
-                  ('1 day', datetime.timedelta(days=1)), 
-                  ('1 month', datetime.timedelta(days=30)), 
+    timeframes = [('1 hour', datetime.timedelta(hours=1)),
+                  ('1 day', datetime.timedelta(days=1)),
+                  ('1 month', datetime.timedelta(days=30)),
                   ('1 year', datetime.timedelta(days=365)),
                   ('all', df.index.max() - df.index.min())]
     roi = {}
