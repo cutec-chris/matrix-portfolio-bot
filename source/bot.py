@@ -224,8 +224,8 @@ async def bot_help(room, message):
                         market: per depot
             create-order:
                 command: order type isin/ticker params
-                description: create an special order 
-                    type: 
+                description: create an special order
+                    type:
                         iplan (Investment plan) params: price day(in month) [depot]
                         limit (Limit order) params: limit count [depot]
                         tsl (Trailing Stop Loss) params: initial_stop trailing_perc [depot]
@@ -235,8 +235,8 @@ async def bot_help(room, message):
                 """
     match = botlib.MessageMatch(room, message, bot, prefix)
     if match.is_not_from_this_bot() and (
-       match.command("help") 
-    or match.command("?") 
+       match.command("help")
+    or match.command("?")
     or match.command("h")):
         await bot.api.send_text_message(room.room_id, bot_help_message)
 async def status_handler(request):
@@ -269,7 +269,7 @@ async def main():
             app.add_routes([aiohttp.web.get('/status', status_handler)])
             runner = aiohttp.web.AppRunner(app, access_log=None)
             await runner.setup()
-            site = aiohttp.web.TCPSite(runner,port=9998)    
+            site = aiohttp.web.TCPSite(runner,port=9998)
             await site.start()
         except BaseException as e:
             logging.warning('failed to start healthcheck: '+str(e))
