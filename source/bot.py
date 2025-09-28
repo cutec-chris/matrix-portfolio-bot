@@ -1,5 +1,5 @@
 from init import *
-import pathlib,database,pandas_ta,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles,aiohttp,aiohttp.web,random,backtests,os
+import pathlib,database,importlib.util,logging,os,pandas,sqlalchemy.sql.expression,datetime,sys,backtrader,time,aiofiles,aiohttp,aiohttp.web,random,backtests,os
 import managepaper,processpaper,os,traceback
 class Portfolio(Config):
     def __init__(self, room, **kwargs) -> None:

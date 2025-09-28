@@ -1,7 +1,7 @@
 simplematrixbotlib
 pyyaml
 git+https://github.com/WISEPLAT/backtrader.git
-pandas_ta
+#pandas-ta==0.3.14b0
 sqlalchemy[asyncio]
 aiosqlite
 aiomysql
