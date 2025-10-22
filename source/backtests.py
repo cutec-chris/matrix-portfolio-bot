@@ -66,7 +66,7 @@ async def default_backtest(Strategy=None,ticker=None,isin=None,start=datetime.da
         data = pandas.concat([data_d, data]).sort_index()
     cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
     cerebro.broker.setcash(initial_capital)
-    cerebro.addsizer(backtrader.sizers.PercentSizer, percents=33.3)
+    cerebro.addsizer(backtrader.sizers.PercentSizer, percents=5)
     cerebro.addobserver(backtrader.observers.BuySell,barplot=True,bardist=0.001)  # buy / sell arrows
     cerebro.addobserver(backtrader.observers.Broker)
     cerebro.addobserver(backtrader.observers.Trades)
@@ -98,7 +98,7 @@ async def backtest_all(Strategy=None,start=datetime.datetime.utcnow()-datetime.t
                     data = pandas.concat([data_d, data]).sort_index()
                 cerebro.adddata(backtrader.feeds.PandasData(dataname=data))
                 cerebro.broker.setcash(initial_capital)
-                cerebro.addsizer(backtrader.sizers.PercentSizer, percents=33.3)
+                cerebro.addsizer(backtrader.sizers.PercentSizer, percents=5)
                 cerebro.addobserver(backtrader.observers.BuySell,barplot=True,bardist=0.001)  # buy / sell arrows
                 cerebro.addobserver(backtrader.observers.Broker)
                 cerebro.addobserver(backtrader.observers.Trades)
